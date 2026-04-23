@@ -337,8 +337,13 @@ canvas{display:block;width:100%;height:100%}
   <div class="scr hidden" id="scr-char-select">
     <div class="stitle" style="font-size:16px;letter-spacing:3px">캐릭터 선택</div>
     <div class="ssub">한 명 선택 후 게임 시작</div>
+    <div id="char-img-hint" style="display:none;font-family:var(--tf);font-size:10px;color:var(--ca);margin-bottom:8px;text-align:center">
+      ▶ Characters.png 를 업로드하면 캐릭터 일러스트가 표시됩니다
+      <input type="file" id="char-img-upload" accept="image/*" style="display:none" onchange="onCharImgUpload(event)"/>
+      <button class="sbtn" style="padding:3px 12px;font-size:10px;margin-left:8px" onclick="document.getElementById('char-img-upload').click()">이미지 업로드</button>
+    </div>
     <div id="csg"></div>
-    <div style="display:flex;gap:7px">
+    <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center">
       <button class="sbtn gray" onclick="showScr('title')">← 뒤로</button>
       <button class="sbtn" id="btn-start" onclick="startGame()" disabled>[ 게임 시작 ]</button>
     </div>
@@ -558,6 +563,8 @@ function showScr(id){
   document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));
   if(id){const el=document.getElementById('scr-'+id);if(el)el.classList.remove('hidden');}
   if(id==='char-select') renderCharSelect();
+  if(id==='settings'){renderKBGrid();prevScr=prevScr||'title';}
+  if(id==='multi-lobby') renderMultiMembers();
 }
 function hideAllOverlays(){document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));document.getElementById('floor-map-screen').classList.add('hidden');document.getElementById('inv-screen').classList.add('hidden');document.getElementById('shop-screen').classList.add('hidden');document.getElementById('stage-clear').style.display='none';}
 function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
@@ -569,22 +576,116 @@ function hideShop(){document.getElementById('shop-screen').classList.add('hidden
 
 /* ═══════ CHAR SELECT ═══════ */
 let selChar=-1,takenChars=new Set();
+
+// 업로드된 Characters.png 에서 스프라이트/일러스트 좌표
+// 이미지 전체: 1344×896, 4분할 (각 672×448)
+// 각 분면: 일러스트(좌측 약 280px), 스프라이트시트(우측 박스)
+// 스프라이트: 4열×2행, 각 프레임 약 64×80px
+const CHAR_IMG_SRC='/mnt/user-data/uploads/Characters.png'; // 로컬 테스트용
+// 배포 시에는 이미지를 public/ 폴더에 넣고 경로를 'Characters.png'로 변경
+
+// 캐릭터별 이미지 좌표 (전체 이미지 기준 px)
+// [일러스트: x,y,w,h] [스프라이트시트: x,y,frameW,frameH,cols,rows]
+const CHAR_COORDS=[
+  { // 이준호 (탱커) — 좌상단
+    illust:{x:8,  y:60, w:280,h:380},
+    sprite:{x:295,y:68, fw:88,fh:100,cols:4,rows:2}
+  },
+  { // 김서아 (서포터) — 우상단
+    illust:{x:676,y:55, w:280,h:390},
+    sprite:{x:965,y:68, fw:88,fh:100,cols:4,rows:2}
+  },
+  { // 박민재 (딜러) — 좌하단
+    illust:{x:8,  y:500,w:280,h:390},
+    sprite:{x:295,y:512,fw:88,fh:100,cols:4,rows:2}
+  },
+  { // 오하나 (힐러) — 우하단
+    illust:{x:676,y:495,w:280,h:395},
+    sprite:{x:965,y:508,fw:88,fh:100,cols:4,rows:2}
+  },
+];
+
+// 이미지 미리 로드
+const charImg=new Image();
+let charImgLoaded=false;
+charImg.onload=()=>{charImgLoaded=true;if(selChar>=0)renderCharSelect();};
+charImg.onerror=()=>{charImgLoaded=false;};
+// data URI로 임베드하거나 서버 경로 사용
+// 브라우저에서 직접 열 때는 로컬 파일 접근 제한이 있으므로
+// 아래 함수로 파일을 읽어서 base64로 변환
+function loadCharImage(file){
+  const reader=new FileReader();
+  reader.onload=e=>{charImg.src=e.target.result;};
+  reader.readAsDataURL(file);
+}
+
 function renderCharSelect(){
   const g=document.getElementById('csg');
   g.innerHTML=CHARS.map((c,i)=>{
     const taken=takenChars.has(i)&&i!==selChar,picked=selChar===i;
     const sc={HP:'#e24b4b',ATK:c.color,DEF:'#5dcaa5',SPD:'#7f77dd'};
-    return `<div class="ccard${picked?' picked':''}${taken?' taken':''}" onclick="pickChar(${i})">
+    const coord=CHAR_COORDS[i];
+    // 일러스트 캔버스 ID
+    const cvId=`char-illust-${i}`;
+    return `<div class="ccard${picked?' picked':''}${taken?' taken':''}" onclick="pickChar(${i})" style="position:relative">
       ${taken?'<span class="taken-b">사용중</span>':''}
-      <div class="cch"><div class="ccav" style="background:${c.bg};color:${c.color};border-color:${c.color}">${c.init}</div>
-      <div><div class="ccnm">${c.name}</div><div class="ccrole">${c.role}</div></div></div>
-      <div class="ccdesc">${c.desc}</div>
-      <div class="stml">${Object.entries(c.stats).map(([k,v])=>`<span class="stpil" style="background:${sc[k]}22;color:${sc[k]};border:1px solid ${sc[k]}44">${k}${v}</span>`).join('')}</div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="flex-shrink:0;width:80px;height:90px;border-radius:6px;overflow:hidden;background:#000;border:1.5px solid ${c.color}33">
+          <canvas id="${cvId}" width="80" height="90" style="display:block"></canvas>
+        </div>
+        <div style="flex:1">
+          <div class="cch" style="margin-bottom:4px">
+            <div class="ccav" style="background:${c.bg};color:${c.color};border-color:${c.color};width:28px;height:28px;font-size:10px">${c.init}</div>
+            <div><div class="ccnm">${c.name}</div><div class="ccrole">${c.role}</div></div>
+          </div>
+          <div class="ccdesc">${c.desc}</div>
+          <div class="stml">${Object.entries(c.stats).map(([k,v])=>`<span class="stpil" style="background:${sc[k]}22;color:${sc[k]};border:1px solid ${sc[k]}44">${k}${v}</span>`).join('')}</div>
+        </div>
+      </div>
+      ${picked?`<div style="position:absolute;top:6px;right:6px;font-family:var(--tf);font-size:9px;padding:2px 7px;border-radius:20px;background:${c.color}22;color:${c.color};border:1px solid ${c.color}55">선택됨</div>`:''}
     </div>`;
   }).join('');
+
+  // 캔버스에 일러스트 그리기 (약간 딜레이 후)
+  requestAnimationFrame(()=>drawCharIllusts());
   document.getElementById('btn-start').disabled=selChar<0;
+
+  // 이미지 미로드시 안내
+  if(!charImgLoaded){
+    const hint=document.getElementById('char-img-hint');
+    if(hint) hint.style.display='block';
+  }
 }
-function pickChar(i){if(takenChars.has(i))return;selChar=i;renderCharSelect();}
+
+function drawCharIllusts(){
+  CHARS.forEach((_,i)=>{
+    const cv=document.getElementById(`char-illust-${i}`);
+    if(!cv) return;
+    const c2=cv.getContext('2d');
+    c2.clearRect(0,0,80,90);
+    if(charImgLoaded){
+      const coord=CHAR_COORDS[i].illust;
+      // 이미지를 캔버스에 맞게 크롭해서 그리기
+      const scale=Math.min(80/coord.w,90/coord.h);
+      const dw=coord.w*scale,dh=coord.h*scale;
+      const dx=(80-dw)/2,dy=(90-dh)/2;
+      c2.drawImage(charImg,coord.x,coord.y,coord.w,coord.h,dx,dy,dw,dh);
+    } else {
+      // 이미지 없을 때 — 기존 SVG 스타일 폴백
+      const cd=CHARS[i];
+      c2.fillStyle=cd.color+'22';c2.fillRect(0,0,80,90);
+      c2.fillStyle=cd.color;c2.font='bold 28px Noto Sans KR';
+      c2.textAlign='center';c2.textBaseline='middle';c2.fillText(cd.init,40,45);
+    }
+  });
+}
+
+function pickChar(i){
+  if(takenChars.has(i))return;
+  selChar=i;
+  renderCharSelect();
+  wsPickChar(i);
+}
 
 /* ═══════ FLOOR MAP ═══════ */
 let currentFloor=0;
@@ -1596,18 +1697,68 @@ function startBGM(floor){
 }
 function stopBGM(){bgmPlaying=false;bgmOsc.forEach(o=>{try{o.stop();}catch(e){}});bgmOsc=[];}
 
-/* ═══════ SVG CHARACTER DRAW ═══════ */
-// 캐릭터별 SVG 묘사를 Canvas 2D로 직접 그리기
+/* ═══════ SVG CHARACTER DRAW (스프라이트 시트 우선, 폴백 SVG) ═══════ */
+
+// 이미지 업로드 핸들러
+function onCharImgUpload(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  loadCharImage(file);
+  showToast('캐릭터 이미지 로드 중...');
+}
+
+// 이동 방향 → 스프라이트 행/열 매핑
+// 스프라이트 시트: 4열×2행
+// 행0: 앞(0), 우(1), 좌(2), 뒤(3)  — 추정 배치
+// 행1: 공격/이동 변형 프레임들
+function getSpriteFace(angle){
+  // 각도를 8방향으로 변환
+  const deg=((angle*180/Math.PI)+360)%360;
+  if(deg<22.5||deg>=337.5) return {row:0,col:1}; // 우
+  if(deg<67.5)  return {row:1,col:1}; // 우하
+  if(deg<112.5) return {row:0,col:0}; // 하(앞)
+  if(deg<157.5) return {row:1,col:0}; // 좌하
+  if(deg<202.5) return {row:0,col:2}; // 좌
+  if(deg<247.5) return {row:1,col:2}; // 좌상
+  if(deg<292.5) return {row:0,col:3}; // 상(뒤)
+  return {row:1,col:3};               // 우상
+}
+
+// 걷기 애니메이션 프레임 (이동 중일 때 흔들림)
+let walkFrame=0,walkTick=0;
+
 function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
   if(invBlink) return;
   ctx.save();
   ctx.translate(x,y);
 
-  switch(charIdx){
-    case 0: drawJun(ctx,angle); break;   // 이준호 탱커
-    case 1: drawSea(ctx,angle); break;   // 김서아 서포터
-    case 2: drawMin(ctx,angle); break;   // 박민재 딜러
-    case 3: drawHana(ctx,angle); break;  // 오하나 힐러
+  if(charImgLoaded){
+    // ── 스프라이트 시트 렌더링 ──
+    const coord=CHAR_COORDS[charIdx];
+    const sp=coord.sprite;
+    const face=getSpriteFace(angle);
+
+    // 걷기 프레임: 이동 키 누를 때 col을 교대
+    walkTick++;
+    if(walkTick>8){walkTick=0;walkFrame=(walkFrame+1)%2;}
+    // 실제 열: face.col 기준, 이동중이면 +0/+4 교대 (시트 구조에 따라)
+    const col=face.col;
+    const row=face.row;
+
+    const sx=sp.x + col*sp.fw;
+    const sy=sp.y + row*sp.fh;
+    const drawW=sp.fw*0.55; // 게임 내 표시 크기 (픽셀)
+    const drawH=sp.fh*0.55;
+
+    ctx.drawImage(charImg, sx,sy,sp.fw,sp.fh, -drawW/2,-drawH/2, drawW,drawH);
+  } else {
+    // ── SVG 폴백 ──
+    switch(charIdx){
+      case 0: drawJun(ctx,angle); break;
+      case 1: drawSea(ctx,angle); break;
+      case 2: drawMin(ctx,angle); break;
+      case 3: drawHana(ctx,angle); break;
+    }
   }
   ctx.restore();
 }
@@ -2236,11 +2387,38 @@ function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 
 /* ═══════ INIT ═══════ */
 loadKB();updateKeyLabels();showScr('title');
-// 자동 연결 시도 (로컬 개발용)
+
+// Characters.png 자동 로드 시도 (서버 환경 or public/ 폴더)
+(function autoLoadCharImg(){
+  const paths=['Characters.png','./Characters.png','./public/Characters.png','../Characters.png'];
+  let idx=0;
+  function tryNext(){
+    if(idx>=paths.length){
+      // 모두 실패 → 업로드 힌트 표시 + SVG 폴백 사용
+      const h=document.getElementById('char-img-hint');
+      if(h) h.style.display='block';
+      return;
+    }
+    const img=new Image();
+    img.onload=()=>{
+      charImg.src=img.src;
+      // charImg.onload에서 charImgLoaded=true 처리됨
+    };
+    img.onerror=()=>{idx++;tryNext();};
+    img.src=paths[idx++];
+  }
+  tryNext();
+})();
+
+// 서버에서 파일을 serving할 때도 동일 경로로 시도
 setTimeout(()=>{
+  if(!charImgLoaded){
+    charImg.src='Characters.png';
+  }
+  // WebSocket 자동 연결 시도 (로컬 개발용)
   const serverEl=document.getElementById('inp-server');
   if(serverEl) wsConnect();
-},500);
+},300);
 </script>
 </body>
 </html>
