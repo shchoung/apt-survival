@@ -1198,7 +1198,9 @@ function useSkill(i){
   if(cdT[i]>0)return;
   const sk=SKDATA[selChar][i];if(!sk)return;
   cdT[i]=sk.cd;
-  document.getElementById('sk'+i).classList.add('act');setTimeout(()=>document.getElementById('sk'+i).classList.remove('act'),200);
+  document.getElementById('sk'+i).classList.add('act');
+  setTimeout(()=>document.getElementById('sk'+i).classList.remove('act'),200);
+
   const eq=getEquipStats();
   const atkTotal=(player.atk+eq.atk)*eq.atkMult;
   const mw=s2w(mouseX,mouseY);
@@ -1211,14 +1213,31 @@ function useSkill(i){
   else if(i===3) SFX.ultimate();
 
   // 멀티 브로드캐스트
-  const mw=s2w(mouseX,mouseY);
-  const ang=Math.atan2(mw.y-player.y,mw.x-player.x);
   sendWsSkill(i,player.x,player.y,ang);
+
+  // 힐/버프 스킬
+  if(sk.dmg<0){
+    SFX.heal();
+    spawnSkillFX('heal',player.x,player.y,ang,CHARS[selChar].color);
     if(sk.aoe>0) spawnSkillFX('aoe',player.x,player.y,ang,CHARS[selChar].color);
     const h=Math.floor(-sk.dmg*atkTotal*(1+eq.healBonus));
-    if(sk.aoe>0){enemies.forEach(e=>{const d=Math.sqrt((e.x-player.x)**2+(e.y-player.y)**2);if(d<sk.aoe){const dm=Math.max(1,Math.floor(atkTotal*.3));e.hp-=dm;e.flick=6;addFloat(e.x,e.y,`-${dm}`,'#ff7070');if(e.hp<=0)killEnemy(e);}});enemies=enemies.filter(e=>e.hp>0);}
-    if(sk.heal||sk.dmg<0){player.hp=Math.min(player.maxHp,player.hp+h);addFloat(player.x,player.y,`+${h}`,'#5dcaa5');sparks(player.x,player.y,'#5dcaa5',10);}
-    addLog(`${CHARS[selChar].skills[i]}`,'lsk');return;
+    if(sk.aoe>0){
+      enemies.forEach(e=>{
+        const d=Math.sqrt((e.x-player.x)**2+(e.y-player.y)**2);
+        if(d<sk.aoe){
+          const dm=Math.max(1,Math.floor(atkTotal*.3));
+          e.hp-=dm;e.flick=6;
+          addFloat(e.x,e.y,`-${dm}`,'#ff7070');
+          if(e.hp<=0)killEnemy(e);
+        }
+      });
+      enemies=enemies.filter(e=>e.hp>0);
+    }
+    player.hp=Math.min(player.maxHp,player.hp+h);
+    addFloat(player.x,player.y,`+${h}`,'#5dcaa5');
+    sparks(player.x,player.y,'#5dcaa5',10);
+    addLog(`${CHARS[selChar].skills[i]}`,'lsk');
+    return;
   }
 
   // 공격 스킬
