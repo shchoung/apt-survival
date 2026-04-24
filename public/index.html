@@ -681,6 +681,8 @@ function showScr(id){
   if(id==='char-select') renderCharSelect();
   if(id==='settings'){renderKBGrid();prevScr=prevScr||'title';}
   if(id==='multi-lobby') renderMultiMembers();
+  // 타이틀로 돌아오면 BGM 재시작
+  if(id==='title') startBGM(0);
 }
 function hideAllOverlays(){document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));document.getElementById('floor-map-screen').classList.add('hidden');document.getElementById('inv-screen').classList.add('hidden');document.getElementById('shop-screen').classList.add('hidden');document.getElementById('stage-clear').style.display='none';}
 function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
@@ -1872,54 +1874,6 @@ const SFX={
   bossBgm(){},
   playerDmg(){playNoise(.12,.5,300);playTone(150,'square',.1,.3);},
 };
-
-// BGM — 층별 분위기
-function startBGM(floor){
-  stopBGM();
-  try{
-    const ac=getAudio();
-    const isBoss=BOSS_FLOORS.has(floor);
-    // 베이스 드론
-    const baseFreq=isBoss?55:floor<3?80:floor<12?70:60;
-    const notes=isBoss?[55,58,55,52,55,58,62,58]:[80,80,90,80,75,80,85,80];
-    let step=0;
-    function playStep(){
-      if(!bgmPlaying) return;
-      const o=ac.createOscillator();
-      const g=ac.createGain();
-      o.connect(g);g.connect(bgmGain);
-      o.type=isBoss?'sawtooth':'triangle';
-      o.frequency.value=notes[step%notes.length];
-      g.gain.setValueAtTime(.6,ac.currentTime);
-      g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.4);
-      o.start();o.stop(ac.currentTime+.5);
-      bgmOsc.push(o);
-      step++;
-      if(bgmPlaying) setTimeout(playStep,isBoss?300:500);
-    }
-    // 코드 패드
-    function playPad(){
-      if(!bgmPlaying) return;
-      const chord=isBoss?[110,138,165]:[160,192,240];
-      chord.forEach(f=>{
-        try{
-          const o=ac.createOscillator(),g=ac.createGain();
-          o.connect(g);g.connect(bgmGain);
-          o.type='sine';o.frequency.value=f;
-          g.gain.setValueAtTime(.0001,ac.currentTime);
-          g.gain.linearRampToValueAtTime(.25,ac.currentTime+1);
-          g.gain.linearRampToValueAtTime(.0001,ac.currentTime+3.8);
-          o.start();o.stop(ac.currentTime+4);
-          bgmOsc.push(o);
-        }catch(e){}
-      });
-      if(bgmPlaying) setTimeout(playPad,4000);
-    }
-    bgmPlaying=true;
-    playStep();playPad();
-  }catch(e){}
-}
-function stopBGM(){bgmPlaying=false;bgmOsc.forEach(o=>{try{o.stop();}catch(e){}});bgmOsc=[];}
 
 /* ═══════ SVG CHARACTER DRAW (스프라이트 시트 우선, 폴백 SVG) ═══════ */
 
