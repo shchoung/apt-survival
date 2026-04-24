@@ -2,46 +2,70 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>APT Survival</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+KR:wght@400;700&display=swap');
-*{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{height:100%;height:-webkit-fill-available}
 :root{
   --c0:#07090d;--c1:#0d1117;--c2:#141e2b;--c3:#1e3a5f;
   --ct:#5dcaa5;--ca:#ef9f27;--cr:#e24b4b;--cp:#7f77dd;
   --cg:#888780;--tf:'Share Tech Mono',monospace;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
 }
-body{background:var(--c0);color:#e0e8f0;font-family:'Noto Sans KR',sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+body{
+  background:var(--c0);color:#e0e8f0;
+  font-family:'Noto Sans KR',sans-serif;
+  overflow:hidden;
+  width:100vw;height:100vh;height:100dvh;
+  display:flex;flex-direction:column;
+  touch-action:none;
+  -webkit-overflow-scrolling:touch;
+  padding-top:var(--safe-top);
+  padding-bottom:var(--safe-bot);
+}
 
 /* HUD */
-#hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:5px 12px;gap:8px;background:var(--c1);border-bottom:1px solid var(--c3);flex-shrink:0;z-index:10}
-.hud-left,.hud-right{display:flex;gap:8px;align-items:center}
-.hud-right{justify-content:flex-end}
-.game-title{font-family:var(--tf);font-size:12px;color:var(--ct);letter-spacing:3px;text-align:center}
-.floor-info{font-family:var(--tf);font-size:10px;color:var(--ca);text-align:center;margin-top:1px}
-.hchip{font-family:var(--tf);font-size:10px;color:#a0bcd0;background:var(--c2);border:1px solid var(--c3);border-radius:4px;padding:2px 6px;cursor:pointer;white-space:nowrap}
-.hchip:hover{border-color:var(--ct);color:var(--ct)}
-.char-hud{display:flex;align-items:center;gap:6px}
-.cav{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:1.5px solid;flex-shrink:0}
-.bwrap{width:72px}
-.blbl{font-size:9px;color:#7a9ab8;font-family:var(--tf);margin-bottom:1px}
+#hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:5px 8px;gap:6px;background:var(--c1);border-bottom:1px solid var(--c3);flex-shrink:0;z-index:10}
+.hud-left,.hud-right{display:flex;gap:6px;align-items:center}
+.hud-right{justify-content:flex-end;flex-wrap:wrap}
+.game-title{font-family:var(--tf);font-size:11px;color:var(--ct);letter-spacing:2px;text-align:center}
+.floor-info{font-family:var(--tf);font-size:9px;color:var(--ca);text-align:center;margin-top:1px}
+.hchip{font-family:var(--tf);font-size:9px;color:#a0bcd0;background:var(--c2);border:1px solid var(--c3);border-radius:4px;padding:2px 5px;cursor:pointer;white-space:nowrap;user-select:none}
+.hchip:active{border-color:var(--ct);color:var(--ct)}
+.char-hud{display:flex;align-items:center;gap:5px}
+.cav{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:1.5px solid;flex-shrink:0}
+.bwrap{width:64px}
+.blbl{font-size:8px;color:#7a9ab8;font-family:var(--tf);margin-bottom:1px}
 .bbg{height:4px;border-radius:2px;background:#1a2535;overflow:hidden}
 .bfill{height:100%;border-radius:2px;transition:width .3s}
 .hpf{background:#e24b4b}.expf{background:#7f77dd}
 
 /* GAME WRAP */
-#game-wrap{flex:1;position:relative;overflow:hidden}
+#game-wrap{flex:1;position:relative;overflow:hidden;touch-action:none}
 canvas{display:block;width:100%;height:100%}
 
 /* SKILL BAR */
-#skill-bar{display:flex;gap:5px;padding:5px 12px;background:var(--c1);border-top:1px solid var(--c3);justify-content:center;align-items:center;flex-shrink:0}
-.skbtn{width:48px;height:48px;border-radius:8px;border:1.5px solid var(--c3);background:var(--c2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;position:relative;transition:.15s;user-select:none}
-.skbtn:hover{border-color:var(--ct)}
+#skill-bar{
+  display:flex;gap:6px;padding:6px 10px calc(6px + var(--safe-bot));
+  background:var(--c1);border-top:1px solid var(--c3);
+  justify-content:center;align-items:center;flex-shrink:0;
+}
+.skbtn{
+  width:52px;height:52px;border-radius:8px;border:1.5px solid var(--c3);background:var(--c2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  cursor:pointer;position:relative;transition:.1s;user-select:none;
+}
+.skbtn:active{border-color:var(--ca);background:#241e0f}
 .skbtn.act{border-color:var(--ca);background:#241e0f}
 .skbtn.cd{opacity:.5;cursor:not-allowed}
-.skicon{font-size:16px}.skkey{font-family:var(--tf);font-size:9px;color:#5a7a94}
-.skcd{position:absolute;bottom:2px;right:3px;font-family:var(--tf);font-size:9px;color:var(--ca)}
+.skicon{font-size:18px}.skkey{font-family:var(--tf);font-size:8px;color:#5a7a94}
+.skcd{position:absolute;bottom:2px;right:3px;font-family:var(--tf);font-size:8px;color:var(--ca)}
 
 /* PANELS */
 #log-panel{position:absolute;bottom:60px;left:8px;width:200px;background:#07090dcc;border:1px solid var(--c3);border-radius:6px;padding:6px;max-height:100px;overflow:hidden;pointer-events:none}
@@ -119,31 +143,69 @@ canvas{display:block;width:100%;height:100%}
 .fnode-icon{font-size:13px}
 
 /* INVENTORY */
-#inv-screen{position:absolute;inset:0;background:#07090df5;display:flex;flex-direction:column;z-index:90;padding:10px}
+#inv-screen{
+  position:absolute;inset:0;background:#07090df5;
+  display:flex;flex-direction:column;z-index:90;
+  padding:8px 8px calc(8px + var(--safe-bot));
+  overflow:hidden;
+}
 #inv-screen.hidden{display:none}
-.inv-title{font-family:var(--tf);font-size:14px;color:var(--ct);letter-spacing:2px;margin-bottom:8px;flex-shrink:0}
-.inv-layout{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;min-height:0}
-.inv-panel{background:var(--c1);border:0.5px solid var(--c3);border-radius:8px;padding:8px;display:flex;flex-direction:column;min-height:0}
-.inv-panel-title{font-family:var(--tf);font-size:11px;color:var(--ca);margin-bottom:6px;flex-shrink:0}
-.inv-slots{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;overflow-y:auto;flex:1}
-.islot{aspect-ratio:1;border-radius:5px;border:1.5px solid var(--c3);background:var(--c2);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:18px;transition:.15s}
-.islot:hover{border-color:#5a7a94}
+.inv-title{font-family:var(--tf);font-size:12px;color:var(--ct);letter-spacing:1px;margin-bottom:5px;flex-shrink:0}
+.inv-layout{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;flex:1;min-height:0;overflow:hidden;
+}
+.inv-panel{
+  background:var(--c1);border:0.5px solid var(--c3);border-radius:6px;
+  padding:6px;display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+.inv-panel-title{font-family:var(--tf);font-size:10px;color:var(--ca);margin-bottom:4px;flex-shrink:0}
+.inv-slots{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:3px;overflow-y:auto;flex:1;
+  -webkit-overflow-scrolling:touch;
+}
+.islot{
+  aspect-ratio:1;border-radius:4px;border:1.5px solid var(--c3);background:var(--c2);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;position:relative;font-size:14px;transition:.15s;
+}
+.islot:active{border-color:#5a7a94}
 .islot.sel{border-color:var(--ct);background:#0d1f1a}
 .islot.eq-slot{background:#141e2b}
 .islot.eq-slot.filled{background:#0d1f1a;border-color:#1D9E7533}
 .grade-c{border-color:#888780!important}.grade-b{border-color:#378ADD!important}
 .grade-a{border-color:#7f77dd!important}.grade-s{border-color:#ef9f27!important}
-.grade-badge{position:absolute;top:1px;right:2px;font-family:var(--tf);font-size:8px;font-weight:700}
+.grade-badge{position:absolute;top:0;right:1px;font-family:var(--tf);font-size:7px;font-weight:700}
 .gc{color:#888780}.gb{color:#378ADD}.ga{color:#7f77dd}.gs{color:#ef9f27}
-.enh-badge{position:absolute;bottom:1px;left:2px;font-family:var(--tf);font-size:8px;color:var(--ct)}
-.item-detail{background:var(--c2);border:0.5px solid var(--c3);border-radius:6px;padding:8px;margin-top:6px;flex-shrink:0}
-.itd-name{font-size:12px;font-weight:700;color:#e0e8f0;margin-bottom:3px}
-.itd-stat{font-family:var(--tf);font-size:10px;color:#a0bcd0;line-height:1.6}
-.itd-btns{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
-.itd-btn{font-family:var(--tf);font-size:10px;padding:3px 10px;border-radius:4px;border:1px solid var(--c3);background:transparent;color:#a0bcd0;cursor:pointer}
-.itd-btn:hover{border-color:var(--ct);color:var(--ct)}
-.eq-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.eq-lbl{font-family:var(--tf);font-size:9px;color:#5a7a94;text-align:center;margin-top:2px}
+.enh-badge{position:absolute;bottom:0;left:1px;font-family:var(--tf);font-size:7px;color:var(--ct)}
+.item-detail{
+  background:var(--c2);border:0.5px solid var(--c3);border-radius:5px;
+  padding:5px;margin-top:4px;flex-shrink:0;
+}
+.itd-name{font-size:11px;font-weight:700;color:#e0e8f0;margin-bottom:2px}
+.itd-stat{font-family:var(--tf);font-size:9px;color:#a0bcd0;line-height:1.5}
+.itd-btns{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.itd-btn{
+  font-family:var(--tf);font-size:9px;padding:3px 8px;border-radius:4px;
+  border:1px solid var(--c3);background:transparent;color:#a0bcd0;cursor:pointer;
+}
+.itd-btn:active{border-color:var(--ct);color:var(--ct)}
+
+/* 장착 슬롯 — 3개를 세로로 */
+.eq-grid{display:flex;flex-direction:column;gap:5px}
+.eq-item{display:flex;align-items:center;gap:6px}
+.eq-slot-box{
+  width:42px;height:42px;border-radius:5px;flex-shrink:0;
+  border:1.5px solid var(--c3);background:var(--c2);
+  display:flex;align-items:center;justify-content:center;font-size:16px;position:relative;
+}
+.eq-slot-box.filled{background:#0d1f1a}
+.eq-slot-info{flex:1;min-width:0}
+.eq-slot-lbl{font-family:var(--tf);font-size:9px;color:#5a7a94}
+.eq-slot-name{font-size:10px;color:#c0d8f0;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq-slot-stat{font-family:var(--tf);font-size:9px;color:var(--ct)}
 
 /* SHOP / ENHANCE */
 #shop-screen{position:absolute;inset:0;background:#07090df5;display:flex;flex-direction:column;z-index:90;padding:10px}
@@ -773,31 +835,45 @@ function renderInv(){
       </div>`;
   } else { det.style.display='none'; }
 
-  // 장착 슬롯
+  // 장착 슬롯 — 세로 리스트형
   const slots2=document.getElementById('eq-grid');
-  const SLOTS=[{key:'weapon',label:'무기',icon:'⚔'},{key:'armor',label:'방어구',icon:'🛡'},{key:'acc',label:'악세서리',icon:'💍'}];
+  const SLOTS=[
+    {key:'weapon',label:'무기',icon:'⚔'},
+    {key:'armor', label:'방어구',icon:'🛡'},
+    {key:'acc',   label:'악세서리',icon:'💍'}
+  ];
+  let totAtk=0,totDef=0;
+  Object.values(equipped).forEach(idx=>{
+    if(idx==null)return;const e=inventory[idx];if(!e)return;
+    const enh=ENH_LEVELS[e.enhLevel];
+    if(e.item.atk)totAtk+=e.item.atk+Math.floor(e.item.atk*enh.atkBonus);
+    if(e.item.def)totDef+=e.item.def;
+  });
   slots2.innerHTML=SLOTS.map(s=>{
     const idx=equipped[s.key];
     const entry=idx!=null?inventory[idx]:null;
-    return `<div>
-      <div class="islot eq-slot${entry?' filled grade-'+entry.item.grade.toLowerCase():''}">
+    const gc=entry?GRADES[entry.item.grade].color:'#5a7a94';
+    let statStr='';
+    if(entry){
+      const enh=ENH_LEVELS[entry.enhLevel];
+      if(entry.item.atk) statStr=`ATK+${entry.item.atk+Math.floor(entry.item.atk*enh.atkBonus)}`;
+      else if(entry.item.def) statStr=`DEF+${entry.item.def}`;
+    }
+    return `<div class="eq-item">
+      <div class="eq-slot-box${entry?' filled grade-'+entry.item.grade.toLowerCase():''}" style="${entry?'border-color:'+gc+'55':''}">
         ${entry?entry.item.icon:s.icon}
         ${entry?`<span class="grade-badge g${entry.item.grade.toLowerCase()}">${entry.item.grade}</span>`:''}
         ${entry&&entry.enhLevel>0?`<span class="enh-badge">+${entry.enhLevel}</span>`:''}
       </div>
-      <div class="eq-lbl" style="color:#5a7a94">${s.label}</div>
+      <div class="eq-slot-info">
+        <div class="eq-slot-lbl">${s.label}</div>
+        <div class="eq-slot-name" style="color:${entry?gc:'#5a7a94'}">${entry?entry.item.name:'미장착'}</div>
+        ${statStr?`<div class="eq-slot-stat">${statStr}</div>`:''}
+      </div>
     </div>`;
   }).join('');
-  // 장착 스탯 합산
-  let totAtk=0,totDef=0;
-  Object.values(equipped).forEach(idx=>{
-    if(idx==null) return;
-    const e=inventory[idx];if(!e)return;
-    const enh=ENH_LEVELS[e.enhLevel];
-    if(e.item.atk) totAtk+=e.item.atk+Math.floor(e.item.atk*enh.atkBonus);
-    if(e.item.def) totDef+=e.item.def;
-  });
-  document.getElementById('eq-stats').innerHTML=`장착 ATK +${totAtk}  DEF +${totDef}`;
+  document.getElementById('eq-stats').innerHTML=
+    `<span style="color:var(--cr)">ATK +${totAtk}</span>  <span style="color:var(--ct)">DEF +${totDef}</span>`;
 }
 
 function equipItem(idx){
@@ -1131,8 +1207,16 @@ function spawnEnemy(t){
   });
 }
 
-function resize(){W=gc_el.parentElement.clientWidth;H=gc_el.parentElement.clientHeight;gc_el.width=W;gc_el.height=H;}
-function w2s(wx,wy){return{x:wx-camX+W/2,y:wy-camY+H/2};}
+function resize(){
+  // 동적 뷰포트 높이 대응 (모바일 주소창 포함)
+  W=gc_el.parentElement.clientWidth;
+  H=gc_el.parentElement.clientHeight;
+  gc_el.width=W;gc_el.height=H;
+  // CSS 변수 업데이트
+  document.documentElement.style.setProperty('--vh',`${window.innerHeight*0.01}px`);
+}
+window.addEventListener('resize',()=>{resize();if(running){camX=player?.x||0;camY=player?.y||0;}});
+window.addEventListener('orientationchange',()=>{setTimeout(()=>{resize();},300);});function w2s(wx,wy){return{x:wx-camX+W/2,y:wy-camY+H/2};}
 function s2w(sx,sy){return{x:sx+camX-W/2,y:sy+camY-H/2};}
 function wall(wx,wy){const c=Math.floor(wx/TILE),r=Math.floor(wy/TILE);if(r<0||r>=ROWS||c<0||c>=COLS)return true;return MAP[r][c]>=1;}
 
@@ -1541,8 +1625,19 @@ window.addEventListener('resize',()=>{if(running)resize();});
 for(let i=0;i<4;i++) document.getElementById('sk'+i).addEventListener('click',((ii)=>()=>useSkill(ii))(i));
 
 /* ═══════ TOUCH CONTROLS ═══════ */
+// 모바일 여부 감지 → 자동 JOY 모드
 let ctrlMode=0;
 const CTRL_L=['⌨ KB','◎ JOY','✛ PAD'];
+function isMobile(){return('ontouchstart' in window)||navigator.maxTouchPoints>0||window.innerWidth<=768;}
+function initCtrlMode(){
+  if(isMobile()){
+    ctrlMode=1;
+    document.getElementById('ctrl-tog').textContent=CTRL_L[1];
+    document.getElementById('joy-wrap').style.display='block';
+    document.getElementById('dpad').style.display='none';
+    document.getElementById('tatk').style.display='flex';
+  }
+}
 function cycleCtrl(){
   ctrlMode=(ctrlMode+1)%3;
   document.getElementById('ctrl-tog').textContent=CTRL_L[ctrlMode];
@@ -2386,7 +2481,12 @@ function sendChat(){
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 /* ═══════ INIT ═══════ */
-loadKB();updateKeyLabels();showScr('title');
+loadKB();updateKeyLabels();
+// 화면 크기 초기화
+document.documentElement.style.setProperty('--vh',`${window.innerHeight*0.01}px`);
+// 모바일이면 자동 JOY 모드
+initCtrlMode();
+showScr('title');
 
 // Characters.png 자동 로드 시도 (서버 환경 or public/ 폴더)
 (function autoLoadCharImg(){
