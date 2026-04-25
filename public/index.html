@@ -247,6 +247,35 @@ canvas{display:block;width:100%;height:100%}
 .kbkey.listen{border-color:var(--ca);color:var(--ca);animation:blink .6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
+/* ── 로그인 / 회원가입 ── */
+.auth-tab{
+  flex:1;font-family:var(--tf);font-size:12px;padding:7px 0;
+  border:1.5px solid var(--c3);background:var(--c2);color:#5a7a94;
+  border-radius:5px;cursor:pointer;transition:.15s;
+}
+.auth-tab.active{border-color:var(--ct);color:var(--ct);background:#0d1f1a;}
+.auth-tab:active{opacity:.8}
+.auth-field{margin-bottom:10px}
+.auth-label{display:block;font-family:var(--tf);font-size:10px;color:#7a9ab8;margin-bottom:4px}
+.auth-input{
+  width:100%;font-family:var(--tf);font-size:13px;
+  background:var(--c1);border:1.5px solid var(--c3);
+  border-radius:5px;padding:9px 12px;color:#e0e8f0;outline:none;
+  transition:border-color .15s;
+}
+.auth-input:focus{border-color:var(--ct)}
+.auth-msg{
+  font-family:var(--tf);font-size:11px;min-height:18px;
+  margin-top:4px;padding:0 2px;
+}
+.auth-msg.ok{color:var(--ct)}.auth-msg.err{color:var(--cr)}
+.auth-spinner{
+  display:inline-block;width:12px;height:12px;
+  border:2px solid var(--c3);border-top-color:var(--ct);
+  border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
 /* TOAST */
 #toast{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);font-family:var(--tf);font-size:11px;padding:6px 16px;border-radius:20px;background:var(--c1);border:1px solid var(--c3);color:#e0e8f0;z-index:200;display:none;white-space:nowrap}
 
@@ -354,13 +383,82 @@ canvas{display:block;width:100%;height:100%}
     </div>
   </div>
 
-  <!-- TITLE -->
-  <div class="scr" id="scr-title">
+  <!-- TITLE (로그인 후) -->
+  <div class="scr hidden" id="scr-title">
     <div class="stitle">APT SURVIVAL</div>
     <div class="ssub">AI에게 지배당한 세계에서 살아남아라</div>
-    <button class="sbtn" onclick="showScr('char-select')">[ 솔로 플레이 ]</button>
+    <div id="title-user-info" style="margin-bottom:14px;text-align:center">
+      <div style="font-family:var(--tf);font-size:10px;color:#5a7a94;margin-bottom:3px">접속 중</div>
+      <div id="title-nick" style="font-family:var(--tf);font-size:18px;color:var(--ct);letter-spacing:2px"></div>
+      <div id="title-save-info" style="font-family:var(--tf);font-size:9px;color:#5a7a94;margin-top:2px"></div>
+    </div>
+    <button class="sbtn" onclick="showScr('char-select')">[ 게임 시작 ]</button>
     <button class="sbtn amb" onclick="showScr('multi-lobby')">[ 멀티플레이 ]</button>
-    <button class="sbtn gray" onclick="showScr('settings')">[ 키 설정 ]</button>
+    <button class="sbtn gray" onclick="showScr('settings')">[ 설 정 ]</button>
+    <button class="sbtn red" style="margin-top:10px;font-size:10px;padding:5px 18px" onclick="logout()">로그아웃</button>
+  </div>
+
+  <!-- 로그인 / 회원가입 -->
+  <div class="scr" id="scr-login">
+    <div class="stitle">APT SURVIVAL</div>
+    <div class="ssub">로그인하여 진행상황을 저장하세요</div>
+    <div style="width:100%;max-width:320px">
+      <div style="display:flex;gap:4px;margin-bottom:14px">
+        <button id="tab-login-btn" class="auth-tab active" onclick="switchAuthTab('login')">로그인</button>
+        <button id="tab-reg-btn" class="auth-tab" onclick="switchAuthTab('register')">회원가입</button>
+      </div>
+      <!-- 로그인 -->
+      <div id="auth-login">
+        <div class="auth-field">
+          <label class="auth-label">닉네임</label>
+          <input id="login-nick" class="auth-input" type="text" placeholder="닉네임 입력" maxlength="10"
+            onkeydown="if(event.key==='Enter')doLogin()"/>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">비밀번호</label>
+          <input id="login-pw" class="auth-input" type="password" placeholder="비밀번호 입력"
+            onkeydown="if(event.key==='Enter')doLogin()"/>
+        </div>
+        <div id="login-msg" class="auth-msg"></div>
+        <button class="sbtn" style="width:100%;margin-top:8px" onclick="doLogin()">로그인 →</button>
+      </div>
+      <!-- 회원가입 -->
+      <div id="auth-register" style="display:none">
+        <div class="auth-field">
+          <label class="auth-label">닉네임 <span style="color:#5a7a94">(2~10자)</span></label>
+          <input id="reg-nick" class="auth-input" type="text" placeholder="사용할 닉네임" maxlength="10"
+            onkeydown="if(event.key==='Enter')doRegister()"/>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">비밀번호 <span style="color:#5a7a94">(4자 이상)</span></label>
+          <input id="reg-pw" class="auth-input" type="password" placeholder="비밀번호 설정"
+            onkeydown="if(event.key==='Enter')doRegister()"/>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">비밀번호 확인</label>
+          <input id="reg-pw2" class="auth-input" type="password" placeholder="비밀번호 재입력"
+            onkeydown="if(event.key==='Enter')doRegister()"/>
+        </div>
+        <div id="reg-msg" class="auth-msg"></div>
+        <button class="sbtn" style="width:100%;margin-top:8px" onclick="doRegister()">회원가입 →</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
+        <div style="flex:1;height:1px;background:var(--c3)"></div>
+        <span style="font-family:var(--tf);font-size:10px;color:#5a7a94">또는</span>
+        <div style="flex:1;height:1px;background:var(--c3)"></div>
+      </div>
+      <button class="sbtn gray" style="width:100%;font-size:11px" onclick="guestPlay()">비회원으로 플레이</button>
+    </div>
+    <div style="margin-top:14px;width:100%;max-width:320px">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="api-server-url" class="auth-input" style="flex:1;font-size:10px"
+          placeholder="https://서버주소 (선택)" value="http://localhost:3000"/>
+        <div id="api-dot" style="width:8px;height:8px;border-radius:50%;background:#5a7a94;flex-shrink:0"></div>
+      </div>
+      <div style="font-family:var(--tf);font-size:9px;color:#5a7a94;margin-top:3px">
+        서버 없이도 비회원 플레이 가능
+      </div>
+    </div>
   </div>
 
   <!-- MULTI LOBBY -->
@@ -681,8 +779,8 @@ function showScr(id){
   if(id==='char-select') renderCharSelect();
   if(id==='settings'){renderKBGrid();prevScr=prevScr||'title';}
   if(id==='multi-lobby') renderMultiMembers();
-  // 타이틀로 돌아오면 BGM 재시작
   if(id==='title') startBGM(0);
+  if(id==='login') switchAuthTab('login');
 }
 function hideAllOverlays(){document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));document.getElementById('floor-map-screen').classList.add('hidden');document.getElementById('inv-screen').classList.add('hidden');document.getElementById('shop-screen').classList.add('hidden');document.getElementById('stage-clear').style.display='none';}
 function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
@@ -1779,44 +1877,99 @@ function drawTanker(ctx,angle){
 let audioCtx=null;
 let bgmGain=null,sfxGain=null;
 /* ═══════ BGM (Audio 태그 기반) ═══════ */
+/* ═══════ BGM 시스템 ═══════ */
 let bgmAudio=null;
 let bgmVolume=0.6;
+let bgmUnlocked=false;  // 브라우저 자동재생 정책 해제 여부
+let bgmPending=false;   // 재생 대기 중
 
 function initBgmAudio(){
   if(bgmAudio) return;
   bgmAudio=document.getElementById('bgm-audio');
+  if(!bgmAudio){
+    // audio 태그가 없으면 동적으로 생성
+    bgmAudio=document.createElement('audio');
+    bgmAudio.loop=true;
+    bgmAudio.preload='auto';
+    bgmAudio.volume=bgmVolume;
+    const src=document.createElement('source');
+    src.src='Neon_Distant_Rain.mp3';
+    src.type='audio/mpeg';
+    bgmAudio.appendChild(src);
+    document.body.appendChild(bgmAudio);
+  }
+  bgmAudio.volume=bgmVolume;
+
+  // 로드 에러 감지
+  bgmAudio.onerror=()=>console.warn('[BGM] MP3 로드 실패 - 파일 경로 확인');
+  bgmAudio.oncanplaythrough=()=>{
+    console.log('[BGM] 재생 준비 완료');
+    if(bgmPending) _playBGM();
+  };
+}
+
+function _playBGM(){
   if(!bgmAudio) return;
   bgmAudio.volume=bgmVolume;
+  const p=bgmAudio.play();
+  if(p!==undefined){
+    p.then(()=>{
+      bgmUnlocked=true;bgmPending=false;
+      console.log('[BGM] 재생 시작!');
+    }).catch(e=>{
+      console.warn('[BGM] 자동재생 차단됨 - 터치 대기 중',e.message);
+      bgmPending=true;
+    });
+  }
 }
 
 function startBGM(floor){
   initBgmAudio();
   if(!bgmAudio) return;
-  // 보스층은 볼륨 살짝 높이기
-  bgmAudio.volume=BOSS_FLOORS.has(floor)?Math.min(1,bgmVolume*1.3):bgmVolume;
-  const playPromise=bgmAudio.play();
-  if(playPromise!==undefined){
-    playPromise.catch(e=>{
-      // 자동재생 정책으로 막힐 때 → 첫 터치/클릭에서 재시도
-      const resume=()=>{bgmAudio.play().catch(()=>{});document.removeEventListener('click',resume);document.removeEventListener('touchstart',resume);};
-      document.addEventListener('click',resume,{once:true});
-      document.addEventListener('touchstart',resume,{once:true});
-    });
+  // 이미 재생 중이면 볼륨만 조정
+  if(!bgmAudio.paused){
+    bgmAudio.volume=BOSS_FLOORS&&BOSS_FLOORS.has(floor)?Math.min(1,bgmVolume*1.3):bgmVolume;
+    return;
   }
+  bgmPending=true;
+  _playBGM();
 }
 
 function stopBGM(){
   if(!bgmAudio) return;
   bgmAudio.pause();
   bgmAudio.currentTime=0;
+  bgmPending=false;
 }
 
 function setBgmVol(val){
   bgmVolume=parseInt(val)/100;
-  document.getElementById('bgm-vol-lbl').textContent=val;
+  const lbl=document.getElementById('bgm-vol-lbl');
+  if(lbl) lbl.textContent=val;
   if(bgmAudio) bgmAudio.volume=bgmVolume;
   try{if(bgmGain) bgmGain.gain.value=bgmVolume*0.3;}catch(e){}
 }
+
+// ── 핵심: 페이지 어디를 건드려도 BGM 잠금 해제 ──
+function unlockBGM(){
+  if(bgmUnlocked) return;
+  if(!bgmAudio) initBgmAudio();
+  if(!bgmAudio) return;
+  // 0.1초짜리 무음 재생으로 잠금 해제
+  bgmAudio.volume=bgmVolume;
+  const p=bgmAudio.play();
+  if(p!==undefined){
+    p.then(()=>{
+      bgmUnlocked=true;bgmPending=false;
+      console.log('[BGM] 잠금 해제 & 재생!');
+    }).catch(()=>{});
+  }
+}
+
+// 모든 사용자 입력에 BGM 잠금 해제 연결
+['click','touchstart','keydown','mousedown'].forEach(ev=>{
+  document.addEventListener(ev, unlockBGM, {once:false, passive:true});
+});
 
 let bgmOsc=[],bgmPlaying=false;
 
@@ -2278,6 +2431,200 @@ function fmtTime(s){const m=Math.floor(s/60);return`${String(m).padStart(2,'0')}
 function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',1800);}
 
+/* ═══════ 인증 시스템 ═══════ */
+let currentUser=null;   // {nick, token, save}
+let API_BASE='http://localhost:3000';
+let isGuest=false;
+
+function getApiBase(){
+  const el=document.getElementById('api-server-url');
+  return (el?.value||'http://localhost:3000').trim().replace(/\/$/,'');
+}
+
+function setApiDot(color){
+  const d=document.getElementById('api-dot');
+  if(d) d.style.background=color==='green'?'#5dcaa5':color==='red'?'#e24b4b':'#5a7a94';
+}
+
+function switchAuthTab(tab){
+  document.getElementById('auth-login').style.display=tab==='login'?'block':'none';
+  document.getElementById('auth-register').style.display=tab==='register'?'block':'none';
+  document.getElementById('tab-login-btn').classList.toggle('active',tab==='login');
+  document.getElementById('tab-reg-btn').classList.toggle('active',tab==='register');
+  document.getElementById('login-msg').textContent='';
+  document.getElementById('reg-msg').textContent='';
+}
+
+function setMsg(id,msg,isOk){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=msg;
+  el.className='auth-msg '+(isOk?'ok':'err');
+}
+
+async function doLogin(){
+  const nick=(document.getElementById('login-nick')?.value||'').trim();
+  const pw=document.getElementById('login-pw')?.value||'';
+  if(!nick||!pw){setMsg('login-msg','닉네임과 비밀번호를 입력하세요',false);return;}
+  setMsg('login-msg','로그인 중...', true);
+  setApiDot('yellow');
+  try{
+    const res=await fetch(getApiBase()+'/api/login',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({nick,password:pw}),
+    });
+    const data=await res.json();
+    if(data.ok){
+      setApiDot('green');
+      currentUser={nick:data.nick,token:data.token,save:data.save};
+      isGuest=false;
+      try{localStorage.setItem('apt_session',JSON.stringify({nick:data.nick,token:data.token}));}catch(e){}
+      afterLogin();
+    } else {
+      setApiDot('red');
+      setMsg('login-msg',data.msg||'로그인 실패',false);
+    }
+  } catch(e){
+    // 서버 없을 때 — 로컬 저장 데이터로 오프라인 로그인
+    setApiDot('red');
+    const localSave=tryLocalLogin(nick,pw);
+    if(localSave!==null){
+      currentUser={nick,token:null,save:localSave};
+      isGuest=false;
+      setMsg('login-msg','오프라인 로그인 (서버 미연결)',true);
+      setTimeout(afterLogin,800);
+    } else {
+      setMsg('login-msg','서버 연결 실패. 서버 주소를 확인하거나 비회원으로 플레이하세요',false);
+    }
+  }
+}
+
+async function doRegister(){
+  const nick=(document.getElementById('reg-nick')?.value||'').trim();
+  const pw=document.getElementById('reg-pw')?.value||'';
+  const pw2=document.getElementById('reg-pw2')?.value||'';
+  if(!nick||!pw||!pw2){setMsg('reg-msg','모든 항목을 입력하세요',false);return;}
+  if(nick.length<2||nick.length>10){setMsg('reg-msg','닉네임은 2~10자여야 합니다',false);return;}
+  if(pw.length<4){setMsg('reg-msg','비밀번호는 4자 이상이어야 합니다',false);return;}
+  if(pw!==pw2){setMsg('reg-msg','비밀번호가 일치하지 않습니다',false);return;}
+  setMsg('reg-msg','가입 중...', true);
+  try{
+    const res=await fetch(getApiBase()+'/api/register',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({nick,password:pw}),
+    });
+    const data=await res.json();
+    if(data.ok){
+      setMsg('reg-msg','가입 완료! 로그인 하세요 ✓',true);
+      // 로컬에도 암호화 없이 nick 저장 (오프라인 대비)
+      try{localStorage.setItem('apt_local_nick',nick);}catch(e){}
+      setTimeout(()=>switchAuthTab('login'),1200);
+    } else {
+      setMsg('reg-msg',data.msg||'가입 실패',false);
+    }
+  } catch(e){
+    // 서버 없을 때 로컬 가입
+    try{
+      const users=JSON.parse(localStorage.getItem('apt_local_users')||'{}');
+      if(users[nick]){setMsg('reg-msg','이미 사용 중인 닉네임입니다',false);return;}
+      users[nick]={nick,pw:btoa(pw)};
+      localStorage.setItem('apt_local_users',JSON.stringify(users));
+      setMsg('reg-msg','가입 완료 (오프라인 모드) ✓',true);
+      setTimeout(()=>switchAuthTab('login'),1200);
+    } catch(e2){
+      setMsg('reg-msg','서버 연결 실패. 서버 주소를 확인하세요',false);
+    }
+  }
+}
+
+// 오프라인 로컬 로그인
+function tryLocalLogin(nick,pw){
+  try{
+    const users=JSON.parse(localStorage.getItem('apt_local_users')||'{}');
+    const u=users[nick];
+    if(u&&u.pw===btoa(pw)){
+      return JSON.parse(localStorage.getItem('apt_save_'+nick)||'null');
+    }
+  }catch(e){}
+  return null;
+}
+
+function guestPlay(){
+  currentUser={nick:'생존자'+(Math.floor(Math.random()*9000)+1000),token:null,save:null};
+  isGuest=true;
+  afterLogin();
+}
+
+function afterLogin(){
+  const u=currentUser;
+  // 타이틀 유저 정보 표시
+  const tn=document.getElementById('title-nick');
+  const ts=document.getElementById('title-save-info');
+  if(tn) tn.textContent=u.nick+(isGuest?' [비회원]':'');
+  if(ts){
+    if(u.save){
+      const d=new Date(u.save.savedAt);
+      ts.textContent=`Lv${u.save.lv} · ${floorName?.(u.save.floor)||'B3F'} · ${d.toLocaleDateString()}`;
+    } else {
+      ts.textContent=isGuest?'진행상황이 저장되지 않습니다':'새 게임';
+    }
+  }
+  // 멀티로비 닉네임 자동 입력
+  const mn=document.getElementById('inp-mnick');
+  if(mn) mn.value=u.nick;
+  // WS 서버 주소 동기화
+  const apiEl=document.getElementById('api-server-url');
+  const wsEl=document.getElementById('inp-server');
+  if(wsEl&&apiEl){
+    const base=apiEl.value.replace(/^http/,'ws').replace(/^https/,'wss');
+    wsEl.value=base;
+  }
+  showScr('title');
+  startBGM(0);
+}
+
+function logout(){
+  if(running){
+    if(!confirm('게임 중입니다. 로그아웃 하시겠습니까?')) return;
+    stopBGM();running=false;
+  }
+  currentUser=null;isGuest=false;
+  try{localStorage.removeItem('apt_session');}catch(e){}
+  showScr('login');
+}
+
+// 자동 로그인 (세션 복원)
+async function tryAutoLogin(){
+  try{
+    const s=JSON.parse(localStorage.getItem('apt_session')||'null');
+    if(!s?.nick||!s?.token) return false;
+    // 서버 검증
+    const res=await fetch(getApiBase()+'/api/save/'+s.nick,{
+      headers:{'Authorization':s.token}
+    });
+    const data=await res.json();
+    if(data.ok){
+      currentUser={nick:s.nick,token:s.token,save:data.save};
+      isGuest=false;
+      afterLogin();
+      return true;
+    }
+  } catch(e){
+    // 오프라인 — 세션만으로 로그인
+    try{
+      const s=JSON.parse(localStorage.getItem('apt_session')||'null');
+      if(s?.nick){
+        const save=JSON.parse(localStorage.getItem('apt_save_'+s.nick)||'null');
+        currentUser={nick:s.nick,token:null,save};
+        isGuest=false;
+        afterLogin();
+        return true;
+      }
+    }catch(e2){}
+  }
+  return false;
+}
+
 /* ═══════ WEBSOCKET MULTIPLAYER ═══════ */
 let ws=null;
 let myPlayerId=null;
@@ -2563,11 +2910,8 @@ function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 
 /* ═══════ INIT ═══════ */
 loadKB();updateKeyLabels();
-// 화면 크기 초기화
 document.documentElement.style.setProperty('--vh',`${window.innerHeight*0.01}px`);
-// 모바일이면 자동 JOY 모드
 initCtrlMode();
-// BGM 볼륨 복원
 try{
   const savedVol=localStorage.getItem('apt_bgm_vol');
   if(savedVol!==null){
@@ -2578,9 +2922,13 @@ try{
     if(lbl) lbl.textContent=Math.round(bgmVolume*100);
   }
 }catch(e){}
-// BGM Audio 초기화
 initBgmAudio();
-showScr('title');
+
+// 자동 로그인 시도 → 실패 시 로그인 화면
+(async()=>{
+  const ok=await tryAutoLogin();
+  if(!ok) showScr('login');
+})();
 
 // Characters.png 자동 로드 시도 (서버 환경 or public/ 폴더)
 (function autoLoadCharImg(){
