@@ -452,7 +452,7 @@ canvas{display:block;width:100%;height:100%}
     <div style="margin-top:14px;width:100%;max-width:320px">
       <div style="display:flex;gap:6px;align-items:center">
         <input id="api-server-url" class="auth-input" style="flex:1;font-size:10px"
-          placeholder="https://서버주소 (선택)" value="https://apt-srvl.up.railway.app/"/>
+          placeholder="https://서버주소 (선택)" value="http://localhost:3000"/>
         <div id="api-dot" style="width:8px;height:8px;border-radius:50%;background:#5a7a94;flex-shrink:0"></div>
       </div>
       <div style="font-family:var(--tf);font-size:9px;color:#5a7a94;margin-top:3px">
@@ -468,7 +468,7 @@ canvas{display:block;width:100%;height:100%}
     <div style="max-width:480px;width:100%">
       <!-- 서버 주소 -->
       <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
-        <input id="inp-server" class="lobby-inp" placeholder="ws://서버주소:3000" value="wss://apt-srvl.up.railway.app/" style="flex:1;font-family:var(--tf);font-size:11px;background:var(--c1);border:1px solid var(--c3);border-radius:4px;padding:5px 9px;color:#e0e8f0;outline:none"/>
+        <input id="inp-server" class="lobby-inp" placeholder="ws://서버주소:3000" value="ws://localhost:3000" style="flex:1;font-family:var(--tf);font-size:11px;background:var(--c1);border:1px solid var(--c3);border-radius:4px;padding:5px 9px;color:#e0e8f0;outline:none"/>
         <button class="sbtn" style="padding:5px 14px;font-size:11px" onclick="wsConnect()">연결</button>
         <div id="ws-dot" style="width:8px;height:8px;border-radius:50%;background:#5a7a94;flex-shrink:0"></div>
       </div>
