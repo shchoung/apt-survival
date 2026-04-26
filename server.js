@@ -5,9 +5,9 @@
  * 실행: node server.js
  *
  * 환경변수 (Railway 자동 주입):
- *   DATABASE_URL  — PostgreSQL 연결 문자열
+ *   DATABASE_URL  — postgresql://postgres:PkUXGHMpZnrsjOpaQiviEKouvCQaeHrL@postgres.railway.internal:5432/railway
  *   PORT          — 포트 (기본 3000)
- *   JWT_SECRET    — 토큰 서명 키 (직접 설정 권장)
+ *   JWT_SECRET    — aA1!bB2@cC3#dD4$eE5%fF6
  */
 
 const express  = require('express');
