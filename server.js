@@ -30,6 +30,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 /* ══════════════════════════════════════
    PostgreSQL 연결
 ══════════════════════════════════════ */
+console.log(process.env.DATABASE_URL);
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL
