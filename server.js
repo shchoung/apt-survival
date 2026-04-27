@@ -5,9 +5,9 @@
  * 실행: node server.js
  *
  * 환경변수 (Railway 자동 주입):
- *   DATABASE_URL  — postgresql://postgres:PkUXGHMpZnrsjOpaQiviEKouvCQaeHrL@postgres.railway.internal:5432/railway
+ *   DATABASE_URL  — PostgreSQL 연결 문자열
  *   PORT          — 포트 (기본 3000)
- *   JWT_SECRET    — aA1!bB2@cC3#dD4$eE5%fF6
+ *   JWT_SECRET    — 토큰 서명 키 (직접 설정 권장)
  */
 
 const express  = require('express');
@@ -20,17 +20,29 @@ const { WebSocketServer, WebSocket } = require('ws');
 
 const app    = express();
 const server = http.createServer(app);
-const wss    = new WebSocketServer({ server });
+// ── WebSocket: path 없이 루트에 바인딩 (Railway 호환) ──
+const wss    = new WebSocketServer({ server, path: '/' });
 const PORT   = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'apt_survival_secret_2024';
 
+// ── CORS (Railway 도메인 허용) ──
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// ── 헬스체크 (Railway 생존 확인용) ──
+app.get('/health', (req, res) => res.json({ ok: true, version: '3.0' }));
+app.get('/api', (req, res) => res.json({ ok: true, msg: 'APT Survival API v3.0' }));
 
 /* ══════════════════════════════════════
    PostgreSQL 연결
 ══════════════════════════════════════ */
-console.log(process.env.DATABASE_URL);
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL
@@ -680,10 +692,22 @@ setInterval(async () => {
 (async () => {
   try {
     await initDB();
-    server.listen(PORT, () => {
+
+    // ── 정적 파일은 API 라우트 등록 후 맨 마지막에 ──
+    app.use(express.static(path.join(__dirname, 'public')));
+    // SPA 폴백 (모든 미매칭 GET → index.html)
+    app.get('*', (req, res) => {
+      const idx = path.join(__dirname, 'public', 'index.html');
+      res.sendFile(idx, err => {
+        if (err) res.status(404).json({ ok: false, msg: 'Not found' });
+      });
+    });
+
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`\n🎮 APT Survival Server v3.0`);
-      console.log(`   http://localhost:${PORT}`);
-      console.log(`   DB: ${process.env.DATABASE_URL ? 'PostgreSQL (Railway)' : 'DATABASE_URL 없음!'}\n`);
+      console.log(`   PORT: ${PORT}`);
+      console.log(`   DB: ${process.env.DATABASE_URL ? '✅ PostgreSQL' : '❌ DATABASE_URL 없음'}`);
+      console.log(`   JWT: ${process.env.JWT_SECRET ? '✅ 설정됨' : '⚠ 기본값 사용 중'}\n`);
     });
   } catch (e) {
     console.error('[STARTUP ERROR]', e);
