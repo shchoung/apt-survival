@@ -43,7 +43,7 @@ app.get('/api', (req, res) => res.json({ ok: true, msg: 'APT Survival API v3.0' 
 /* ══════════════════════════════════════
    PostgreSQL 연결
 ══════════════════════════════════════ */
-process.env.DATABASE_URL = "postgresql://postgres:PkUXGHMpZnrsjOpaQiviEKouvCQaeHrL@postgres.railway.internal:5432/railway";
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL
