@@ -479,7 +479,78 @@ async function handleMessage(ws, raw) {
   let msg;
   try { msg = JSON.parse(raw); } catch { return; }
 
-  // ── 방 입장 ──
+  // ── 자동 매칭 (빈 방 자동 입장) ──
+  if (msg.type === 'auto_match') {
+    const { token, nick: guestNick, charIdx } = msg;
+    let sess = null;
+    if (token) {
+      const cached = sessions.get(token);
+      if (cached) sess = cached;
+      else {
+        const row = await db.getOne(
+          'SELECT user_id, nick FROM sessions WHERE token=$1 AND expires_at>NOW()',
+          [token]
+        ).catch(()=>null);
+        if (row) { sess = row; sessions.set(token, row); }
+      }
+    }
+    const nick = sess?.nick || guestNick || ('생존자'+Math.floor(Math.random()*9000+1000));
+    const userId = sess?.user_id || null;
+
+    // 4명 미만인 기존 방 찾기
+    let room = null;
+    for (const [, r] of rooms) {
+      if (r.memberCount < 4 && r.phase !== 'closed') { room = r; break; }
+    }
+    // 없으면 새 방 생성
+    if (!room) {
+      const code = genCode();
+      room = new Room(code);
+      rooms.set(code, room);
+    }
+
+    // 캐릭터 중복 처리: 겹치면 다른 캐릭터 자동 배정
+    const taken = [...room.players.values()].map(p => p.charIdx);
+    let assignedChar = charIdx ?? -1;
+    if (assignedChar >= 0 && taken.includes(assignedChar)) {
+      const available = [0,1,2,3].find(c => !taken.includes(c));
+      assignedChar = available ?? -1;
+    }
+
+    const playerId = crypto.randomUUID();
+    const player   = new PlayerState(ws, playerId, nick, assignedChar, userId);
+    player.isHost  = room.players.size === 0;
+
+    // 저장 데이터 복원
+    if (userId) {
+      const save = await db.getOne('SELECT * FROM game_saves WHERE user_id=$1',[userId]).catch(()=>null);
+      if (save) {
+        player.lv=save.lv;player.exp=save.exp;
+        player.hp=save.hp;player.maxHp=save.max_hp;
+        player.atk=save.atk;player.def=save.def_stat;
+        player.floor=save.floor;player.gold=save.gold;
+        player.kills=save.kills;
+        player.clearedFloors=save.cleared_floors||[];
+        player.inventory=save.inventory||[];
+        player.equipped=save.equipped||{};
+      }
+    }
+
+    room.players.set(playerId, player);
+    clients.set(ws, { roomCode: room.code, playerId });
+
+    player.send({
+      type: 'joined', playerId, roomCode: room.code,
+      isHost: player.isHost, mapSeed: room.mapSeed,
+      room: room.toPublic(), recentChat: room.chat.slice(-20),
+    });
+    room.broadcast({ type:'player_joined', player:player.toPublic() }, playerId);
+    room.broadcastAll({ type:'room_state', room:room.toPublic() });
+    console.log(`[AUTO_MATCH] ${nick}(${assignedChar}) → ${room.code} (${room.memberCount}명)`);
+    return;
+  }
+
+  // ── 기존 방 입장 ──
   if (msg.type === 'join') {
     const { token, nick: guestNick, charIdx, roomCode: wantCode } = msg;
 
