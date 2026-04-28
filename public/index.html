@@ -405,8 +405,8 @@ canvas{display:block;width:100%;height:100%}
       <div id="title-nick" style="font-family:var(--tf);font-size:18px;color:var(--ct);letter-spacing:2px"></div>
       <div id="title-save-info" style="font-family:var(--tf);font-size:9px;color:#5a7a94;margin-top:2px"></div>
     </div>
+    <div id="match-status" style="display:none;font-family:var(--tf);font-size:11px;color:var(--ca);margin-bottom:10px;text-align:center;animation:blink .8s infinite">🔍 플레이어 매칭 중...</div>
     <button class="sbtn" onclick="showScr('char-select')">[ 게임 시작 ]</button>
-    <button class="sbtn amb" onclick="showScr('multi-lobby')">[ 멀티플레이 ]</button>
     <button class="sbtn" style="border-color:var(--cp);color:var(--cp)" onclick="showScr('ranking')">[ 🏆 랭킹 ]</button>
     <button class="sbtn gray" onclick="showScr('settings')">[ 설 정 ]</button>
     <button class="sbtn red" style="margin-top:10px;font-size:10px;padding:5px 18px" onclick="logout()">로그아웃</button>
@@ -1373,29 +1373,23 @@ function makePlayer(save){
   };
 }
 
+let sharedMapSeed=null; // 멀티 맵 동기화 시드
+
 function startGame(){
   if(selChar<0){alert('캐릭터를 선택하세요');return;}
   hideAllOverlays();
-  // ── 저장 데이터 불러오기 ──
   const save=loadGameData();
-  if(save){
-    // 저장된 캐릭터가 다르면 무시
-    if(save.charIdx===selChar){
-      currentFloor=save.floor||0;
-      inventory=save.inventoryObj||[];
-      equipped=save.equippedObj||{weapon:null,armor:null,acc:null};
-      gold=save.gold||0;
-      kills=save.kills||0;
-      clearedFloors=save.clearedFloors||[];
-      // floorProgress 복원
-      clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
-      showToast(`💾 저장 데이터 복원 Lv${save.lv} / ${floorName(currentFloor)}`);
-    } else {
-      currentFloor=0;inventory=[];equipped={weapon:null,armor:null,acc:null};
-      gold=0;kills=0;clearedFloors=[];floorProgress=new Array(TOTAL_FLOORS).fill(false);
-    }
+  if(save&&save.charIdx===selChar){
+    currentFloor=save.floor||0;
+    inventory=save.inventoryObj||[];
+    equipped=save.equippedObj||{weapon:null,armor:null,acc:null};
+    gold=save.gold||0;kills=save.kills||0;
+    clearedFloors=save.clearedFloors||[];
+    clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
+    showToast(`💾 저장 데이터 복원 Lv${save.lv} / ${floorName(currentFloor)}`);
   } else {
-    currentFloor=0;inventory=[];equipped={weapon:null,armor:null,acc:null};gold=0;kills=0;
+    currentFloor=0;inventory=[];equipped={weapon:null,armor:null,acc:null};
+    gold=0;kills=0;clearedFloors=[];floorProgress=new Array(TOTAL_FLOORS).fill(false);
   }
   resize();buildMap(currentFloor);
   player=makePlayer(save?.charIdx===selChar?save:null);
@@ -1407,6 +1401,15 @@ function startGame(){
   document.getElementById('floor-info').textContent=floorName(currentFloor)+(BOSS_FLOORS.has(currentFloor)?' [BOSS]':'');
   setWaveTarget();spawnWave();
   requestAnimationFrame(loop);
+
+  // ── 자동 매칭: 백그라운드로 WS 연결 & 입장 ──
+  showChatPanel(true);
+  const ms=document.getElementById('match-status');if(ms)ms.style.display='block';
+  wsConnect();
+  setTimeout(()=>{
+    wsAutoMatch();
+    setTimeout(()=>{const ms=document.getElementById('match-status');if(ms)ms.style.display='none';},3000);
+  },800);
 }
 
 function resetFloor(){
@@ -2798,83 +2801,87 @@ let pingInterval=null;
 const WS_CHAR_COLORS=['#378ADD','#1D9E75','#BA7517','#993556'];
 
 function wsConnect(){
-  const url=(document.getElementById('inp-server')?.value||'').trim()||getWsUrl();
-  setWsDot('yellow');
-  if(ws){try{ws.close();}catch(e){}}
+  const url=getWsUrl();
+  if(ws&&ws.readyState===WebSocket.OPEN) return; // 이미 연결됨
   try{
     ws=new WebSocket(url);
     ws.onopen=()=>{
-      setWsDot('green');
-      setWsStatus('연결됨 — 방을 만들거나 참가하세요');
-      pingInterval=setInterval(()=>{if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ping',ts:Date.now()}));},20000);
+      console.log('[WS] 연결됨');
+      pingInterval=setInterval(()=>{
+        if(ws&&ws.readyState===WebSocket.OPEN)
+          ws.send(JSON.stringify({type:'ping',ts:Date.now()}));
+      },20000);
     };
     ws.onclose=()=>{
-      setWsDot('red');setWsStatus('연결 끊김');
+      console.log('[WS] 연결 끊김');
       clearInterval(pingInterval);
+      ws=null;
+      // 게임 중이면 3초 후 재연결 시도
+      if(isMultiGame) setTimeout(wsConnect,3000);
     };
-    ws.onerror=()=>{setWsDot('red');setWsStatus('연결 실패 — 서버 주소를 확인하세요');};
-    ws.onmessage=e=>onWsMsg(JSON.parse(e.data));
-  }catch(err){setWsDot('red');setWsStatus('연결 오류: '+err.message);}
-}
-
-function setWsDot(color){
-  const d=document.getElementById('ws-dot');
-  if(!d)return;
-  d.style.background=color==='green'?'#5dcaa5':color==='yellow'?'#ef9f27':'#e24b4b';
-}
-function setWsStatus(msg){
-  const el=document.getElementById('ws-status-txt');if(el)el.textContent=msg;
+    ws.onerror=e=>console.warn('[WS] 오류',e);
+    ws.onmessage=e=>{try{onWsMsg(JSON.parse(e.data));}catch(err){}};
+  }catch(err){console.warn('[WS] 연결 실패',err);}
 }
 
 function wsSend(msg){
-  if(ws&&ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify(msg));
-  else showToast('서버에 연결되지 않았습니다');
+  if(ws&&ws.readyState===WebSocket.OPEN)
+    ws.send(JSON.stringify(msg));
 }
 
-function wsHostRoom(){
-  const nick=(document.getElementById('inp-mnick')?.value||'생존자').slice(0,8);
-  wsSend({type:'join',nick,charIdx:selChar,roomCode:''});
+// ── 자동 매칭: 게임 시작 시 서버의 빈 방에 자동 입장 ──
+function wsAutoMatch(){
+  if(!ws||ws.readyState!==WebSocket.OPEN){
+    // WS 미연결이면 연결 후 재시도
+    wsConnect();
+    setTimeout(wsAutoMatch,1000);
+    return;
+  }
+  // auto_match 타입으로 서버에 매칭 요청
+  // 서버는 빈 방 있으면 자동 입장, 없으면 새 방 생성
+  wsSend({
+    type:'auto_match',
+    token:currentUser?.token||null,
+    nick:currentUser?.nick||'생존자',
+    charIdx:selChar,
+  });
 }
-function wsJoinRoom(){
-  const nick=(document.getElementById('inp-mnick')?.value||'생존자').slice(0,8);
-  const code=(document.getElementById('inp-mroom')?.value||'').toUpperCase().trim();
-  if(!code){showToast('방 코드를 입력하세요');return;}
-  wsSend({type:'join',nick,charIdx:selChar,roomCode:code});
-}
+
 function wsLeave(){
-  if(ws) try{ws.close();}catch(e){}
-  ws=null;myPlayerId=null;myRoomCode=null;wsRoomPlayers={};isHost=false;isMultiGame=false;
-  setWsDot('red');setWsStatus('연결 끊김');
-  const codeEl=document.getElementById('room-code-disp');if(codeEl)codeEl.style.display='none';
-  renderMultiMembers();
+  isMultiGame=false;
+  wsSend({type:'leave_game',saveData:{
+    charIdx:selChar,lv:player?.lv,exp:player?.exp,
+    hp:player?.hp,floor:currentFloor,
+    inventory:inventory.map(e=>({itemId:e.item.id,enhLevel:e.enhLevel})),
+    equipped:{
+      weapon:equipped.weapon!=null?inventory[equipped.weapon]?.item.id:null,
+      armor:equipped.armor!=null?inventory[equipped.armor]?.item.id:null,
+      acc:equipped.acc!=null?inventory[equipped.acc]?.item.id:null,
+    },
+    gold,kills,clearedFloors,
+  }});
+  myPlayerId=null;myRoomCode=null;wsRoomPlayers={};isHost=false;
 }
-function wsPickChar(idx){
-  wsSend({type:'pick_char',charIdx:idx});
-}
-function wsStartGame(){
-  if(!isHost){showToast('호스트만 시작할 수 있습니다');return;}
-  wsSend({type:'start_game',floor:currentFloor});
-}
-function copyRoomCode(){
-  navigator.clipboard?.writeText(myRoomCode||'').catch(()=>{});
-  showToast('코드 복사됨: '+myRoomCode);
-}
+
+function wsPickChar(idx){ wsSend({type:'pick_char',charIdx:idx}); }
 
 function onWsMsg(msg){
   switch(msg.type){
     case 'hello': console.log('[WS]',msg.msg); break;
 
     case 'joined':{
-      myPlayerId=msg.playerId;myRoomCode=msg.roomCode;isHost=msg.isHost;
-      const codeEl=document.getElementById('room-code-disp');
-      if(codeEl){codeEl.style.display='block';codeEl.textContent=myRoomCode;}
-      setWsStatus(`방 참가 완료: ${myRoomCode} (${msg.room.players.length}명)`);
+      myPlayerId=msg.playerId;
+      myRoomCode=msg.roomCode;
+      isHost=msg.isHost;
       wsRoomPlayers={};
       msg.room.players.forEach(p=>{wsRoomPlayers[p.id]=p;});
-      renderMultiMembers();
-      // 이전 채팅 복원
+      // 자동 매칭 성공 — 맵 시드 동기화 후 게임 시작
+      if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
+      isMultiGame=true;
+      addChatSys(`${msg.room.players.length}명과 함께 입장!`);
       if(msg.recentChat) msg.recentChat.forEach(c=>appendChat(c));
-      addChatSys(`${msg.room.players.find(p=>p.id===myPlayerId)?.nick||'나'} 님이 입장했습니다`);
+      showChatPanel(true);
+      showToast(`👥 ${msg.room.players.length}명 파티로 시작!`);
       break;
     }
 
@@ -2882,33 +2889,24 @@ function onWsMsg(msg){
       wsRoomPlayers={};
       msg.room.players.forEach(p=>{wsRoomPlayers[p.id]=p;});
       isHost=wsRoomPlayers[myPlayerId]?.isHost||false;
-      renderMultiMembers();
-      const mb=document.getElementById('btn-multi-start');
-      if(mb){mb.disabled=!isHost||selChar<0;mb.style.opacity=(isHost&&selChar>=0)?1:.4;}
+      updateMultiPartyHUD();
       break;
     }
 
     case 'player_joined':{
       wsRoomPlayers[msg.player.id]=msg.player;
-      renderMultiMembers();
-      addChatSys(`${msg.player.nick} 님이 파티에 합류했습니다`);
-      showToast(`${msg.player.nick} 입장!`);
+      updateMultiPartyHUD();
+      addChatSys(`${msg.player.nick} 님이 합류했습니다 👋`);
+      showToast(`👥 ${msg.player.nick} 입장!`);
       break;
     }
 
     case 'player_left':{
-      const nick=wsRoomPlayers[msg.playerId]?.nick||msg.nick||'?';
+      const nick=wsRoomPlayers[msg.playerId]?.nick||'?';
       delete wsRoomPlayers[msg.playerId];
-      renderMultiMembers();
+      updateMultiPartyHUD();
       addChatSys(`${nick} 님이 나갔습니다`);
       showToast(`${nick} 퇴장`);
-      break;
-    }
-
-    case 'game_start':{
-      currentFloor=msg.floor||0;isMultiGame=true;
-      startGame();
-      showChatPanel(true);
       break;
     }
 
@@ -2916,7 +2914,8 @@ function onWsMsg(msg){
       if(msg.playerId===myPlayerId) break;
       if(wsRoomPlayers[msg.playerId]){
         Object.assign(wsRoomPlayers[msg.playerId],{
-          x:msg.x,y:msg.y,hp:msg.hp,maxHp:msg.maxHp,lv:msg.lv,charIdx:msg.charIdx
+          x:msg.x,y:msg.y,hp:msg.hp,maxHp:msg.maxHp,
+          lv:msg.lv,charIdx:msg.charIdx,
         });
       }
       updateMultiPartyHUD();
@@ -2925,7 +2924,6 @@ function onWsMsg(msg){
 
     case 'skill_fx':{
       if(msg.playerId===myPlayerId) break;
-      // 다른 플레이어의 스킬 이펙트 표시
       const fxTypes=['slash','hack','dash','heal'];
       spawnSkillFX(fxTypes[msg.charIdx]||'slash',msg.x,msg.y,msg.angle,WS_CHAR_COLORS[msg.charIdx]||'#fff');
       break;
@@ -2933,11 +2931,20 @@ function onWsMsg(msg){
 
     case 'floor_change':{
       currentFloor=msg.floor;
+      if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
       if(running){resetFloor();running=true;requestAnimationFrame(loop);}
       addChatSys(`${floorName(currentFloor)}으로 이동`);
       break;
     }
 
+    case 'host_promoted':{
+      isHost=true;
+      if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
+      addChatSys('호스트가 되었습니다');
+      break;
+    }
+
+    case 'leave_ack': break;
     case 'chat': appendChat(msg); break;
     case 'error': showToast('⚠ '+msg.msg); break;
     case 'pong': break;
@@ -2945,39 +2952,24 @@ function onWsMsg(msg){
   }
 }
 
-function renderMultiMembers(){
-  const el=document.getElementById('multi-members');if(!el)return;
-  const players=Object.values(wsRoomPlayers);
-  if(!players.length){el.innerHTML='<div style="font-family:var(--tf);font-size:10px;color:#5a7a94">연결 후 멤버가 표시됩니다</div>';return;}
-  const CHAR_NAMES=['이준호','김서아','박민재','오하나'];
-  const CHAR_ROLES=['탱커','서포터','딜러','힐러'];
-  el.innerHTML=players.map(p=>`
-    <div style="display:flex;align-items:center;gap:7px;background:var(--c1);border:1px solid var(--c3);border-radius:5px;padding:4px 9px">
-      <div style="width:7px;height:7px;border-radius:50%;background:var(--ct);flex-shrink:0"></div>
-      <span style="font-family:var(--tf);font-size:10px;color:#e0e8f0">${p.nick}</span>
-      ${p.isHost?'<span style="font-family:var(--tf);font-size:9px;color:var(--ca)">[호스트]</span>':''}
-      ${p.charIdx>=0
-        ?`<span style="font-family:var(--tf);font-size:9px;color:${WS_CHAR_COLORS[p.charIdx]}">${CHAR_NAMES[p.charIdx]}(${CHAR_ROLES[p.charIdx]})</span>`
-        :'<span style="font-family:var(--tf);font-size:9px;color:#5a7a94">미선택</span>'}
-      ${p.id===myPlayerId?'<span style="font-family:var(--tf);font-size:9px;color:var(--ct)">[나]</span>':''}
-    </div>`).join('');
-}
+function renderMultiMembers(){ /* 로비 제거로 빈 함수 */ }
 
-/* 멀티 파티 HUD (게임 중 좌상단) */
+/* 멀티 파티 HUD */
 function updateMultiPartyHUD(){
   if(!isMultiGame) return;
   const el=document.getElementById('multi-party-hud');if(!el)return;
-  const CHAR_NAMES=['이준호','김서아','박민재','오하나'];
-  el.innerHTML=Object.values(wsRoomPlayers).filter(p=>p.id!==myPlayerId&&p.charIdx>=0).map(p=>{
-    const hp=Math.round((p.hp/p.maxHp||1)*100);
-    return `<div class="pmem">
-      <div class="pmav" style="background:${WS_CHAR_COLORS[p.charIdx]||'#888'}22;color:${WS_CHAR_COLORS[p.charIdx]||'#888'};border-color:${WS_CHAR_COLORS[p.charIdx]||'#888'}">${['준','서','민','하'][p.charIdx]||'?'}</div>
-      <div style="flex:1">
-        <div class="pmnm">${p.nick} Lv${p.lv}</div>
-        <div class="pmbg"><div class="pmhp" style="width:${hp}%"></div></div>
-      </div>
-    </div>`;
-  }).join('');
+  el.innerHTML=Object.values(wsRoomPlayers)
+    .filter(p=>p.id!==myPlayerId&&p.charIdx>=0)
+    .map(p=>{
+      const hp=Math.round((p.hp/p.maxHp||1)*100);
+      return `<div class="pmem">
+        <div class="pmav" style="background:${WS_CHAR_COLORS[p.charIdx]||'#888'}22;color:${WS_CHAR_COLORS[p.charIdx]||'#888'};border-color:${WS_CHAR_COLORS[p.charIdx]||'#888'}">${['준','서','민','하'][p.charIdx]||'?'}</div>
+        <div style="flex:1">
+          <div class="pmnm">${p.nick} Lv${p.lv}</div>
+          <div class="pmbg"><div class="pmhp" style="width:${hp}%"></div></div>
+        </div>
+      </div>`;
+    }).join('');
 }
 
 /* 다른 플레이어 캔버스에 그리기 */
