@@ -146,43 +146,69 @@ canvas{display:block;width:100%;height:100%}
 #inv-screen{
   position:absolute;inset:0;background:#07090df5;
   display:flex;flex-direction:column;z-index:90;
-  padding:8px 8px calc(8px + var(--safe-bot));
-  overflow:hidden;
+  padding:7px 7px calc(7px + var(--safe-bot));overflow:hidden;
 }
 #inv-screen.hidden{display:none}
-.inv-title{font-family:var(--tf);font-size:12px;color:var(--ct);letter-spacing:1px;margin-bottom:5px;flex-shrink:0}
+.inv-title{font-family:var(--tf);font-size:12px;color:var(--ct);letter-spacing:1px;flex-shrink:0}
 .inv-layout{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:6px;flex:1;min-height:0;overflow:hidden;
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  gap:5px;flex:1;min-height:0;overflow:hidden;margin-top:6px;
 }
 .inv-panel{
   background:var(--c1);border:0.5px solid var(--c3);border-radius:6px;
-  padding:6px;display:flex;flex-direction:column;min-height:0;overflow:hidden;
+  padding:5px;display:flex;flex-direction:column;min-height:0;overflow:hidden;
 }
-.inv-panel-title{font-family:var(--tf);font-size:10px;color:var(--ca);margin-bottom:4px;flex-shrink:0}
+.inv-panel-title{font-family:var(--tf);font-size:9px;color:var(--ca);margin-bottom:4px;flex-shrink:0}
+/* 아이템 슬롯 3열 */
 .inv-slots{
-  display:grid;grid-template-columns:repeat(4,1fr);
-  gap:3px;overflow-y:auto;flex:1;
-  -webkit-overflow-scrolling:touch;
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:3px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;
 }
 .islot{
-  aspect-ratio:1;border-radius:4px;border:1.5px solid var(--c3);background:var(--c2);
+  aspect-ratio:1;border-radius:5px;border:1.5px solid var(--c3);background:var(--c2);
   display:flex;align-items:center;justify-content:center;
-  cursor:pointer;position:relative;font-size:14px;transition:.15s;
+  cursor:pointer;position:relative;font-size:17px;transition:.1s;user-select:none;
 }
-.islot:active{border-color:#5a7a94}
-.islot.sel{border-color:var(--ct);background:#0d1f1a}
-.islot.eq-slot{background:#141e2b}
-.islot.eq-slot.filled{background:#0d1f1a;border-color:#1D9E7533}
+.islot:active{opacity:.7}
+.islot.sel{border-color:var(--ct)!important;background:#0d1f1a}
+.islot.enh-sel{border-color:var(--ca)!important;background:#1a130a}
 .grade-c{border-color:#888780!important}.grade-b{border-color:#378ADD!important}
 .grade-a{border-color:#7f77dd!important}.grade-s{border-color:#ef9f27!important}
 .grade-badge{position:absolute;top:0;right:1px;font-family:var(--tf);font-size:7px;font-weight:700}
 .gc{color:#888780}.gb{color:#378ADD}.ga{color:#7f77dd}.gs{color:#ef9f27}
 .enh-badge{position:absolute;bottom:0;left:1px;font-family:var(--tf);font-size:7px;color:var(--ct)}
+/* 장착 슬롯 — 아이템슬롯과 동일 크기 */
+.eq-grid{display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1}
+.eq-item{display:flex;align-items:center;gap:4px}
+.eq-slot-box{
+  flex-shrink:0;border-radius:5px;border:1.5px solid var(--c3);background:var(--c2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;position:relative;cursor:pointer;
+  /* 아이템 슬롯과 동일하게 aspect-ratio 기반 */
+  width:42px;height:42px;
+}
+.eq-slot-box:active{opacity:.7}
+.eq-slot-box.filled{background:#0d1f1a}
+.eq-slot-info{flex:1;min-width:0}
+.eq-slot-lbl{font-family:var(--tf);font-size:8px;color:#5a7a94}
+.eq-slot-name{font-size:9px;color:#c0d8f0;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq-slot-stat{font-family:var(--tf);font-size:8px;color:var(--ct)}
+/* 강화 패널 */
+#enh-panel{overflow-y:auto}
+.enh-step-row{display:flex;gap:2px;flex-wrap:wrap;margin:4px 0}
+.enh-step{
+  width:20px;height:20px;border-radius:3px;border:1px solid var(--c3);
+  background:var(--c1);display:flex;align-items:center;justify-content:center;
+  font-family:var(--tf);font-size:7px;color:#5a7a94;
+}
+.enh-step.done{border-color:var(--ct);color:var(--ct);background:#0d1f1a}
+.enh-step.cur{border-color:var(--ca);color:var(--ca);background:#1a130a;animation:pulse .7s infinite alternate}
+.enh-mat-row{display:flex;align-items:center;gap:4px;font-family:var(--tf);font-size:9px;margin-bottom:2px;color:#a0bcd0}
+.enh-have{color:var(--ct)}.enh-lack{color:var(--cr)}
+/* 아이템 상세 */
 .item-detail{
   background:var(--c2);border:0.5px solid var(--c3);border-radius:5px;
-  padding:5px;margin-top:4px;flex-shrink:0;
+  padding:5px;flex-shrink:0;margin-top:5px;
 }
 .itd-name{font-size:11px;font-weight:700;color:#e0e8f0;margin-bottom:2px}
 .itd-stat{font-family:var(--tf);font-size:9px;color:#a0bcd0;line-height:1.5}
@@ -193,44 +219,12 @@ canvas{display:block;width:100%;height:100%}
 }
 .itd-btn:active{border-color:var(--ct);color:var(--ct)}
 
-/* 장착 슬롯 — 3개를 세로로 */
-.eq-grid{display:flex;flex-direction:column;gap:5px}
-.eq-item{display:flex;align-items:center;gap:6px}
-.eq-slot-box{
-  width:42px;height:42px;border-radius:5px;flex-shrink:0;
-  border:1.5px solid var(--c3);background:var(--c2);
-  display:flex;align-items:center;justify-content:center;font-size:16px;position:relative;
-}
-.eq-slot-box.filled{background:#0d1f1a}
-.eq-slot-info{flex:1;min-width:0}
-.eq-slot-lbl{font-family:var(--tf);font-size:9px;color:#5a7a94}
-.eq-slot-name{font-size:10px;color:#c0d8f0;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.eq-slot-stat{font-family:var(--tf);font-size:9px;color:var(--ct)}
+/* 장착 슬롯 — 3개를 세로로 (구버전 호환) */
+.eq-grid-old{display:flex;flex-direction:column;gap:5px}
 
-/* SHOP / ENHANCE */
-#shop-screen{position:absolute;inset:0;background:#07090df5;display:flex;flex-direction:column;z-index:90;padding:10px}
-#shop-screen.hidden{display:none}
-.shop-layout{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;min-height:0}
-.shop-panel{background:var(--c1);border:0.5px solid var(--c3);border-radius:8px;padding:8px;display:flex;flex-direction:column;min-height:0;overflow-y:auto}
-.shop-panel-title{font-family:var(--tf);font-size:11px;color:var(--ca);margin-bottom:6px;flex-shrink:0}
-.enh-item-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:5px;border:0.5px solid var(--c3);background:var(--c2);margin-bottom:4px;cursor:pointer}
-.enh-item-row:hover{border-color:#5a7a94}
-.enh-item-row.sel{border-color:var(--ct);background:#0d1f1a}
-.enh-icon{font-size:18px;width:28px;text-align:center}
-.enh-info{flex:1}
-.enh-name{font-size:11px;font-weight:700;color:#e0e8f0}
-.enh-stat{font-family:var(--tf);font-size:9px;color:#a0bcd0}
-.enh-panel{background:var(--c2);border:0.5px solid var(--c3);border-radius:6px;padding:10px;margin-top:8px}
-.enh-steps{display:flex;gap:3px;margin:8px 0;flex-wrap:wrap}
-.estep{width:28px;height:28px;border-radius:5px;border:1.5px solid var(--c3);background:var(--c1);display:flex;align-items:center;justify-content:center;font-family:var(--tf);font-size:9px;color:#5a7a94}
-.estep.done{border-color:var(--ct);color:var(--ct);background:#0d1f1a}
-.estep.cur{border-color:var(--ca);color:var(--ca);background:#1a140a;animation:pulse .8s infinite alternate}
-@keyframes pulse{0%{opacity:.7}100%{opacity:1}}
-.mat-row{display:flex;align-items:center;gap:5px;font-family:var(--tf);font-size:10px;color:#a0bcd0;margin-bottom:3px}
-.mat-have{color:var(--ct)}.mat-lack{color:var(--cr)}
-.gold-row{font-family:var(--tf);font-size:11px;color:var(--ca);margin-bottom:8px}
-.success-bar{height:8px;border-radius:4px;background:#1a2535;overflow:hidden;margin-bottom:6px}
-.success-fill{height:100%;border-radius:4px;background:var(--ct);transition:width .3s}
+/* SHOP — 보스전 후 강화 삭제, hideShop만 남김 */
+#shop-screen{display:none!important}
+
 
 /* STAGE CLEAR */
 #stage-clear{position:absolute;inset:0;background:#07090de0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:80;display:none}
@@ -578,46 +572,32 @@ canvas{display:block;width:100%;height:100%}
 
   <!-- INVENTORY -->
   <div id="inv-screen" class="hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:7px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:6px">
       <div class="inv-title">인벤토리</div>
-      <button class="sbtn gray" style="padding:4px 12px;font-size:10px" onclick="hideInv()">닫기</button>
+      <button class="sbtn gray" style="padding:3px 10px;font-size:10px" onclick="hideInv()">닫기</button>
     </div>
     <div class="inv-layout">
+      <!-- 아이템 목록 -->
       <div class="inv-panel">
-        <div class="inv-panel-title">아이템 목록</div>
+        <div class="inv-panel-title">아이템</div>
         <div class="inv-slots" id="inv-slots"></div>
-        <div class="item-detail" id="item-detail" style="display:none"></div>
       </div>
+      <!-- 장착 슬롯 -->
       <div class="inv-panel">
-        <div class="inv-panel-title">장착 슬롯</div>
+        <div class="inv-panel-title">장착</div>
         <div class="eq-grid" id="eq-grid"></div>
-        <div style="margin-top:8px;font-family:var(--tf);font-size:10px;color:#5a7a94">
-          <div id="eq-stats"></div>
+        <div style="margin-top:6px;font-family:var(--tf);font-size:9px" id="eq-stats"></div>
+      </div>
+      <!-- 강화 패널 -->
+      <div class="inv-panel" id="enh-panel">
+        <div class="inv-panel-title">강화</div>
+        <div id="enh-detail">
+          <div style="font-family:var(--tf);font-size:10px;color:#5a7a94;text-align:center;padding:10px 0">아이템을 선택하세요</div>
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- SHOP / ENHANCE -->
-  <div id="shop-screen" class="hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:7px">
-      <div class="inv-title" style="color:var(--ca)">상점 & 강화</div>
-      <button class="sbtn gray" style="padding:4px 12px;font-size:10px" onclick="hideShop()">닫기</button>
-    </div>
-    <div class="shop-layout">
-      <div class="shop-panel">
-        <div class="shop-panel-title">강화할 아이템 선택</div>
-        <div id="enhance-list"></div>
-      </div>
-      <div class="shop-panel">
-        <div class="shop-panel-title">강화 시스템</div>
-        <div id="enhance-detail"><div style="font-family:var(--tf);font-size:10px;color:#5a7a94">아이템을 선택하세요</div></div>
-      </div>
-    </div>
-    <div style="margin-top:8px;flex-shrink:0;display:flex;gap:7px">
-      <button class="sbtn gray" onclick="hideShop();showInv()">인벤토리</button>
-      <button class="sbtn" id="btn-continue-shop" onclick="hideShop();nextFloor()">다음 층으로 →</button>
-    </div>
+    <!-- 아이템 상세 (선택 시) -->
+    <div class="item-detail" id="item-detail" style="display:none;flex-shrink:0;margin-top:5px"></div>
   </div>
 
   <!-- GAME OVER -->
@@ -1019,7 +999,6 @@ function travelToFloor(idx){
 /* ═══════ INVENTORY ═══════ */
 let inventory=[];  // {item, enhLevel}
 let equipped={weapon:null,armor:null,acc:null};
-let selInvIdx=-1;
 let gold=0;
 
 function addItem(itemId,qty=1){
@@ -1028,93 +1007,224 @@ function addItem(itemId,qty=1){
   for(let i=0;i<qty;i++) inventory.push({item:{...base},enhLevel:0});
   showToast(`${base.name} 획득!`);
 }
+let selInvIdx=-1;   // 선택된 아이템 (상세/장착)
+let selEnhIdx=-1;   // 강화 대상 아이템
+let selMatIdx=-1;   // 강화 재료 (같은 아이템 or 재료 아이템)
 
 function renderInv(){
-  // 아이템 목록
+  /* ── 아이템 목록 ── */
   const slots=document.getElementById('inv-slots');
   slots.innerHTML='';
   inventory.forEach((entry,idx)=>{
     const {item,enhLevel}=entry;
-    const g=GRADES[item.grade];
-    const canEquip=item.slot&&(item.shared||(item.charId===CHARS[selChar].id));
     const isEq=Object.values(equipped).includes(idx);
+    const isEnhTarget=selEnhIdx===idx;
+    const isEnhMat=selMatIdx===idx;
+    let cls=`islot grade-${item.grade.toLowerCase()}`;
+    if(idx===selInvIdx) cls+=' sel';
+    if(isEnhTarget) cls+=' enh-sel';
+    if(isEnhMat) cls+=' sel';
     const div=document.createElement('div');
-    div.className=`islot grade-${item.grade.toLowerCase()}${idx===selInvIdx?' sel':''}${isEq?' filled':''}`;
+    div.className=cls;
     div.innerHTML=`${item.icon}<span class="grade-badge g${item.grade.toLowerCase()}">${item.grade}</span>${enhLevel>0?`<span class="enh-badge">+${enhLevel}</span>`:''}`;
-    div.title=item.name;
-    div.onclick=()=>{selInvIdx=selInvIdx===idx?-1:idx;renderInv();};
+    div.title=item.name+(isEq?' [장착중]':'')+( isEnhTarget?' [강화대상]':isEnhMat?' [재료]':'');
+    div.onclick=()=>onInvClick(idx);
     slots.appendChild(div);
   });
-  // 아이템 상세
+
+  /* ── 아이템 상세 ── */
   const det=document.getElementById('item-detail');
   if(selInvIdx>=0&&selInvIdx<inventory.length){
     const {item,enhLevel}=inventory[selInvIdx];
     const g=GRADES[item.grade];
-    const isEq=Object.values(equipped).some((v,_)=>v===selInvIdx);
-    const canEq=item.slot&&(item.shared||(item.charId===CHARS[selChar].id));
+    const isEq=Object.values(equipped).includes(selInvIdx);
+    const canEq=item.slot&&(item.shared||(item.charId===CHARS[selChar]?.id));
+    const enh=ENH_LEVELS[enhLevel];
     let statStr='';
-    if(item.atk){const bonus=enhLevel>0?Math.floor(item.atk*ENH_LEVELS[enhLevel].atkBonus):0;statStr+=`ATK +${item.atk+bonus}${bonus>0?` (+${bonus})`:''}`;}
-    if(item.def) statStr+=`  DEF +${item.def}`;
-    if(item.healAmt) statStr+=`  회복 ${item.healAmt}`;
-    if(item.type==='material') statStr+='  강화 재료';
+    if(item.atk){const b=Math.floor(item.atk*enh.atkBonus);statStr+=`ATK+${item.atk+b}${b>0?`(+${b})`:''}`;}
+    if(item.def) statStr+=` DEF+${item.def}`;
+    if(item.healAmt) statStr+=` 회복${item.healAmt}`;
     det.style.display='block';
     det.innerHTML=`<div class="itd-name" style="color:${g.color}">[${item.grade}] ${item.name}${enhLevel>0?` +${enhLevel}`:''}</div>
-      <div class="itd-stat">${statStr}<br>${item.desc}${!item.shared?`<br><span style="color:var(--ca)">전용: ${item.charName}</span>`:''}</div>
+      <div class="itd-stat">${statStr} ${item.desc}${!item.shared&&item.charName?` / 전용:${item.charName}`:''}</div>
       <div class="itd-btns">
-        ${canEq&&!isEq?`<div class="itd-btn" onclick="equipItem(${selInvIdx})">착용</div>`:''}
+        ${canEq&&!isEq?`<div class="itd-btn" onclick="equipItem(${selInvIdx})">장착</div>`:''}
         ${isEq?`<div class="itd-btn" onclick="unequipItem(${selInvIdx})">해제</div>`:''}
         ${item.type==='consumable'?`<div class="itd-btn" onclick="useConsumable(${selInvIdx})">사용</div>`:''}
-        <div class="itd-btn" onclick="dropItem(${selInvIdx})">버리기</div>
+        ${item.type==='weapon'||item.type==='armor'?`<div class="itd-btn" style="color:var(--ca);border-color:var(--ca)" onclick="setEnhTarget(${selInvIdx})">강화대상</div>`:''}
+        ${(item.type==='material'||true)&&selEnhIdx>=0&&selEnhIdx!==selInvIdx?`<div class="itd-btn" style="color:var(--cp);border-color:var(--cp)" onclick="setEnhMat(${selInvIdx})">재료설정</div>`:''}
+        <div class="itd-btn" style="color:var(--cr);border-color:var(--cr)" onclick="dropItem(${selInvIdx})">버리기</div>
       </div>`;
   } else { det.style.display='none'; }
 
-  // 장착 슬롯 — 세로 리스트형
-  const slots2=document.getElementById('eq-grid');
-  const SLOTS=[
+  /* ── 장착 슬롯 ── */
+  const ESLOTS=[
     {key:'weapon',label:'무기',icon:'⚔'},
     {key:'armor', label:'방어구',icon:'🛡'},
-    {key:'acc',   label:'악세서리',icon:'💍'}
+    {key:'acc',   label:'악세서리',icon:'💍'},
   ];
   let totAtk=0,totDef=0;
   Object.values(equipped).forEach(idx=>{
-    if(idx==null)return;const e=inventory[idx];if(!e)return;
-    const enh=ENH_LEVELS[e.enhLevel];
+    if(idx==null||!inventory[idx])return;
+    const e=inventory[idx],enh=ENH_LEVELS[e.enhLevel];
     if(e.item.atk)totAtk+=e.item.atk+Math.floor(e.item.atk*enh.atkBonus);
     if(e.item.def)totDef+=e.item.def;
   });
-  slots2.innerHTML=SLOTS.map(s=>{
+  document.getElementById('eq-grid').innerHTML=ESLOTS.map(s=>{
     const idx=equipped[s.key];
     const entry=idx!=null?inventory[idx]:null;
     const gc=entry?GRADES[entry.item.grade].color:'#5a7a94';
-    let statStr='';
+    const enh=entry?ENH_LEVELS[entry.enhLevel]:null;
+    let stat='';
     if(entry){
-      const enh=ENH_LEVELS[entry.enhLevel];
-      if(entry.item.atk) statStr=`ATK+${entry.item.atk+Math.floor(entry.item.atk*enh.atkBonus)}`;
-      else if(entry.item.def) statStr=`DEF+${entry.item.def}`;
+      if(entry.item.atk)stat=`ATK+${entry.item.atk+Math.floor(entry.item.atk*(enh?.atkBonus||0))}`;
+      else if(entry.item.def)stat=`DEF+${entry.item.def}`;
     }
     return `<div class="eq-item">
-      <div class="eq-slot-box${entry?' filled grade-'+entry.item.grade.toLowerCase():''}" style="${entry?'border-color:'+gc+'55':''}">
+      <div class="eq-slot-box${entry?' filled grade-'+entry.item.grade.toLowerCase():''}" style="${entry?'border-color:'+gc+'66':''}" onclick="${entry?'unequipItem('+equipped[s.key]+')':''}">
         ${entry?entry.item.icon:s.icon}
         ${entry?`<span class="grade-badge g${entry.item.grade.toLowerCase()}">${entry.item.grade}</span>`:''}
         ${entry&&entry.enhLevel>0?`<span class="enh-badge">+${entry.enhLevel}</span>`:''}
       </div>
       <div class="eq-slot-info">
         <div class="eq-slot-lbl">${s.label}</div>
-        <div class="eq-slot-name" style="color:${entry?gc:'#5a7a94'}">${entry?entry.item.name:'미장착'}</div>
-        ${statStr?`<div class="eq-slot-stat">${statStr}</div>`:''}
+        <div class="eq-slot-name" style="color:${gc}">${entry?entry.item.name:'미장착'}</div>
+        ${stat?`<div class="eq-slot-stat">${stat}</div>`:''}
       </div>
     </div>`;
   }).join('');
   document.getElementById('eq-stats').innerHTML=
-    `<span style="color:var(--cr)">ATK +${totAtk}</span>  <span style="color:var(--ct)">DEF +${totDef}</span>`;
+    `<span style="color:var(--cr)">ATK+${totAtk}</span> <span style="color:var(--ct)">DEF+${totDef}</span>`;
+
+  /* ── 강화 패널 ── */
+  renderEnhPanel();
+}
+
+function onInvClick(idx){
+  selInvIdx=selInvIdx===idx?-1:idx;
+  renderInv();
+}
+
+function setEnhTarget(idx){
+  selEnhIdx=idx;selMatIdx=-1;
+  showToast('강화 대상 설정! 재료 아이템을 선택 후 재료설정 클릭');
+  renderInv();
+}
+
+function setEnhMat(idx){
+  if(idx===selEnhIdx){showToast('강화 대상과 재료가 같을 수 없습니다');return;}
+  selMatIdx=idx;
+  renderInv();
+}
+
+function renderEnhPanel(){
+  const panel=document.getElementById('enh-detail');
+  if(!panel)return;
+  if(selEnhIdx<0||!inventory[selEnhIdx]){
+    panel.innerHTML='<div style="font-family:var(--tf);font-size:10px;color:#5a7a94;text-align:center;padding:8px 0">무기·방어구 선택 후<br>"강화대상" 클릭</div>';
+    return;
+  }
+  const e=inventory[selEnhIdx];
+  const cur=e.enhLevel;
+  if(cur>=9){
+    panel.innerHTML=`<div style="font-family:var(--tf);font-size:10px;color:var(--ct);text-align:center">${e.item.icon} MAX 강화!</div>`;
+    return;
+  }
+  const next=ENH_LEVELS[cur+1];
+
+  // 재료 조건:
+  // 1) 같은 아이템 1개 OR
+  // 2) 재료 아이템(material) 필요 수량
+  const hasSameMat=selMatIdx>=0&&inventory[selMatIdx]?.item.id===e.item.id;
+  const matCounts={};
+  inventory.forEach((e2,i)=>{
+    if(i!==selEnhIdx&&e2.item.type==='material')
+      matCounts[e2.item.id]=(matCounts[e2.item.id]||0)+1;
+  });
+  const matNeeded={};
+  next.mats.forEach(m=>matNeeded[m]=(matNeeded[m]||0)+1);
+  const normalMatOk=Object.entries(matNeeded).every(([id,n])=>(matCounts[id]||0)>=n);
+  const canAfford=gold>=next.cost;
+  const canEnhSame=hasSameMat&&canAfford;  // 같은 아이템으로 강화 (재료 불필요)
+  const canEnhMat=normalMatOk&&canAfford;   // 재료 아이템으로 강화
+
+  panel.innerHTML=`
+    <div style="font-family:var(--tf);font-size:9px;color:#e0e8f0;margin-bottom:3px">${e.item.icon} ${e.item.name}</div>
+    <div class="enh-step-row">${Array.from({length:9},(_,i)=>`<div class="enh-step${i<cur?' done':i===cur?' cur':''}">${i+1}</div>`).join('')}</div>
+    <div style="font-family:var(--tf);font-size:9px;color:#a0bcd0;margin-bottom:4px">
+      +${cur} → +${cur+1} · 성공률 ${Math.round(next.successRate*100)}%
+    </div>
+    <div style="font-family:var(--tf);font-size:9px;color:${canAfford?'var(--ct)':'var(--cr)'};margin-bottom:4px">
+      💰 ${next.cost}G (보유: ${gold}G)
+    </div>
+
+    <div style="font-family:var(--tf);font-size:9px;color:var(--ca);margin-bottom:2px">방법 ①: 같은 아이템</div>
+    <div style="font-family:var(--tf);font-size:9px;color:${hasSameMat?'var(--ct)':'#5a7a94'};margin-bottom:4px">
+      ${hasSameMat?`✓ ${inventory[selMatIdx]?.item.name} 선택됨`:'재료설정으로 동일 아이템 선택'}
+    </div>
+    <button class="sbtn${canEnhSame?'':' gray'}" style="width:100%;padding:4px;font-size:9px;margin-bottom:6px" onclick="doEnhance('same')">${canEnhSame?'★ 같은 아이템 강화':'조건 미충족'}</button>
+
+    <div style="font-family:var(--tf);font-size:9px;color:var(--ca);margin-bottom:2px">방법 ②: 재료 아이템</div>
+    ${Object.entries(matNeeded).map(([id,n])=>{
+      const base=ITEM_POOL.find(x=>x.id===id);
+      const have=matCounts[id]||0;
+      return `<div class="enh-mat-row">${base?.icon||'?'} ${base?.name||id} <span class="${have>=n?'enh-have':'enh-lack'}">${have}/${n}</span></div>`;
+    }).join('')}
+    <button class="sbtn${canEnhMat?'':' gray'}" style="width:100%;padding:4px;font-size:9px;margin-top:2px" onclick="doEnhance('mat')">${canEnhMat?'⚙ 재료로 강화':'조건 미충족'}</button>
+  `;
+}
+
+function doEnhance(method){
+  if(selEnhIdx<0||!inventory[selEnhIdx])return;
+  const e=inventory[selEnhIdx];
+  const cur=e.enhLevel;if(cur>=9){showToast('최대 강화!');return;}
+  const next=ENH_LEVELS[cur+1];
+
+  if(gold<next.cost){showToast('골드 부족!');return;}
+
+  if(method==='same'){
+    // 같은 아이템으로 강화
+    if(selMatIdx<0||!inventory[selMatIdx]){showToast('재료 아이템을 선택하세요');return;}
+    if(inventory[selMatIdx].item.id!==e.item.id){showToast('같은 종류의 아이템이 아닙니다');return;}
+    const matRealIdx=selMatIdx>selEnhIdx?selMatIdx:selMatIdx; // 인덱스 조정
+    inventory.splice(selMatIdx,1);
+    // splice 후 selEnhIdx 보정
+    if(selMatIdx<selEnhIdx) selEnhIdx--;
+    selMatIdx=-1;
+  } else {
+    // 재료 아이템으로 강화
+    const matNeeded={};next.mats.forEach(m=>matNeeded[m]=(matNeeded[m]||0)+1);
+    for(const [id,n] of Object.entries(matNeeded)){
+      let cnt=0;
+      for(let i=inventory.length-1;i>=0;i--){
+        if(i===selEnhIdx)continue;
+        if(inventory[i].item.id===id&&inventory[i].item.type==='material'){
+          inventory.splice(i,1);
+          if(i<selEnhIdx)selEnhIdx--;
+          cnt++;if(cnt>=n)break;
+        }
+      }
+      if(cnt<n){showToast('재료 부족!');renderInv();return;}
+    }
+  }
+
+  gold-=next.cost;
+  if(Math.random()<next.successRate){
+    inventory[selEnhIdx].enhLevel++;
+    showToast(`✨ 강화 성공! +${inventory[selEnhIdx].enhLevel}`);
+    addLog(`${e.item.name} +${inventory[selEnhIdx].enhLevel} 강화 성공!`,'lsys');
+    sparks(player?.x||0,player?.y||0,'#ef9f27',15);
+  } else {
+    showToast('❌ 강화 실패...');
+    addLog(`${e.item.name} 강화 실패`,'lhit');
+  }
+  renderInv();
 }
 
 function equipItem(idx){
-  const {item}=inventory[idx];
-  if(!item.slot) return;
+  const {item}=inventory[idx];if(!item.slot)return;
   Object.keys(equipped).forEach(k=>{if(equipped[k]===idx)equipped[k]=null;});
-  equipped[item.slot]=idx;
-  renderInv();showToast(`${item.name} 장착!`);
+  equipped[item.slot]=idx;renderInv();showToast(`${item.name} 장착!`);
 }
 function unequipItem(idx){
   Object.keys(equipped).forEach(k=>{if(equipped[k]===idx)equipped[k]=null;});
@@ -1122,94 +1232,36 @@ function unequipItem(idx){
 }
 function useConsumable(idx){
   const {item}=inventory[idx];
-  if(item.healAmt){player.hp=Math.min(player.maxHp,player.hp+item.healAmt);addLog(`${item.name} 사용 HP+${item.healAmt}`,'lheal');}
-  inventory.splice(idx,1);selInvIdx=-1;renderInv();showToast(`${item.name} 사용!`);
+  if(item.healAmt){player.hp=Math.min(player.maxHp,player.hp+item.healAmt);addLog(`${item.name} HP+${item.healAmt}`,'lheal');}
+  inventory.splice(idx,1);
+  if(selInvIdx>=idx)selInvIdx=-1;
+  if(selEnhIdx>=idx)selEnhIdx=-1;
+  renderInv();showToast(`${item.name} 사용!`);
 }
 function dropItem(idx){
-  inventory.splice(idx,1);selInvIdx=-1;renderInv();
+  inventory.splice(idx,1);
+  if(selInvIdx>=idx)selInvIdx=-1;
+  if(selEnhIdx>=idx)selEnhIdx=-1;
+  renderInv();
 }
 
 function getEquipStats(){
   let atk=0,def=0,dropBonus=0,healBonus=0,atkMult=1;
   Object.values(equipped).forEach(idx=>{
-    if(idx==null||!inventory[idx]) return;
+    if(idx==null||!inventory[idx])return;
     const e=inventory[idx];const enh=ENH_LEVELS[e.enhLevel];
-    if(e.item.atk) atk+=e.item.atk+Math.floor(e.item.atk*enh.atkBonus);
-    if(e.item.def) def+=e.item.def;
-    if(e.item.dropRate) dropBonus+=e.item.dropRate;
-    if(e.item.healBonus) healBonus+=e.item.healBonus;
-    if(e.item.atkBonus) atkMult+=e.item.atkBonus;
+    if(e.item.atk)atk+=e.item.atk+Math.floor(e.item.atk*enh.atkBonus);
+    if(e.item.def)def+=e.item.def;
+    if(e.item.dropRate)dropBonus+=e.item.dropRate;
+    if(e.item.healBonus)healBonus+=e.item.healBonus;
+    if(e.item.atkBonus)atkMult+=e.item.atkBonus;
   });
   return{atk,def,dropBonus,healBonus,atkMult};
 }
 
-/* ═══════ SHOP / ENHANCE ═══════ */
-let selEnhIdx=-1;
-function renderShop(){
-  document.getElementById('enhance-list').innerHTML=inventory.filter(e=>e.item.type==='weapon'||e.item.type==='armor').map((e,i)=>{
-    const orig=inventory.indexOf(e);
-    return `<div class="enh-item-row${selEnhIdx===orig?' sel':''}" onclick="selectEnh(${orig})">
-      <div class="enh-icon">${e.item.icon}</div>
-      <div class="enh-info">
-        <div class="enh-name" style="color:${GRADES[e.item.grade].color}">[${e.item.grade}] ${e.item.name} <span style="color:var(--ct)">${e.enhLevel>0?'+'+e.enhLevel:''}</span></div>
-        <div class="enh-stat">${e.item.atk?'ATK '+e.item.atk:e.item.def?'DEF '+e.item.def:''} / 현재 강화 ${ENH_LEVELS[e.enhLevel].label}</div>
-      </div>
-    </div>`;
-  }).join('');
-  renderEnhDetail();
-}
-
-function selectEnh(idx){selEnhIdx=idx;renderEnhDetail();}
-
-function renderEnhDetail(){
-  const det=document.getElementById('enhance-detail');
-  if(selEnhIdx<0||!inventory[selEnhIdx]){det.innerHTML='<div style="font-family:var(--tf);font-size:10px;color:#5a7a94">아이템을 선택하세요</div>';return;}
-  const e=inventory[selEnhIdx];
-  const cur=e.enhLevel;
-  if(cur>=9){det.innerHTML='<div style="font-family:var(--tf);font-size:11px;color:var(--ct)">최대 강화 달성!</div>';return;}
-  const next=ENH_LEVELS[cur+1];
-  const matCounts={};
-  inventory.forEach((e2,i)=>{if(i!==selEnhIdx&&e2.item.type==='material')matCounts[e2.item.id]=(matCounts[e2.item.id]||0)+1;});
-  const matNeeded={};next.mats.forEach(m=>matNeeded[m]=(matNeeded[m]||0)+1);
-  const canAfford=gold>=next.cost;
-  const matOk=Object.entries(matNeeded).every(([id,n])=>(matCounts[id]||0)>=n);
-
-  det.innerHTML=`
-    <div style="font-family:var(--tf);font-size:11px;color:#e0e8f0;margin-bottom:6px">${e.item.name} 강화</div>
-    <div class="enh-steps">${ENH_LEVELS.slice(1).map((_,i)=>`<div class="estep${i<cur?' done':i===cur?' cur':''}">${i+1}</div>`).join('')}</div>
-    <div style="font-family:var(--tf);font-size:10px;color:#a0bcd0;margin-bottom:5px">${ENH_LEVELS[cur].label} → ${next.label}  성공률 ${Math.round(next.successRate*100)}%</div>
-    <div class="gold-row">필요 골드: <span style="color:${canAfford?'var(--ct)':'var(--cr)'}">${next.cost}G</span>  보유: ${gold}G</div>
-    ${Object.entries(matNeeded).map(([id,n])=>{
-      const base=ITEM_POOL.find(x=>x.id===id);
-      const have=matCounts[id]||0;
-      return `<div class="mat-row">${base?.icon||'?'} ${base?.name||id} <span class="${have>=n?'mat-have':'mat-lack'}">${have}/${n}</span></div>`;
-    }).join('')}
-    <div class="success-bar"><div class="success-fill" style="width:${next.successRate*100}%"></div></div>
-    <button class="sbtn${canAfford&&matOk?'':' gray'}" style="padding:6px 18px;font-size:11px;margin-top:4px" onclick="doEnhance()">${canAfford&&matOk?'강화 시작':'조건 미충족'}</button>`;
-}
-
-function doEnhance(){
-  if(selEnhIdx<0||!inventory[selEnhIdx]) return;
-  const e=inventory[selEnhIdx];
-  const cur=e.enhLevel;if(cur>=9)return;
-  const next=ENH_LEVELS[cur+1];
-  if(gold<next.cost){showToast('골드 부족!');return;}
-  const matNeeded={};next.mats.forEach(m=>matNeeded[m]=(matNeeded[m]||0)+1);
-  for(const [id,n] of Object.entries(matNeeded)){
-    let cnt=0;
-    for(let i=inventory.length-1;i>=0;i--){
-      if(inventory[i].item.id===id&&i!==selEnhIdx){inventory.splice(i,1);cnt++;if(cnt>=n)break;}
-    }
-    if(cnt<n){showToast('재료 부족!');renderShop();return;}
-  }
-  gold-=next.cost;
-  if(Math.random()<next.successRate){
-    e.enhLevel++;showToast(`✨ 강화 성공! +${e.enhLevel}`);addLog(`${e.item.name} +${e.enhLevel} 강화 성공!`,'lsys');
-  } else {
-    showToast('❌ 강화 실패...');addLog(`${e.item.name} 강화 실패`,'lhit');
-  }
-  renderShop();renderInv();
-}
+/* ── showShop/hideShop 호환 (보스전 후 상점 호출 제거) ── */
+function showShop(){nextFloor();}  // 보스 클리어 후 바로 다음층
+function hideShop(){}
 
 /* ═══════ GAME ENGINE ═══════ */
 const gc_el=document.getElementById('gc');
