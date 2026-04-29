@@ -840,8 +840,15 @@ function showScr(id){
   if(id==='title') startBGM(0);
   if(id==='ranking') loadRanking('floor');
 }
-function hideAllOverlays(){document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));document.getElementById('floor-map-screen').classList.add('hidden');document.getElementById('inv-screen').classList.add('hidden');document.getElementById('shop-screen').classList.add('hidden');document.getElementById('stage-clear').style.display='none';}
-function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
+function hideAllOverlays(){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));
+  const fm=document.getElementById('floor-map-screen');if(fm)fm.classList.add('hidden');
+  const inv=document.getElementById('inv-screen');if(inv)inv.classList.add('hidden');
+  const sc=document.getElementById('stage-clear');if(sc)sc.style.display='none';
+}
+function showShop(){nextFloor();}   // 보스 클리어 후 바로 다음 층
+function hideShop(){}
+function renderShop(){}             // 호환성 유지 (빈 함수)function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
 function hideFloorMap(){document.getElementById('floor-map-screen').classList.add('hidden');}
 function showInv(){document.getElementById('inv-screen').classList.remove('hidden');renderInv();}
 function hideInv(){document.getElementById('inv-screen').classList.add('hidden');}
