@@ -846,14 +846,13 @@ function hideAllOverlays(){
   const inv=document.getElementById('inv-screen');if(inv)inv.classList.add('hidden');
   const sc=document.getElementById('stage-clear');if(sc)sc.style.display='none';
 }
-function showShop(){nextFloor();}   // 보스 클리어 후 바로 다음 층
+function showShop(){nextFloor();}
 function hideShop(){}
-function renderShop(){}             // 호환성 유지 (빈 함수)function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
+function renderShop(){}
+function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
 function hideFloorMap(){document.getElementById('floor-map-screen').classList.add('hidden');}
 function showInv(){document.getElementById('inv-screen').classList.remove('hidden');renderInv();}
 function hideInv(){document.getElementById('inv-screen').classList.add('hidden');}
-function showShop(){document.getElementById('shop-screen').classList.remove('hidden');renderShop();}
-function hideShop(){document.getElementById('shop-screen').classList.add('hidden');}
 
 /* ═══════ CHAR SELECT ═══════ */
 let selChar=-1,takenChars=new Set();
