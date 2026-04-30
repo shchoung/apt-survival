@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -975,13 +978,13 @@ const SPRITE_FRAMES=getSpriteFrames(0);
 function getSpriteFrame(angle){
   const deg=((angle*180/Math.PI)+360+90)%360;
   if(deg<45||deg>=315)  return {frame:0,flip:false}; // 앞
-  if(deg<90)            return {frame:1,flip:false}; // 우앞
-  if(deg<135)           return {frame:1,flip:false}; // 우
-  if(deg<180)           return {frame:1,flip:false}; // 우뒤
+  if(deg<90)            return {frame:1,flip:true};  // 우앞 (미러)
+  if(deg<135)           return {frame:1,flip:true};  // 우 (미러)
+  if(deg<180)           return {frame:1,flip:true};  // 우뒤 (미러)
   if(deg<225)           return {frame:2,flip:false}; // 뒤
-  if(deg<270)           return {frame:1,flip:true};  // 좌뒤 (미러)
-  if(deg<315)           return {frame:1,flip:true};  // 좌 (미러)
-  return                       {frame:1,flip:true};  // 좌앞 (미러)
+  if(deg<270)           return {frame:1,flip:false}; // 좌뒤
+  if(deg<315)           return {frame:1,flip:false}; // 좌
+  return                       {frame:1,flip:false}; // 좌앞
 }
 
 let walkFrame=0,walkTick=0;
@@ -2401,7 +2404,7 @@ function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
     if(atkAnim>0){
       frame=3;
       const deg2=((angle*180/Math.PI)+360+90)%360;
-      flip=(deg2>=135&&deg2<315);
+      flip=(deg2>=45&&deg2<225); // 오른쪽 방향일 때 미러
       atkAnim--;
     } else {
       const sf=getSpriteFrame(angle);
@@ -3332,37 +3335,3 @@ function sendWsState(){
 function sendWsSkill(idx,x,y,angle){
   if(!isMultiGame) return;
   wsSend({type:'skill',skillIdx:idx,x:Math.round(x),y:Math.round(y),angle,floor:currentFloor});
-}
-
-/* ═══════ CHAT ═══════ */
-function toggleChat(){
-  chatOpen=!chatOpen;
-  const panel=document.getElementById('chat-panel');
-  if(panel) panel.style.display=chatOpen?'flex':'none';
-  const tog=document.getElementById('chat-toggle');
-  if(tog) tog.textContent=chatOpen?'✕':'💬';
-}
-
-function showChatPanel(show){
-  chatOpen=show;
-  const panel=document.getElementById('chat-panel');
-  const tog=document.getElementById('chat-toggle');
-  if(isMultiGame){
-    // 멀티 중엔 파티HUD 아래로 (HUD 높이 약 80px 고려)
-    if(panel) panel.style.top='calc(130px + var(--safe-top,0px))';
-    if(tog)   tog.style.top='calc(130px + var(--safe-top,0px))';
-  }
-  if(panel) panel.style.display=show?'flex':'none';
-  if(tog){tog.style.display='block';tog.textContent=show?'✕':'💬';}
-}
-
-function appendChat(msg){
-  const log=document.getElementById('chat-log');if(!log)return;
-  const div=document.createElement('div');div.className='chat-line';
-  const isMe=msg.playerId===myPlayerId;
-  const color=msg.charIdx>=0?WS_CHAR_COLORS[msg.charIdx]:'#7a9ab8';
-  div.innerHTML=`<span class="chat-nick" style="color:${color}">${msg.nick}</span><span style="color:#5a7a94">: </span><span style="color:#c0d8f0">${escHtml(msg.text)}</span>`;
-  log.appendChild(div);log.scrollTop=log.scrollHeight;
-  // 인게임 로그에도 표시
-  addLog(`[${msg.nick}] ${msg.text}`,'lnet');
-}
