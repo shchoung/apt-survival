@@ -1411,18 +1411,47 @@ function aStar(sr,sc,er,ec){
   return [];
 }
 
+function findSafeSpawn(preferX, preferY){
+  // 주어진 위치가 안전하면 그대로, 아니면 주변 탐색
+  const candidates=[];
+  ROOMS.forEach(room=>{
+    const cx=(room.x+Math.floor(room.w/2))*TILE+TILE/2;
+    const cy=(room.y+Math.floor(room.h/2))*TILE+TILE/2;
+    candidates.push({x:cx,y:cy});
+    // 방 내부 여러 위치 추가
+    for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){
+      const tx=(room.x+Math.floor(room.w/2)+dx)*TILE+TILE/2;
+      const ty=(room.y+Math.floor(room.h/2)+dy)*TILE+TILE/2;
+      if(!wall(tx,ty)) candidates.push({x:tx,y:ty});
+    }
+  });
+  // preferX/Y에 가장 가까운 안전 위치
+  if(!wall(preferX,preferY)) return {x:preferX,y:preferY};
+  if(candidates.length>0){
+    candidates.sort((a,b)=>
+      Math.hypot(a.x-preferX,a.y-preferY)-Math.hypot(b.x-preferX,b.y-preferY)
+    );
+    return candidates[0];
+  }
+  return {x:COLS/2*TILE,y:ROWS/2*TILE};
+}
+
 function makePlayer(save){
   const cd=CHARS[selChar];
   let sx=COLS/2*TILE,sy=ROWS/2*TILE;
-  if(ROOMS.length>0){sx=(ROOMS[0].x+Math.floor(ROOMS[0].w/2))*TILE+TILE/2;sy=(ROOMS[0].y+Math.floor(ROOMS[0].h/2))*TILE+TILE/2;}
+  if(ROOMS.length>0){
+    sx=(ROOMS[0].x+Math.floor(ROOMS[0].w/2))*TILE+TILE/2;
+    sy=(ROOMS[0].y+Math.floor(ROOMS[0].h/2))*TILE+TILE/2;
+  }
+  // 벽 체크 후 안전 위치 보정
+  const safe=findSafeSpawn(sx,sy);
+  sx=safe.x;sy=safe.y;
 
   const lv=save?.lv||1;
   const lvMul=1+(lv-1)*0.1;
   return{
     ...cd,x:sx,y:sy,
-    lv,
-    exp:save?.exp||0,
-    expNext:lv*80,
+    lv,exp:save?.exp||0,expNext:lv*80,
     hp:save?.hp||Math.floor(cd.stats.HP*lvMul),
     maxHp:Math.floor(cd.stats.HP*lvMul),
     atk:Math.floor(cd.stats.ATK*lvMul),
@@ -1472,17 +1501,18 @@ function startGame(){
 }
 
 function resetFloor(){
-  enemies=[];drops_arr=[];particles=[];floats=[];
+  enemies=[];drops_arr=[];particles=[];floats=[];skillFX=[];
   kills=0;waveKills=0;waveNum=1;cdT=[0,0,0,0];
   buildMap(currentFloor);
   if(player){
+    let sx=COLS/2*TILE,sy=ROWS/2*TILE;
     if(ROOMS.length>0){
-      player.x=(ROOMS[0].x+Math.floor(ROOMS[0].w/2))*TILE+TILE/2;
-      player.y=(ROOMS[0].y+Math.floor(ROOMS[0].h/2))*TILE+TILE/2;
-    } else {
-      player.x=COLS/2*TILE;player.y=ROWS/2*TILE;
+      sx=(ROOMS[0].x+Math.floor(ROOMS[0].w/2))*TILE+TILE/2;
+      sy=(ROOMS[0].y+Math.floor(ROOMS[0].h/2))*TILE+TILE/2;
     }
-    player.invincible=0;
+    const safe=findSafeSpawn(sx,sy);
+    player.x=safe.x;player.y=safe.y;
+    player.invincible=60;  // 층 이동 후 잠깐 무적
     camX=player.x;camY=player.y;
   }
   document.getElementById('floor-info').textContent=floorName(currentFloor)+(BOSS_FLOORS.has(currentFloor)?' [BOSS]':'');
@@ -1644,18 +1674,8 @@ function update(){
     const eq2=getEquipStats();const h=Math.floor((30+player.lv*5)*(1+eq2.healBonus));
     player.hp=Math.min(player.maxHp,player.hp+h);addFloat(player.x,player.y,`+${h}`,'#5dcaa5');cdT[1]=180;
   }
-  if(enemies.length===0&&waveKills>=waveTarget) stageComplete();
-
-  // 출구 근접 자동 진입 (스테이지 클리어 후)
-  if(!running&&floorProgress[currentFloor]===false){/* 이미 처리됨 */}
-  if(enemies.length===0&&waveKills>=waveTarget&&running&&ROOMS.length>0){
-    const lr=ROOMS[ROOMS.length-1];
-    const exitWX=(lr.x+Math.floor(lr.w/2))*TILE+TILE*.75;
-    const exitWY=(lr.y+Math.floor(lr.h/2))*TILE+TILE*.75;
-    if(Math.abs(player.x-exitWX)<TILE&&Math.abs(player.y-exitWY)<TILE){
-      stageComplete();
-    }
-  }
+  // 층 클리어 조건 — stageComplete는 한 번만 호출
+  if(enemies.length===0&&waveKills>=waveTarget&&running) stageComplete();
 
   updateHUD();
   sendWsState();
@@ -1706,10 +1726,11 @@ function nextFloor(){
     return;
   }
   currentFloor++;
+  running=false;           // 기존 루프 확실히 정지
   resetFloor();
   startBGM(currentFloor);
   running=true;
-  requestAnimationFrame(loop);
+  requestAnimationFrame(loop);  // 루프 새로 시작
 }
 
 function useSkill(i){
@@ -3033,18 +3054,22 @@ function updateMultiPartyHUD(){
 
 /* 다른 플레이어 캔버스에 그리기 */
 function drawMultiPlayers(){
-  if(!isMultiGame) return;
+  if(!isMultiGame||!wsRoomPlayers) return;
   Object.values(wsRoomPlayers).forEach(p=>{
-    if(p.id===myPlayerId||p.charIdx<0) return;
-    const s=w2s(p.x||0,p.y||0);
+    // 내 플레이어 제외, 유효한 캐릭터만
+    if(!p||p.id===myPlayerId||p.charIdx<0||p.charIdx===undefined) return;
+    // 위치가 0,0이면 아직 수신 전 — 그리지 않음
+    if(!p.x&&!p.y) return;
+    const s=w2s(p.x,p.y);
+    if(s.x<-60||s.x>W+60||s.y<-60||s.y>H+60) return;
     ctx.save();ctx.globalAlpha=.85;
     drawCharSVG(ctx,s.x,s.y,p.charIdx,0,false);
-    // 닉네임 + HP
-    const hp=(p.hp/p.maxHp)||1;
+    const hp=Math.min(1,Math.max(0,(p.hp/p.maxHp)||1));
     ctx.fillStyle='#1a2535';ctx.fillRect(s.x-18,s.y-26,36,4);
-    ctx.fillStyle=WS_CHAR_COLORS[p.charIdx]||'#888';ctx.fillRect(s.x-18,s.y-26,36*hp,4);
-    ctx.fillStyle='#a0bcd0';ctx.font='9px Share Tech Mono';ctx.textAlign='center';
-    ctx.fillText(p.nick,s.x,s.y+28);
+    ctx.fillStyle=WS_CHAR_COLORS[p.charIdx]||'#888';
+    ctx.fillRect(s.x-18,s.y-26,36*hp,4);
+    ctx.fillStyle='#a0bcd0';ctx.font='9px Share Tech Mono';
+    ctx.textAlign='center';ctx.fillText(p.nick,s.x,s.y+28);
     ctx.restore();
   });
 }
