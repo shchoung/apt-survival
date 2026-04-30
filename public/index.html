@@ -284,16 +284,26 @@ canvas{display:block;width:100%;height:100%}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* TOAST */
-#toast{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);font-family:var(--tf);font-size:11px;padding:6px 16px;border-radius:20px;background:var(--c1);border:1px solid var(--c3);color:#e0e8f0;z-index:200;display:none;white-space:nowrap}
+#toast{
+  position:absolute;bottom:calc(130px + var(--safe-bot));
+  left:50%;transform:translateX(-50%);
+  font-family:var(--tf);font-size:11px;padding:6px 16px;border-radius:20px;
+  background:var(--c1);border:1px solid var(--c3);color:#e0e8f0;
+  z-index:200;display:none;white-space:nowrap;pointer-events:none;
+}
 
-/* CHAT */
+/* CHAT — 스킬바 위, 어택버튼과 겹치지 않게 */
 #chat-panel{
-  position:absolute;bottom:68px;right:10px;width:240px;
+  position:absolute;
+  bottom:calc(70px + var(--safe-bot));   /* 스킬바(64px) + 여유 */
+  right:10px;
+  width:200px;
   display:flex;flex-direction:column;gap:0;z-index:30;pointer-events:auto;
 }
 #chat-log{
   background:#07090dcc;border:1px solid var(--c3);border-radius:6px 6px 0 0;
-  padding:6px;height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;
+  padding:6px;height:100px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:1px;
 }
 .chat-line{font-size:10px;line-height:1.5;font-family:var(--tf);word-break:break-all}
 .chat-nick{font-weight:700}
@@ -310,20 +320,80 @@ canvas{display:block;width:100%;height:100%}
   background:var(--c2);border:1px solid var(--c3);border-top:none;border-left:none;
   border-radius:0 0 6px 0;color:var(--ct);cursor:pointer;white-space:nowrap;
 }
-#chat-send:hover{background:var(--c3)}
-#chat-toggle{
-  position:absolute;bottom:68px;right:258px;
-  font-family:var(--tf);font-size:10px;padding:3px 8px;border-radius:4px;
-  background:var(--c2);border:1px solid var(--c3);color:#5a7a94;cursor:pointer;z-index:31;
-}
-#chat-toggle:hover{color:var(--ct);border-color:var(--ct)}
+#chat-send:active{background:var(--c3)}
 
-/* 파티 HP 오버레이 (멀티) */
-#multi-party-hud{
-  position:absolute;top:6px;left:8px;display:flex;flex-direction:column;gap:4px;pointer-events:none;z-index:20;
+/* 채팅 토글 버튼 — 스킬바 바로 위 오른쪽 끝 */
+#chat-toggle{
+  position:absolute;
+  bottom:calc(70px + var(--safe-bot));
+  right:10px;
+  font-family:var(--tf);font-size:10px;padding:3px 10px;border-radius:4px;
+  background:var(--c2);border:1px solid var(--c3);color:#5a7a94;
+  cursor:pointer;z-index:31;
 }
-.lobby-inp{font-family:var(--tf);font-size:12px;background:var(--c1);border:1px solid var(--c3);border-radius:4px;padding:5px 9px;color:#e0e8f0;outline:none}
-.lobby-inp:focus{border-color:var(--ct)}
+#chat-toggle:active{color:var(--ct);border-color:var(--ct)}
+
+/* 조이스틱 — 스킬바 바로 위 왼쪽 */
+#joy-wrap{
+  position:absolute;
+  bottom:calc(70px + var(--safe-bot));
+  left:12px;
+  width:110px;height:110px;
+  pointer-events:auto;user-select:none;display:none;touch-action:none;
+}
+#joy-base{position:absolute;inset:0;border-radius:50%;background:#0a0e15cc;border:2px solid var(--c3)}
+#joy-knob{
+  position:absolute;width:40px;height:40px;border-radius:50%;
+  background:#1e3a5fdd;border:2px solid var(--ct);
+  top:50%;left:50%;transform:translate(-50%,-50%);
+}
+
+/* D-PAD — 스킬바 바로 위 왼쪽 */
+#dpad{
+  position:absolute;
+  bottom:calc(70px + var(--safe-bot));
+  left:12px;
+  display:none;width:124px;height:124px;
+  pointer-events:auto;user-select:none;touch-action:none;
+}
+.dpbtn{
+  position:absolute;width:38px;height:38px;
+  background:#0d1117cc;border:1.5px solid var(--c3);border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;color:var(--ct);cursor:pointer;user-select:none;
+}
+.dpbtn:active{background:var(--c3)}
+#dp-u{top:0;left:44px}#dp-d{bottom:0;left:44px}
+#dp-l{top:44px;left:0}#dp-r{top:44px;right:0}
+#dp-c{top:44px;left:44px;background:var(--c2);border-color:#243450;font-size:9px;color:#5a7a94;font-family:var(--tf)}
+
+/* 어택(ATK) 버튼 — 채팅창 왼쪽, 스킬바 위 */
+#tatk{
+  position:absolute;
+  bottom:calc(70px + var(--safe-bot));
+  right:220px;           /* 채팅창(200px) + 여유 */
+  width:64px;height:64px;border-radius:50%;
+  background:#1e3a5fcc;border:2.5px solid var(--ct);
+  display:none;align-items:center;justify-content:center;
+  color:var(--ct);font-family:var(--tf);font-size:12px;font-weight:700;
+  cursor:pointer;pointer-events:auto;user-select:none;touch-action:none;
+  z-index:25;
+}
+#tatk:active{background:#2a5070;transform:scale(.93)}
+
+/* ctrl 토글 버튼 */
+#ctrl-tog{
+  position:absolute;top:5px;right:8px;
+  font-family:var(--tf);font-size:9px;padding:2px 6px;border-radius:3px;
+  background:var(--c2);border:1px solid var(--c3);color:#5a7a94;cursor:pointer;z-index:20;
+}
+#ctrl-tog:active{color:var(--ct);border-color:var(--ct)}
+
+/* 파티 HP 오버레이 */
+#multi-party-hud{
+  position:absolute;top:6px;left:8px;display:flex;flex-direction:column;gap:4px;
+  pointer-events:none;z-index:20;
+}
 </style>
 </head>
 <body>
@@ -1435,28 +1505,37 @@ function aStar(sr,sc,er,ec){
 }
 
 function findSafeSpawn(preferX, preferY){
-  // 주어진 위치가 안전하면 그대로, 아니면 주변 탐색
+  // 이미 안전하면 바로 반환
+  if(!wall(preferX,preferY)) return {x:preferX,y:preferY};
+
+  // 방 내부 안전 위치 전체 수집
   const candidates=[];
   ROOMS.forEach(room=>{
-    const cx=(room.x+Math.floor(room.w/2))*TILE+TILE/2;
-    const cy=(room.y+Math.floor(room.h/2))*TILE+TILE/2;
-    candidates.push({x:cx,y:cy});
-    // 방 내부 여러 위치 추가
-    for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){
-      const tx=(room.x+Math.floor(room.w/2)+dx)*TILE+TILE/2;
-      const ty=(room.y+Math.floor(room.h/2)+dy)*TILE+TILE/2;
-      if(!wall(tx,ty)) candidates.push({x:tx,y:ty});
+    for(let dr=0;dr<room.h;dr++){
+      for(let dc=0;dc<room.w;dc++){
+        const tx=(room.x+dc)*TILE+TILE/2;
+        const ty=(room.y+dr)*TILE+TILE/2;
+        if(!wall(tx,ty)) candidates.push({x:tx,y:ty});
+      }
     }
   });
-  // preferX/Y에 가장 가까운 안전 위치
-  if(!wall(preferX,preferY)) return {x:preferX,y:preferY};
+
   if(candidates.length>0){
+    // preferX/Y에서 가장 가까운 안전 위치
     candidates.sort((a,b)=>
       Math.hypot(a.x-preferX,a.y-preferY)-Math.hypot(b.x-preferX,b.y-preferY)
     );
     return candidates[0];
   }
-  return {x:COLS/2*TILE,y:ROWS/2*TILE};
+
+  // 최후 폴백: 맵 전체 스캔
+  for(let r=1;r<ROWS-1;r++){
+    for(let c=1;c<COLS-1;c++){
+      if(!wall(c*TILE+TILE/2,r*TILE+TILE/2))
+        return {x:c*TILE+TILE/2,y:r*TILE+TILE/2};
+    }
+  }
+  return {x:preferX,y:preferY};
 }
 
 function makePlayer(save){
@@ -1568,21 +1647,32 @@ function spawnWave(){
 }
 
 function spawnEnemy(t){
-  // 맵 내부 스폰 포인트 중 랜덤 선택 (없으면 마지막 방 중앙)
   let sx,sy;
+
+  // 스폰 후보: SPAWN_POINTS (플레이어 첫 방 제외한 나머지 방 중앙)
   if(SPAWN_POINTS.length>0){
-    const pt=SPAWN_POINTS[rand(0,SPAWN_POINTS.length-1)];
-    sx=pt.x+rand(-TILE/2,TILE/2);sy=pt.y+rand(-TILE/2,TILE/2);
+    // 플레이어와 너무 가까운 포인트 제외 (최소 3타일 거리)
+    const MIN_DIST=TILE*3;
+    const farPoints=player
+      ? SPAWN_POINTS.filter(p=>Math.hypot(p.x-player.x,p.y-player.y)>=MIN_DIST)
+      : SPAWN_POINTS;
+    const pool=farPoints.length>0?farPoints:SPAWN_POINTS;
+    const pt=pool[rand(0,pool.length-1)];
+    sx=pt.x; sy=pt.y;
   } else {
     const lastRoom=ROOMS[ROOMS.length-1]||{x:COLS-5,y:ROWS-5,w:4,h:4};
-    sx=(lastRoom.x+Math.floor(lastRoom.w/2))*TILE;sy=(lastRoom.y+Math.floor(lastRoom.h/2))*TILE;
+    sx=(lastRoom.x+Math.floor(lastRoom.w/2))*TILE+TILE/2;
+    sy=(lastRoom.y+Math.floor(lastRoom.h/2))*TILE+TILE/2;
   }
-  // 벽에 박히지 않도록 보정
-  if(wall(sx,sy)){sx=COLS/2*TILE;sy=ROWS/2*TILE;}
+
+  // findSafeSpawn으로 최종 안전 위치 보정
+  const safe=findSafeSpawn(sx,sy);
+  sx=safe.x; sy=safe.y;
+
   enemies.push({
     ...t,x:sx,y:sy,id:Math.random(),atkT:rand(30,90),flick:0,
     path:[],pathTick:0,alertTick:0,wanderTick:0,wanderDx:0,wanderDy:0,
-    state:'idle',  // idle | chase | wander | attack
+    state:'idle',
   });
 }
 
@@ -3160,14 +3250,15 @@ function toggleChat(){
   const panel=document.getElementById('chat-panel');
   if(panel) panel.style.display=chatOpen?'flex':'none';
   const tog=document.getElementById('chat-toggle');
-  if(tog) tog.textContent=chatOpen?'✕ 닫기':'💬 채팅';
+  if(tog) tog.textContent=chatOpen?'✕':'💬';
 }
 
 function showChatPanel(show){
   chatOpen=show;
-  const panel=document.getElementById('chat-panel');if(panel)panel.style.display=show?'flex':'none';
-  const tog=document.getElementById('chat-toggle');if(tog)tog.style.display=show?'block':'none';
-  const ctog=document.getElementById('chat-toggle');if(ctog)ctog.textContent='💬 채팅';
+  const panel=document.getElementById('chat-panel');
+  if(panel) panel.style.display=show?'flex':'none';
+  const tog=document.getElementById('chat-toggle');
+  if(tog){tog.style.display='block';tog.textContent=show?'✕':'💬';}
 }
 
 function appendChat(msg){
