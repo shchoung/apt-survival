@@ -3024,8 +3024,10 @@ function onWsMsg(msg){
       if(msg.playerId===myPlayerId) break;
       if(wsRoomPlayers[msg.playerId]){
         Object.assign(wsRoomPlayers[msg.playerId],{
-          x:msg.x,y:msg.y,hp:msg.hp,maxHp:msg.maxHp,
+          x:msg.x,y:msg.y,
+          hp:msg.hp,maxHp:msg.maxHp,
           lv:msg.lv,charIdx:msg.charIdx,
+          floor:msg.floor??wsRoomPlayers[msg.playerId].floor,  // ← 층 저장
         });
       }
       updateMultiPartyHUD();
@@ -3034,6 +3036,8 @@ function onWsMsg(msg){
 
     case 'skill_fx':{
       if(msg.playerId===myPlayerId) break;
+      // ── 같은 층일 때만 스킬 이펙트 표시 ──
+      if(msg.floor!==undefined&&msg.floor!==currentFloor) break;
       const fxTypes=['slash','hack','dash','heal'];
       spawnSkillFX(fxTypes[msg.charIdx]||'slash',msg.x,msg.y,msg.angle,WS_CHAR_COLORS[msg.charIdx]||'#fff');
       break;
@@ -3075,12 +3079,20 @@ function updateMultiPartyHUD(){
   el.innerHTML=Object.values(wsRoomPlayers)
     .filter(p=>p.id!==myPlayerId&&p.charIdx>=0)
     .map(p=>{
+      const sameFloor=(p.floor===undefined||p.floor===currentFloor);
       const hp=Math.round((p.hp/p.maxHp||1)*100);
-      return `<div class="pmem">
-        <div class="pmav" style="background:${WS_CHAR_COLORS[p.charIdx]||'#888'}22;color:${WS_CHAR_COLORS[p.charIdx]||'#888'};border-color:${WS_CHAR_COLORS[p.charIdx]||'#888'}">${['준','서','민','하'][p.charIdx]||'?'}</div>
+      const floorTxt=p.floor!==undefined?floorName(p.floor):'?';
+      const color=WS_CHAR_COLORS[p.charIdx]||'#888';
+      return `<div class="pmem" style="opacity:${sameFloor?1:0.55}">
+        <div class="pmav" style="background:${color}22;color:${color};border-color:${color}">${['준','서','민','하'][p.charIdx]||'?'}</div>
         <div style="flex:1">
-          <div class="pmnm">${p.nick} Lv${p.lv}</div>
-          <div class="pmbg"><div class="pmhp" style="width:${hp}%"></div></div>
+          <div class="pmnm">${p.nick} Lv${p.lv}
+            ${!sameFloor?`<span style="font-size:8px;color:var(--ca);margin-left:3px">${floorTxt}</span>`:''}
+          </div>
+          ${sameFloor
+            ?`<div class="pmbg"><div class="pmhp" style="width:${hp}%"></div></div>`
+            :`<div style="font-family:var(--tf);font-size:8px;color:#5a7a94">다른 층</div>`
+          }
         </div>
       </div>`;
     }).join('');
@@ -3090,10 +3102,10 @@ function updateMultiPartyHUD(){
 function drawMultiPlayers(){
   if(!isMultiGame||!wsRoomPlayers) return;
   Object.values(wsRoomPlayers).forEach(p=>{
-    // 내 플레이어 제외, 유효한 캐릭터만
     if(!p||p.id===myPlayerId||p.charIdx<0||p.charIdx===undefined) return;
-    // 위치가 0,0이면 아직 수신 전 — 그리지 않음
     if(!p.x&&!p.y) return;
+    // ── 같은 층일 때만 렌더링 ──
+    if(p.floor!==undefined&&p.floor!==currentFloor) return;
     const s=w2s(p.x,p.y);
     if(s.x<-60||s.x>W+60||s.y<-60||s.y>H+60) return;
     ctx.save();ctx.globalAlpha=.85;
@@ -3113,6 +3125,8 @@ function drawMultiMinimap(){
   if(!isMultiGame) return;
   Object.values(wsRoomPlayers).forEach(p=>{
     if(p.id===myPlayerId||p.charIdx<0) return;
+    // 같은 층만 미니맵 표시
+    if(p.floor!==undefined&&p.floor!==currentFloor) return;
     const msx=100/COLS,msy=75/ROWS;
     mctx.fillStyle=WS_CHAR_COLORS[p.charIdx]||'#888';
     mctx.beginPath();mctx.arc((p.x||0)/TILE*msx,(p.y||0)/TILE*msy,2.5,0,Math.PI*2);mctx.fill();
@@ -3125,14 +3139,19 @@ function sendWsState(){
   if(!isMultiGame||!player) return;
   stateTickWs++;
   if(stateTickWs%6!==0) return;
-  wsSend({type:'state',x:Math.round(player.x),y:Math.round(player.y),
-    hp:player.hp,maxHp:player.maxHp,lv:player.lv,exp:player.exp,kills});
+  wsSend({
+    type:'state',
+    x:Math.round(player.x),y:Math.round(player.y),
+    hp:player.hp,maxHp:player.maxHp,
+    lv:player.lv,exp:player.exp,kills,
+    floor:currentFloor,  // ← 층 정보 항상 포함
+  });
 }
 
-/* 스킬 사용 시 멀티 브로드캐스트 */
+/* 스킬 사용 시 멀티 브로드캐스트 — 같은 층만 */
 function sendWsSkill(idx,x,y,angle){
   if(!isMultiGame) return;
-  wsSend({type:'skill',skillIdx:idx,x:Math.round(x),y:Math.round(y),angle});
+  wsSend({type:'skill',skillIdx:idx,x:Math.round(x),y:Math.round(y),angle,floor:currentFloor});
 }
 
 /* ═══════ CHAT ═══════ */
