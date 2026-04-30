@@ -159,15 +159,17 @@ canvas{display:block;width:100%;height:100%}
   padding:5px;display:flex;flex-direction:column;min-height:0;overflow:hidden;
 }
 .inv-panel-title{font-family:var(--tf);font-size:9px;color:var(--ca);margin-bottom:4px;flex-shrink:0}
-/* 아이템 슬롯 3열 */
+/* 아이템 슬롯 3열 — 42x42 고정 (장착슬롯과 동일) */
 .inv-slots{
-  display:grid;grid-template-columns:repeat(3,1fr);
-  gap:3px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;
+  display:grid;grid-template-columns:repeat(3,42px);
+  gap:4px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;
+  align-content:start;
 }
 .islot{
-  aspect-ratio:1;border-radius:5px;border:1.5px solid var(--c3);background:var(--c2);
+  width:42px;height:42px;
+  border-radius:5px;border:1.5px solid var(--c3);background:var(--c2);
   display:flex;align-items:center;justify-content:center;
-  cursor:pointer;position:relative;font-size:17px;transition:.1s;user-select:none;
+  cursor:pointer;position:relative;font-size:18px;transition:.1s;user-select:none;
 }
 .islot:active{opacity:.7}
 .islot.sel{border-color:var(--ct)!important;background:#0d1f1a}
@@ -292,17 +294,17 @@ canvas{display:block;width:100%;height:100%}
   z-index:200;display:none;white-space:nowrap;pointer-events:none;
 }
 
-/* CHAT — 스킬바 위, 어택버튼과 겹치지 않게 */
+/* CHAT — 좌측 상단 */
 #chat-panel{
   position:absolute;
-  bottom:calc(70px + var(--safe-bot));   /* 스킬바(64px) + 여유 */
-  right:10px;
-  width:200px;
+  top:calc(50px + var(--safe-top));
+  left:8px;
+  width:190px;
   display:flex;flex-direction:column;gap:0;z-index:30;pointer-events:auto;
 }
 #chat-log{
   background:#07090dcc;border:1px solid var(--c3);border-radius:6px 6px 0 0;
-  padding:6px;height:100px;overflow-y:auto;
+  padding:6px;height:90px;overflow-y:auto;
   display:flex;flex-direction:column;gap:1px;
 }
 .chat-line{font-size:10px;line-height:1.5;font-family:var(--tf);word-break:break-all}
@@ -322,18 +324,18 @@ canvas{display:block;width:100%;height:100%}
 }
 #chat-send:active{background:var(--c3)}
 
-/* 채팅 토글 버튼 — 스킬바 바로 위 오른쪽 끝 */
+/* 채팅 토글 — 좌측 상단 */
 #chat-toggle{
   position:absolute;
-  bottom:calc(70px + var(--safe-bot));
-  right:10px;
+  top:calc(50px + var(--safe-top));
+  left:8px;
   font-family:var(--tf);font-size:10px;padding:3px 10px;border-radius:4px;
   background:var(--c2);border:1px solid var(--c3);color:#5a7a94;
   cursor:pointer;z-index:31;
 }
 #chat-toggle:active{color:var(--ct);border-color:var(--ct)}
 
-/* 조이스틱 — 스킬바 바로 위 왼쪽 */
+/* 조이스틱 — 스킬바 위 왼쪽 */
 #joy-wrap{
   position:absolute;
   bottom:calc(70px + var(--safe-bot));
@@ -348,7 +350,7 @@ canvas{display:block;width:100%;height:100%}
   top:50%;left:50%;transform:translate(-50%,-50%);
 }
 
-/* D-PAD — 스킬바 바로 위 왼쪽 */
+/* D-PAD */
 #dpad{
   position:absolute;
   bottom:calc(70px + var(--safe-bot));
@@ -367,11 +369,11 @@ canvas{display:block;width:100%;height:100%}
 #dp-l{top:44px;left:0}#dp-r{top:44px;right:0}
 #dp-c{top:44px;left:44px;background:var(--c2);border-color:#243450;font-size:9px;color:#5a7a94;font-family:var(--tf)}
 
-/* 어택(ATK) 버튼 — 채팅창 왼쪽, 스킬바 위 */
+/* 어택(ATK) 버튼 — 원래 위치 (오른쪽 하단) */
 #tatk{
   position:absolute;
   bottom:calc(70px + var(--safe-bot));
-  right:220px;           /* 채팅창(200px) + 여유 */
+  right:14px;
   width:64px;height:64px;border-radius:50%;
   background:#1e3a5fcc;border:2.5px solid var(--ct);
   display:none;align-items:center;justify-content:center;
@@ -3256,8 +3258,13 @@ function toggleChat(){
 function showChatPanel(show){
   chatOpen=show;
   const panel=document.getElementById('chat-panel');
-  if(panel) panel.style.display=show?'flex':'none';
   const tog=document.getElementById('chat-toggle');
+  if(isMultiGame){
+    // 멀티 중엔 파티HUD 아래로 (HUD 높이 약 80px 고려)
+    if(panel) panel.style.top='calc(130px + var(--safe-top,0px))';
+    if(tog)   tog.style.top='calc(130px + var(--safe-top,0px))';
+  }
+  if(panel) panel.style.display=show?'flex':'none';
   if(tog){tog.style.display='block';tog.textContent=show?'✕':'💬';}
 }
 
