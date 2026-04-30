@@ -597,11 +597,6 @@ canvas{display:block;width:100%;height:100%}
   <div class="scr hidden" id="scr-char-select">
     <div class="stitle" style="font-size:16px;letter-spacing:3px">캐릭터 선택</div>
     <div class="ssub">한 명 선택 후 게임 시작</div>
-    <div id="char-img-hint" style="display:none;font-family:var(--tf);font-size:10px;color:var(--ca);margin-bottom:8px;text-align:center">
-      ▶ Characters.png 를 업로드하면 캐릭터 일러스트가 표시됩니다
-      <input type="file" id="char-img-upload" accept="image/*" style="display:none" onchange="onCharImgUpload(event)"/>
-      <button class="sbtn" style="padding:3px 12px;font-size:10px;margin-left:8px" onclick="document.getElementById('char-img-upload').click()">이미지 업로드</button>
-    </div>
     <div id="csg"></div>
     <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center">
       <button class="sbtn gray" onclick="showScr('title')">← 뒤로</button>
@@ -933,57 +928,70 @@ let selChar=-1,takenChars=new Set();
 // 이미지 전체: 1344×896, 4분할 (각 672×448)
 // 각 분면: 일러스트(좌측 약 280px), 스프라이트시트(우측 박스)
 // 스프라이트: 4열×2행, 각 프레임 약 64×80px
-const CHAR_IMG_SRC='/mnt/user-data/uploads/Characters.png'; // 로컬 테스트용
-// 배포 시에는 이미지를 public/ 폴더에 넣고 경로를 'Characters.png'로 변경
+/* ═══════ 캐릭터 스프라이트 시스템 ═══════
+   각 캐릭터마다 별도 PNG 파일 사용
+   파일 형식: 128×600px, 세로 4프레임 (각 128×150px)
+     프레임0 (y=  0): 정면(앞)
+     프레임1 (y=150): 측면(우) — 좌측은 자동 미러
+     프레임2 (y=300): 뒤
+     프레임3 (y=450): 공격/특수
+   파일명: tanker.png, sea.png, min.png, hana.png
+   ─────────────────────────────────────── */
 
-// 캐릭터별 이미지 좌표 (전체 이미지 기준 px)
-// [일러스트: x,y,w,h] [스프라이트시트: x,y,frameW,frameH,cols,rows]
-const CHAR_COORDS=[
-  { // 이준호 (탱커) — 좌상단
-    illust:{x:8,  y:60, w:280,h:380},
-    sprite:{x:295,y:68, fw:88,fh:100,cols:4,rows:2}
-  },
-  { // 김서아 (서포터) — 우상단
-    illust:{x:676,y:55, w:280,h:390},
-    sprite:{x:965,y:68, fw:88,fh:100,cols:4,rows:2}
-  },
-  { // 박민재 (딜러) — 좌하단
-    illust:{x:8,  y:500,w:280,h:390},
-    sprite:{x:295,y:512,fw:88,fh:100,cols:4,rows:2}
-  },
-  { // 오하나 (힐러) — 우하단
-    illust:{x:676,y:495,w:280,h:395},
-    sprite:{x:965,y:508,fw:88,fh:100,cols:4,rows:2}
-  },
+// 캐릭터별 이미지 객체
+const CHAR_SPRITES=[
+  {img:null,loaded:false,src:'tanker.png'},  // 0 이준호 (탱커)
+  {img:null,loaded:false,src:'sea.png'},     // 1 김서아 (서포터)
+  {img:null,loaded:false,src:'min.png'},     // 2 박민재 (딜러)
+  {img:null,loaded:false,src:'hana.png'},    // 3 오하나 (힐러)
 ];
 
-// 이미지 미리 로드
-const charImg=new Image();
-let charImgLoaded=false;
-charImg.onload=()=>{charImgLoaded=true;if(selChar>=0)renderCharSelect();};
-charImg.onerror=()=>{charImgLoaded=false;};
-// data URI로 임베드하거나 서버 경로 사용
-// 브라우저에서 직접 열 때는 로컬 파일 접근 제한이 있으므로
-// 아래 함수로 파일을 읽어서 base64로 변환
-function loadCharImage(file){
-  const reader=new FileReader();
-  reader.onload=e=>{charImg.src=e.target.result;};
-  reader.readAsDataURL(file);
+// 탱커는 기존 base64 내장 이미지 사용
+CHAR_SPRITES[0].img=tankerImg;
+
+// 나머지 3개는 서버/같은폴더에서 자동 로드 시도
+[1,2,3].forEach(i=>{
+  const sp=CHAR_SPRITES[i];
+  sp.img=new Image();
+  sp.img.onload=()=>{sp.loaded=true;console.log(`[SPRITE] ${sp.src} 로드 완료`);};
+  sp.img.onerror=()=>{sp.loaded=false;};
+  sp.img.src=sp.src;
+});
+
+// 스프라이트 프레임 정의 (tanker.png와 동일 구조)
+const SPRITE_FRAMES=[
+  {srcX:0,srcY:  0,srcW:128,srcH:150},  // 프레임0 — 정면
+  {srcX:0,srcY:150,srcW:128,srcH:150},  // 프레임1 — 측면(우)
+  {srcX:0,srcY:300,srcW:128,srcH:150},  // 프레임2 — 뒤
+  {srcX:0,srcY:450,srcW:128,srcH:150},  // 프레임3 — 공격/특수
+];
+
+// 이동 방향 → 프레임 + 미러 여부
+function getSpriteFrame(angle){
+  const deg=((angle*180/Math.PI)+360+90)%360;
+  if(deg<45||deg>=315)  return {frame:0,flip:false}; // 앞
+  if(deg<90)            return {frame:1,flip:false}; // 우앞
+  if(deg<135)           return {frame:1,flip:false}; // 우
+  if(deg<180)           return {frame:1,flip:false}; // 우뒤
+  if(deg<225)           return {frame:2,flip:false}; // 뒤
+  if(deg<270)           return {frame:1,flip:true};  // 좌뒤 (미러)
+  if(deg<315)           return {frame:1,flip:true};  // 좌 (미러)
+  return                       {frame:1,flip:true};  // 좌앞 (미러)
 }
+
+let walkFrame=0,walkTick=0;
 
 function renderCharSelect(){
   const g=document.getElementById('csg');
   g.innerHTML=CHARS.map((c,i)=>{
     const taken=takenChars.has(i)&&i!==selChar,picked=selChar===i;
     const sc={HP:'#e24b4b',ATK:c.color,DEF:'#5dcaa5',SPD:'#7f77dd'};
-    const coord=CHAR_COORDS[i];
-    // 일러스트 캔버스 ID
     const cvId=`char-illust-${i}`;
     return `<div class="ccard${picked?' picked':''}${taken?' taken':''}" onclick="pickChar(${i})" style="position:relative">
       ${taken?'<span class="taken-b">사용중</span>':''}
       <div style="display:flex;gap:10px;align-items:flex-start">
-        <div style="flex-shrink:0;width:80px;height:90px;border-radius:6px;overflow:hidden;background:#000;border:1.5px solid ${c.color}33">
-          <canvas id="${cvId}" width="80" height="90" style="display:block"></canvas>
+        <div style="flex-shrink:0;width:70px;height:80px;border-radius:6px;overflow:hidden;background:#000;border:1.5px solid ${c.color}44">
+          <canvas id="${cvId}" width="70" height="80" style="display:block"></canvas>
         </div>
         <div style="flex:1">
           <div class="cch" style="margin-bottom:4px">
@@ -998,15 +1006,8 @@ function renderCharSelect(){
     </div>`;
   }).join('');
 
-  // 캔버스에 일러스트 그리기 (약간 딜레이 후)
   requestAnimationFrame(()=>drawCharIllusts());
   document.getElementById('btn-start').disabled=selChar<0;
-
-  // 이미지 미로드시 안내
-  if(!charImgLoaded){
-    const hint=document.getElementById('char-img-hint');
-    if(hint) hint.style.display='block';
-  }
 }
 
 function drawCharIllusts(){
@@ -1014,20 +1015,21 @@ function drawCharIllusts(){
     const cv=document.getElementById(`char-illust-${i}`);
     if(!cv) return;
     const c2=cv.getContext('2d');
-    c2.clearRect(0,0,80,90);
-    if(charImgLoaded){
-      const coord=CHAR_COORDS[i].illust;
-      // 이미지를 캔버스에 맞게 크롭해서 그리기
-      const scale=Math.min(80/coord.w,90/coord.h);
-      const dw=coord.w*scale,dh=coord.h*scale;
-      const dx=(80-dw)/2,dy=(90-dh)/2;
-      c2.drawImage(charImg,coord.x,coord.y,coord.w,coord.h,dx,dy,dw,dh);
+    c2.clearRect(0,0,70,80);
+    const sp=CHAR_SPRITES[i];
+    const isLoaded=(i===0)?tankerLoaded:sp.loaded;
+    if(isLoaded&&sp.img){
+      // 정면 프레임(0) 사용 — 128×150 → 70×80으로 축소
+      c2.drawImage(sp.img, 0,0,128,150, 0,0,70,80);
     } else {
-      // 이미지 없을 때 — 기존 SVG 스타일 폴백
+      // 폴백: 색상 + 이니셜
       const cd=CHARS[i];
-      c2.fillStyle=cd.color+'22';c2.fillRect(0,0,80,90);
-      c2.fillStyle=cd.color;c2.font='bold 28px Noto Sans KR';
-      c2.textAlign='center';c2.textBaseline='middle';c2.fillText(cd.init,40,45);
+      c2.fillStyle=cd.color+'22';c2.fillRect(0,0,70,80);
+      c2.fillStyle=cd.color+'88';c2.fillRect(0,60,70,20);
+      c2.fillStyle=cd.color;c2.font='bold 26px Noto Sans KR';
+      c2.textAlign='center';c2.textBaseline='middle';c2.fillText(cd.init,35,36);
+      c2.fillStyle='#e0e8f0';c2.font='9px Noto Sans KR';
+      c2.fillText(cd.name,35,70);
     }
   });
 }
@@ -1090,10 +1092,19 @@ let selEnhIdx=-1;   // 강화 대상 아이템
 let selMatIdx=-1;   // 강화 재료 (같은 아이템 or 재료 아이템)
 
 function renderInv(){
-  /* ── 아이템 목록 ── */
+  /* ── 아이템 목록 (S>A>B>C 등급순, 같은 등급은 강화단계 높은 순) ── */
+  const GRADE_ORDER={S:0,A:1,B:2,C:3};
+  const sorted=inventory
+    .map((entry,idx)=>({entry,idx}))
+    .sort((a,b)=>{
+      const gDiff=(GRADE_ORDER[a.entry.item.grade]??9)-(GRADE_ORDER[b.entry.item.grade]??9);
+      if(gDiff!==0) return gDiff;
+      return b.entry.enhLevel-a.entry.enhLevel; // 강화단계 높은 순
+    });
+
   const slots=document.getElementById('inv-slots');
   slots.innerHTML='';
-  inventory.forEach((entry,idx)=>{
+  sorted.forEach(({entry,idx})=>{
     const {item,enhLevel}=entry;
     const isEq=Object.values(equipped).includes(idx);
     const isEnhTarget=selEnhIdx===idx;
@@ -1105,7 +1116,7 @@ function renderInv(){
     const div=document.createElement('div');
     div.className=cls;
     div.innerHTML=`${item.icon}<span class="grade-badge g${item.grade.toLowerCase()}">${item.grade}</span>${enhLevel>0?`<span class="enh-badge">+${enhLevel}</span>`:''}`;
-    div.title=item.name+(isEq?' [장착중]':'')+( isEnhTarget?' [강화대상]':isEnhMat?' [재료]':'');
+    div.title=item.name+(isEq?' [장착중]':``)+(isEnhTarget?' [강화대상]':isEnhMat?' [재료]':'');
     div.onclick=()=>onInvClick(idx);
     slots.appendChild(div);
   });
@@ -2163,28 +2174,12 @@ const TANKER_FRAMES=[
 ];
 const tankerImg=new Image();
 let tankerLoaded=false;
-tankerImg.onload=()=>{tankerLoaded=true;console.log('[TANKER] 이미지 로드 완료');}
+tankerImg.onload=()=>{
+  tankerLoaded=true;
+  CHAR_SPRITES[0].loaded=true;
+  console.log('[SPRITE] tanker.png 로드 완료');
+};
 tankerImg.src=TANKER_IMG_SRC;
-
-function getTankerFrame(angle){
-  // 이동 방향에 따라 프레임 선택
-  const deg=((angle*180/Math.PI)+360+90)%360;
-  if(deg<45||deg>=315) return 0;   // 앞
-  if(deg<135) return 1;            // 우측면
-  if(deg<225) return 2;            // 뒤
-  return 1;                        // 좌측면 (미러)
-}
-function drawTanker(ctx,angle){
-  if(!tankerLoaded) return;
-  const frameIdx=getTankerFrame(angle);
-  const fr=TANKER_FRAMES[frameIdx];
-  const drawW=36,drawH=42;
-  const flip=(((angle*180/Math.PI)+360+90)%360)>=135&&(((angle*180/Math.PI)+360+90)%360)<315;
-  ctx.save();
-  if(flip){ctx.scale(-1,1);}
-  ctx.drawImage(tankerImg,fr.srcX,fr.srcY,fr.srcW,fr.srcH,-drawW/2,-drawH/2,drawW,drawH);
-  ctx.restore();
-}
 
 /* ═══════ WEB AUDIO ENGINE ═══════ */
 let audioCtx=null;
@@ -2294,55 +2289,29 @@ const SFX={
 /* ═══════ SVG CHARACTER DRAW (스프라이트 시트 우선, 폴백 SVG) ═══════ */
 
 // 이미지 업로드 핸들러
-function onCharImgUpload(e){
-  const file=e.target.files[0];
-  if(!file) return;
-  loadCharImage(file);
-  showToast('캐릭터 이미지 로드 중...');
-}
-
-// 이동 방향 → 스프라이트 행/열 매핑
-// 스프라이트 시트: 4열×2행
-// 행0: 앞(0), 우(1), 좌(2), 뒤(3)  — 추정 배치
-// 행1: 공격/이동 변형 프레임들
-function getSpriteFace(angle){
-  // 각도를 8방향으로 변환
-  const deg=((angle*180/Math.PI)+360)%360;
-  if(deg<22.5||deg>=337.5) return {row:0,col:1}; // 우
-  if(deg<67.5)  return {row:1,col:1}; // 우하
-  if(deg<112.5) return {row:0,col:0}; // 하(앞)
-  if(deg<157.5) return {row:1,col:0}; // 좌하
-  if(deg<202.5) return {row:0,col:2}; // 좌
-  if(deg<247.5) return {row:1,col:2}; // 좌상
-  if(deg<292.5) return {row:0,col:3}; // 상(뒤)
-  return {row:1,col:3};               // 우상
-}
-
-// 걷기 애니메이션 프레임 (이동 중일 때 흔들림)
-let walkFrame=0,walkTick=0;
-
 function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
   if(invBlink) return;
   ctx.save();
   ctx.translate(x,y);
 
-  if(charIdx===0&&tankerLoaded){
-    // ── 탱커 전용 스프라이트 이미지 ──
+  const sp=CHAR_SPRITES[charIdx];
+  const isLoaded=(charIdx===0)?tankerLoaded:sp?.loaded;
+
+  if(isLoaded&&sp?.img){
+    // ── 스프라이트 이미지 렌더링 ──
+    const {frame,flip}=getSpriteFrame(angle);
+    const fr=SPRITE_FRAMES[frame];
+    const drawW=42,drawH=50;  // 게임 내 표시 크기
+
     // 그림자
-    ctx.beginPath();ctx.ellipse(0,18,14,5,0,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fill();
-    drawTanker(ctx,angle);
-  } else if(charImgLoaded){
-    // ── Characters.png 스프라이트 시트 ──
-    const coord=CHAR_COORDS[charIdx];
-    const sp=coord.sprite;
-    const face=getSpriteFace(angle);
-    walkTick++;
-    if(walkTick>8){walkTick=0;walkFrame=(walkFrame+1)%2;}
-    const sx=sp.x+face.col*sp.fw;
-    const sy=sp.y+face.row*sp.fh;
-    const drawW=sp.fw*0.55,drawH=sp.fh*0.55;
-    ctx.drawImage(charImg,sx,sy,sp.fw,sp.fh,-drawW/2,-drawH/2,drawW,drawH);
+    ctx.beginPath();ctx.ellipse(0,drawH/2-2,drawW/2-4,4,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fill();
+
+    ctx.save();
+    if(flip){ctx.scale(-1,1);}
+    ctx.drawImage(sp.img, fr.srcX,fr.srcY,fr.srcW,fr.srcH,
+      -drawW/2,-drawH/2+2, drawW,drawH);
+    ctx.restore();
   } else {
     // ── SVG 폴백 ──
     switch(charIdx){
