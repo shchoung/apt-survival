@@ -668,12 +668,24 @@ async function handleMessage(ws, raw) {
         equipped:equipped??player.equipped,
         clearedFloors:clearedFloors??player.clearedFloors,
       });
-      room.broadcast({
-        type:'player_state', playerId,
-        x:player.x, y:player.y,
-        hp:player.hp, maxHp:player.maxHp,
-        lv:player.lv, charIdx:player.charIdx,
-      }, playerId);
+      // ── 같은 층 플레이어에게만 위치 브로드캐스트 ──
+      room.players.forEach((p, id) => {
+        if (id === playerId) return;
+        if (p.ws?.readyState !== WebSocket.OPEN) return;
+        // 같은 층이면 위치 포함, 다른 층이면 층+HP만 전송
+        const sameFloor = (p.floor === player.floor);
+        p.ws.send(JSON.stringify({
+          type: 'player_state',
+          playerId,
+          charIdx: player.charIdx,
+          lv: player.lv,
+          hp: player.hp,
+          maxHp: player.maxHp,
+          floor: player.floor,
+          // 같은 층일 때만 좌표 포함
+          ...(sameFloor ? { x: player.x, y: player.y } : {}),
+        }));
+      });
       break;
     }
 
@@ -703,10 +715,17 @@ async function handleMessage(ws, raw) {
 
     // 스킬 브로드캐스트
     case 'skill': {
-      room.broadcast({
-        type:'skill_fx', playerId, charIdx:player.charIdx,
-        skillIdx:msg.skillIdx, x:msg.x, y:msg.y, angle:msg.angle,
-      }, playerId);
+      // 같은 층 플레이어에게만 스킬 이펙트 전송
+      room.players.forEach((p, id) => {
+        if (id === playerId) return;
+        if (p.ws?.readyState !== WebSocket.OPEN) return;
+        if (p.floor !== player.floor) return;
+        p.ws.send(JSON.stringify({
+          type:'skill_fx', playerId, charIdx:player.charIdx,
+          skillIdx:msg.skillIdx, x:msg.x, y:msg.y, angle:msg.angle,
+          floor:player.floor,
+        }));
+      });
       break;
     }
 
