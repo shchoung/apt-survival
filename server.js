@@ -497,6 +497,21 @@ async function handleMessage(ws, raw) {
     const nick = sess?.nick || guestNick || ('생존자'+Math.floor(Math.random()*9000+1000));
     const userId = sess?.user_id || null;
 
+    // ── 같은 닉네임이 이미 방에 있으면 기존 세션 제거 (중복 접속 방지) ──
+    for (const [, r] of rooms) {
+      for (const [pid, p] of r.players) {
+        if (p.nick === nick && p.ws !== ws) {
+          console.log(`[DUPLICATE] ${nick} 중복 접속 — 기존 세션 제거`);
+          try { p.ws.close(); } catch {}
+          r.players.delete(pid);
+          // 클라이언트 맵에서도 제거
+          for (const [cws, info] of clients) {
+            if (info.playerId === pid) { clients.delete(cws); break; }
+          }
+        }
+      }
+    }
+
     // 4명 미만인 기존 방 찾기
     let room = null;
     for (const [, r] of rooms) {
