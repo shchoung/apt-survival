@@ -3239,9 +3239,16 @@ function updateMultiPartyHUD(){
 function drawMultiPlayers(){
   if(!isMultiGame||!wsRoomPlayers) return;
   Object.values(wsRoomPlayers).forEach(p=>{
-    if(!p||p.id===myPlayerId||p.charIdx<0||p.charIdx===undefined) return;
+    if(!p) return;
+    // 내 playerId 제외
+    if(p.id===myPlayerId) return;
+    // 내 닉네임과 동일하면 제외 (같은 계정 중복 접속)
+    if(currentUser&&p.nick===currentUser.nick) return;
+    // 내 캐릭터와 같은 charIdx 제외
+    if(p.charIdx===selChar) return;
+    if(p.charIdx<0||p.charIdx===undefined) return;
     if(!p.x&&!p.y) return;
-    // ── 같은 층일 때만 렌더링 ──
+    // 다른 층이면 제외
     if(p.floor!==undefined&&p.floor!==currentFloor) return;
     const s=w2s(p.x,p.y);
     if(s.x<-60||s.x>W+60||s.y<-60||s.y>H+60) return;
