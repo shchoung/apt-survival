@@ -940,16 +940,13 @@ let selChar=-1,takenChars=new Set();
 
 // 캐릭터별 이미지 객체
 const CHAR_SPRITES=[
-  {img:null,loaded:false,src:'tanker.png'},  // 0 이준호 (탱커)
+  {img:null,loaded:false,src:'tanker.png'},  // 0 이준호 (탱커) — tankerImg로 대체
   {img:null,loaded:false,src:'sea.png'},     // 1 김서아 (서포터)
   {img:null,loaded:false,src:'min.png'},     // 2 박민재 (딜러)
   {img:null,loaded:false,src:'hana.png'},    // 3 오하나 (힐러)
 ];
 
-// 탱커는 기존 base64 내장 이미지 사용
-CHAR_SPRITES[0].img=tankerImg;
-
-// 나머지 3개는 서버/같은폴더에서 자동 로드 시도
+// 1~3번 캐릭터 이미지 자동 로드
 [1,2,3].forEach(i=>{
   const sp=CHAR_SPRITES[i];
   sp.img=new Image();
@@ -1017,12 +1014,9 @@ function drawCharIllusts(){
     const c2=cv.getContext('2d');
     c2.clearRect(0,0,70,80);
     const sp=CHAR_SPRITES[i];
-    const isLoaded=(i===0)?tankerLoaded:sp.loaded;
-    if(isLoaded&&sp.img){
-      // 정면 프레임(0) 사용 — 128×150 → 70×80으로 축소
+    if(sp?.loaded&&sp?.img){
       c2.drawImage(sp.img, 0,0,128,150, 0,0,70,80);
     } else {
-      // 폴백: 색상 + 이니셜
       const cd=CHARS[i];
       c2.fillStyle=cd.color+'22';c2.fillRect(0,0,70,80);
       c2.fillStyle=cd.color+'88';c2.fillRect(0,60,70,20);
@@ -2176,6 +2170,7 @@ const tankerImg=new Image();
 let tankerLoaded=false;
 tankerImg.onload=()=>{
   tankerLoaded=true;
+  CHAR_SPRITES[0].img=tankerImg;
   CHAR_SPRITES[0].loaded=true;
   console.log('[SPRITE] tanker.png 로드 완료');
 };
@@ -2295,25 +2290,22 @@ function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
   ctx.translate(x,y);
 
   const sp=CHAR_SPRITES[charIdx];
-  const isLoaded=(charIdx===0)?tankerLoaded:sp?.loaded;
+  const isLoaded=sp?.loaded&&sp?.img;
 
-  if(isLoaded&&sp?.img){
-    // ── 스프라이트 이미지 렌더링 ──
+  if(isLoaded){
     const {frame,flip}=getSpriteFrame(angle);
     const fr=SPRITE_FRAMES[frame];
-    const drawW=42,drawH=50;  // 게임 내 표시 크기
+    const drawW=42,drawH=50;
 
-    // 그림자
     ctx.beginPath();ctx.ellipse(0,drawH/2-2,drawW/2-4,4,0,0,Math.PI*2);
     ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fill();
 
     ctx.save();
-    if(flip){ctx.scale(-1,1);}
+    if(flip) ctx.scale(-1,1);
     ctx.drawImage(sp.img, fr.srcX,fr.srcY,fr.srcW,fr.srcH,
       -drawW/2,-drawH/2+2, drawW,drawH);
     ctx.restore();
   } else {
-    // ── SVG 폴백 ──
     switch(charIdx){
       case 0: drawJun(ctx,angle);  break;
       case 1: drawSea(ctx,angle);  break;
