@@ -2404,7 +2404,7 @@ function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
     if(atkAnim>0){
       frame=3;
       const deg2=((angle*180/Math.PI)+360+90)%360;
-      flip=(deg2>=45&&deg2<225); // 오른쪽 방향일 때 미러
+      flip=(deg2>=135&&deg2<315);
       atkAnim--;
     } else {
       const sf=getSpriteFrame(angle);
