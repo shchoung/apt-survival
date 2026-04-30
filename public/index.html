@@ -3335,3 +3335,125 @@ function sendWsState(){
 function sendWsSkill(idx,x,y,angle){
   if(!isMultiGame) return;
   wsSend({type:'skill',skillIdx:idx,x:Math.round(x),y:Math.round(y),angle,floor:currentFloor});
+}
+
+/* ═══════ CHAT ═══════ */
+function toggleChat(){
+  chatOpen=!chatOpen;
+  const panel=document.getElementById('chat-panel');
+  if(panel) panel.style.display=chatOpen?'flex':'none';
+  const tog=document.getElementById('chat-toggle');
+  if(tog) tog.textContent=chatOpen?'✕':'💬';
+}
+
+function showChatPanel(show){
+  chatOpen=show;
+  const panel=document.getElementById('chat-panel');
+  const tog=document.getElementById('chat-toggle');
+  if(isMultiGame){
+    // 멀티 중엔 파티HUD 아래로 (HUD 높이 약 80px 고려)
+    if(panel) panel.style.top='calc(130px + var(--safe-top,0px))';
+    if(tog)   tog.style.top='calc(130px + var(--safe-top,0px))';
+  }
+  if(panel) panel.style.display=show?'flex':'none';
+  if(tog){tog.style.display='block';tog.textContent=show?'✕':'💬';}
+}
+
+function appendChat(msg){
+  const log=document.getElementById('chat-log');if(!log)return;
+  const div=document.createElement('div');div.className='chat-line';
+  const isMe=msg.playerId===myPlayerId;
+  const color=msg.charIdx>=0?WS_CHAR_COLORS[msg.charIdx]:'#7a9ab8';
+  div.innerHTML=`<span class="chat-nick" style="color:${color}">${msg.nick}</span><span style="color:#5a7a94">: </span><span style="color:#c0d8f0">${escHtml(msg.text)}</span>`;
+  log.appendChild(div);log.scrollTop=log.scrollHeight;
+  // 인게임 로그에도 표시
+  addLog(`[${msg.nick}] ${msg.text}`,'lnet');
+}
+
+function addChatSys(text){
+  const log=document.getElementById('chat-log');if(!log)return;
+  const div=document.createElement('div');div.className='chat-line chat-sys';div.textContent=text;
+  log.appendChild(div);log.scrollTop=log.scrollHeight;
+}
+
+function sendChat(){
+  const inp=document.getElementById('chat-inp');if(!inp)return;
+  const text=inp.value.trim();if(!text)return;
+  if(!ws||ws.readyState!==WebSocket.OPEN){showToast('채팅: 서버 미연결');return;}
+  wsSend({type:'chat',text});
+  inp.value='';
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ═══════ INIT ═══════ */
+loadKB();updateKeyLabels();
+document.documentElement.style.setProperty('--vh',`${window.innerHeight*0.01}px`);
+initCtrlMode();
+try{
+  const savedVol=localStorage.getItem('apt_bgm_vol');
+  if(savedVol!==null){
+    bgmVolume=parseFloat(savedVol);
+    const slider=document.getElementById('bgm-vol');
+    const lbl=document.getElementById('bgm-vol-lbl');
+    if(slider) slider.value=Math.round(bgmVolume*100);
+    if(lbl) lbl.textContent=Math.round(bgmVolume*100);
+  }
+}catch(e){}
+initBgmAudio();
+
+// 자동 로그인 시도 → 실패 시 로그인 화면
+(async()=>{
+  const ok=await tryAutoLogin();
+  if(!ok) showScr('login');
+})();
+
+// ── 30초 자동저장 ──
+setInterval(()=>{
+  if(running&&player) saveGameData();
+},30000);
+
+// ── 탭 닫기 / 새로고침 시 저장 ──
+window.addEventListener('beforeunload',()=>{
+  if(running&&player) saveGameData();
+});
+
+// ── 백그라운드 전환 시 저장 (모바일 홈 버튼 등) ──
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&running&&player) saveGameData();
+});
+
+// Characters.png 자동 로드 시도 (서버 환경 or public/ 폴더)
+(function autoLoadCharImg(){
+  const paths=['Characters.png','./Characters.png','./public/Characters.png','../Characters.png'];
+  let idx=0;
+  function tryNext(){
+    if(idx>=paths.length){
+      // 모두 실패 → 업로드 힌트 표시 + SVG 폴백 사용
+      const h=document.getElementById('char-img-hint');
+      if(h) h.style.display='block';
+      return;
+    }
+    const img=new Image();
+    img.onload=()=>{
+      charImg.src=img.src;
+      // charImg.onload에서 charImgLoaded=true 처리됨
+    };
+    img.onerror=()=>{idx++;tryNext();};
+    img.src=paths[idx++];
+  }
+  tryNext();
+})();
+
+// 서버에서 파일을 serving할 때도 동일 경로로 시도
+setTimeout(()=>{
+  if(!charImgLoaded){
+    charImg.src='Characters.png';
+  }
+  // WebSocket 자동 연결 시도 (로컬 개발용)
+  const serverEl=document.getElementById('inp-server');
+  if(serverEl) wsConnect();
+},300);
+</script>
+</body>
+</html>
