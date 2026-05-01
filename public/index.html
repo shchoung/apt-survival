@@ -3488,3 +3488,20 @@ setInterval(()=>{
 },30000);
 
 // ── 탭 닫기 / 새로고침 시 저장 ──
+window.addEventListener('beforeunload',()=>{
+  if(running&&player) saveGameData();
+});
+
+// ── 백그라운드 전환 시 저장 (모바일 홈 버튼 등) ──
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&running&&player) saveGameData();
+});
+
+// WebSocket 자동 연결 시도
+setTimeout(()=>{
+  const serverEl=document.getElementById('inp-server');
+  if(serverEl) wsConnect();
+},300);
+</script>
+</body>
+</html>
