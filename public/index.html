@@ -987,8 +987,9 @@ function getSpriteFrame(angle){
   return                       {frame:1,flip:false}; // 좌앞
 }
 
+let minimapCache=null,minimapDirty=true;
 let walkFrame=0,walkTick=0;
-let atkAnim=0;  // 어택 프레임 표시 타이머 (>0이면 어택 이미지)
+let atkAnim=0;
 
 function renderCharSelect(){
   const g=document.getElementById('csg');
@@ -1627,6 +1628,7 @@ function startGame(){
 function resetFloor(){
   enemies=[];drops_arr=[];particles=[];floats=[];skillFX=[];
   kills=0;waveKills=0;waveNum=1;cdT=[0,0,0,0];
+  minimapCache=null;minimapDirty=true;  // 미니맵 캐시 초기화
   buildMap(currentFloor);
   if(player){
     let sx=COLS/2*TILE,sy=ROWS/2*TILE;
@@ -1724,10 +1726,15 @@ function wallBox(wx,wy,size){
          wall(wx-r,wy+r)||wall(wx+r,wy+r);
 }
 
+let loopTick=0;
 function loop(){
-  if(!running)return;
+  if(!running) return;
+  loopTick++;
   elapsed=Math.floor((Date.now()-startTime)/1000);
-  update();draw();requestAnimationFrame(loop);
+  update();
+  draw();
+  if(loopTick%4===0) updateHUD();  // DOM 업데이트 빈도 줄이기
+  requestAnimationFrame(loop);
 }
 
 function update(){
@@ -1830,8 +1837,6 @@ function update(){
   }
   // 층 클리어 조건 — stageComplete는 한 번만 호출
   if(enemies.length===0&&waveKills>=waveTarget&&running) stageComplete();
-
-  updateHUD();
   sendWsState();
 }
 
@@ -2007,73 +2012,54 @@ function draw(){
   const obstC=th<3?'#243045':th<7?'#1e2840':th<12?'#281e3a':th<17?'#1e2a28':th<22?'#2a1e1e':'#1e1e2a';
   const wallBorder=th<3?'#2a3a55':th<7?'#243050':th<12?'#302845':th<17?'#243530':th<22?'#352424':'#24243a';
 
-  // 배경 이미지 패턴 (바닥 전용)
-  let floorPattern=null;
-  if(bgImgLoaded&&bgImg.complete){
-    try{ floorPattern=ctx.createPattern(bgImg,'repeat'); }catch(e){}
-  }
+  // 타일 준비 여부 + 벽 타일 미리 선택 (루프 밖)
+  const tilesReady=tileImgsLoaded>=TILE_KEYS.length;
+  const wIdx=th<7?0:th<15?1:2;
+  const wallTile=tileImgs[['W0','W1','W2'][wIdx]];
+  const wallTileReady=wallTile&&wallTile.complete&&wallTile.naturalWidth>0;
 
-  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-    const s=w2s(c*TILE,r*TILE);
-    if(s.x<-TILE||s.x>W+TILE||s.y<-TILE||s.y>H+TILE) continue;
+  // 화면에 보이는 타일 범위만 계산 (컬링)
+  const startC=Math.max(0, Math.floor((camX-W/2)/TILE));
+  const endC=Math.min(COLS-1, Math.ceil((camX+W/2)/TILE));
+  const startR=Math.max(0, Math.floor((camY-H/2)/TILE));
+  const endR=Math.min(ROWS-1, Math.ceil((camY+H/2)/TILE));
 
-  // 타일 로드 여부
-  const tilesReady = tileImgsLoaded >= TILE_KEYS.length;
+  // 단일 루프로 맵 렌더링
+  for(let r=startR;r<=endR;r++){
+    for(let c=startC;c<=endC;c++){
+      const s=w2s(c*TILE,r*TILE);
+      const mv=MAP[r][c];
 
-  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-    const s=w2s(c*TILE,r*TILE);
-    if(s.x<-TILE||s.x>W+TILE||s.y<-TILE||s.y>H+TILE) continue;
-
-    if(MAP[r][c]===0){
-      // 바닥 — F0~F3 4종 시드 기반 배치
-      if(tilesReady){
-        const tIdx=((r*73856093^c*19349663)>>>0)%4;
-        const key=['F0','F1','F2','F3'][tIdx];
-        const fi=tileImgs[key];
-        if(fi&&fi.complete&&fi.naturalWidth>0){
-          ctx.drawImage(fi, s.x, s.y, TILE, TILE);
-        }
-      } else {
-        const floorC=th<3?'#0d1525':th<7?'#0e1520':th<12?'#130e20':th<17?'#0d1a14':th<22?'#1a0e0e':'#0e0e1a';
-        ctx.fillStyle=floorC; ctx.fillRect(s.x,s.y,TILE,TILE);
-      }
-    } else if(MAP[r][c]===1){
-      // 벽 — 층별로 다른 벽 타일
-      if(tilesReady){
-        const wIdx=th<7?0:th<15?1:2;
-        const key=['W0','W1','W2'][wIdx];
-        const wi=tileImgs[key];
-        if(wi&&wi.complete&&wi.naturalWidth>0){
-          ctx.drawImage(wi, s.x, s.y, TILE, TILE);
-          // 어두운 오버레이로 벽 강조
-          ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(s.x,s.y,TILE,TILE);
+      if(mv===0){
+        if(tilesReady){
+          const tIdx=((r*73856093^c*19349663)>>>0)%4;
+          const fi=tileImgs[['F0','F1','F2','F3'][tIdx]];
+          if(fi&&fi.complete) ctx.drawImage(fi,s.x,s.y,TILE,TILE);
+          else{ctx.fillStyle='#0d1525';ctx.fillRect(s.x,s.y,TILE,TILE);}
         } else {
-          ctx.fillStyle=wallC; ctx.fillRect(s.x,s.y,TILE,TILE);
+          ctx.fillStyle='#0d1525';ctx.fillRect(s.x,s.y,TILE,TILE);
         }
-      } else {
-        ctx.fillStyle=wallC; ctx.fillRect(s.x,s.y,TILE,TILE);
-      }
-      ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(s.x,s.y,TILE,2);
-      ctx.strokeStyle=wallBorder; ctx.lineWidth=.5; ctx.strokeRect(s.x,s.y,TILE,TILE);
-    } else if(MAP[r][c]===2){
-      // 장애물 — 특수 타일(S0~S2) 위에 오브젝트
-      if(tilesReady){
-        const sIdx=((r*12345^c*67891)>>>0)%3;
-        const si=tileImgs[['S0','S1','S2'][sIdx]];
-        if(si&&si.complete&&si.naturalWidth>0){
-          ctx.drawImage(si, s.x, s.y, TILE, TILE);
+      } else if(mv===1){
+        if(wallTileReady){
+          ctx.drawImage(wallTile,s.x,s.y,TILE,TILE);
+          ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(s.x,s.y,TILE,TILE);
+        } else {
+          ctx.fillStyle=wallC;ctx.fillRect(s.x,s.y,TILE,TILE);
         }
-      } else {
-        ctx.fillStyle=obstC; ctx.fillRect(s.x,s.y,TILE,TILE);
-      }
-      // 오브젝트 (5종)
-      const oIdx=((r*23456^c*78901)>>>0)%5;
-      const oi=tileImgs[`obj${oIdx}`];
-      if(oi&&oi.complete&&oi.naturalWidth>0){
-        ctx.drawImage(oi, s.x, s.y, TILE, TILE);
+      } else if(mv===2){
+        if(tilesReady){
+          const sIdx=((r*12345^c*67891)>>>0)%3;
+          const si=tileImgs[['S0','S1','S2'][sIdx]];
+          if(si&&si.complete) ctx.drawImage(si,s.x,s.y,TILE,TILE);
+          else{ctx.fillStyle=obstC;ctx.fillRect(s.x,s.y,TILE,TILE);}
+        } else {
+          ctx.fillStyle=obstC;ctx.fillRect(s.x,s.y,TILE,TILE);
+        }
+        const oIdx=((r*23456^c*78901)>>>0)%5;
+        const oi=tileImgs[`obj${oIdx}`];
+        if(oi&&oi.complete&&oi.naturalWidth>0) ctx.drawImage(oi,s.x,s.y,TILE,TILE);
       }
     }
-  }
   }
   // 출구 — 마지막 방 중앙 (그리기만)
   if(enemies.length===0&&waveKills>=waveTarget&&ROOMS.length>0){
@@ -2133,13 +2119,21 @@ function draw(){
   }
   particles.forEach(p=>{const s=w2s(p.x,p.y);ctx.globalAlpha=p.life/p.maxLife;ctx.beginPath();ctx.arc(s.x,s.y,p.size,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();});ctx.globalAlpha=1;
   floats.forEach(f=>{const s=w2s(f.x,f.y);ctx.globalAlpha=f.a;ctx.fillStyle=f.color;ctx.font='bold 12px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(f.text,s.x,s.y);});ctx.globalAlpha=1;
-  // 미니맵
-  mctx.fillStyle='#07090d';mctx.fillRect(0,0,100,75);
-  const sx=100/COLS,sy=75/ROWS;
-  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-    if(MAP[r][c]===1){mctx.fillStyle='#1e3a5f';mctx.fillRect(c*sx,r*sy,sx,sy);}
-    else if(MAP[r][c]===2){mctx.fillStyle='#2a3a50';mctx.fillRect(c*sx,r*sy,sx,sy);}
+  // 미니맵 — 맵 레이어는 캐시, 동적 요소만 매 프레임
+  if(!minimapCache||minimapDirty){
+    minimapCache=document.createElement('canvas');
+    minimapCache.width=100;minimapCache.height=75;
+    const mc2=minimapCache.getContext('2d');
+    mc2.fillStyle='#07090d';mc2.fillRect(0,0,100,75);
+    const sx2=100/COLS,sy2=75/ROWS;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      if(MAP[r][c]===1){mc2.fillStyle='#1e3a5f';mc2.fillRect(c*sx2,r*sy2,sx2+.5,sy2+.5);}
+      else if(MAP[r][c]===2){mc2.fillStyle='#2a3a50';mc2.fillRect(c*sx2,r*sy2,sx2,sy2);}
+    }
+    minimapDirty=false;
   }
+  mctx.drawImage(minimapCache,0,0);
+  const sx=100/COLS,sy=75/ROWS;
   enemies.forEach(e=>{mctx.fillStyle=e.state==='chase'?'#E24B4A':'#888780';mctx.fillRect(e.x/TILE*sx-1,e.y/TILE*sy-1,3,3);});
   drops_arr.forEach(d=>{mctx.fillStyle='#fac775';mctx.fillRect(d.x/TILE*sx-1,d.y/TILE*sy-1,2,2);});
   mctx.fillStyle=player.color;mctx.beginPath();mctx.arc(player.x/TILE*sx,player.y/TILE*sy,3,0,Math.PI*2);mctx.fill();
