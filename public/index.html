@@ -77,7 +77,7 @@ canvas{display:block;width:100%;height:100%}
 .skcd{position:absolute;bottom:2px;right:3px;font-family:var(--tf);font-size:8px;color:var(--ca)}
 
 /* PANELS */
-#log-panel{position:absolute;bottom:60px;left:8px;width:200px;background:#07090dcc;border:1px solid var(--c3);border-radius:6px;padding:6px;max-height:100px;overflow:hidden;pointer-events:none}
+#log-panel{position:absolute;top:75px;left:8px;width:180px;background:#07090dbb;border:1px solid var(--c3)55;border-radius:6px;padding:5px;max-height:90px;overflow:hidden;pointer-events:none;z-index:19}
 .loge{font-size:10px;line-height:1.6;font-family:var(--tf)}
 .lhit{color:#ff7070}.lheal{color:#5dcaa5}.lsk{color:#a99ef5}.lsys{color:var(--ca)}.ldrop{color:#fac775}.lnet{color:#85b7eb}
 
@@ -3328,9 +3328,8 @@ function renderMultiMembers(){ /* 로비 제거로 빈 함수 */ }
 function updateMultiPartyHUD(){
   if(!isMultiGame) return;
   const el=document.getElementById('multi-party-hud');if(!el)return;
-  el.innerHTML=Object.values(wsRoomPlayers)
-    .filter(p=>p.id!==myPlayerId&&p.charIdx>=0)
-    .map(p=>{
+  const members=Object.values(wsRoomPlayers).filter(p=>p.id!==myPlayerId&&p.charIdx>=0);
+  el.innerHTML=members.map(p=>{
       const sameFloor=(p.floor===undefined||p.floor===currentFloor);
       const hp=Math.round((p.hp/p.maxHp||1)*100);
       const floorTxt=p.floor!==undefined?floorName(p.floor):'?';
@@ -3348,6 +3347,13 @@ function updateMultiPartyHUD(){
         </div>
       </div>`;
     }).join('');
+
+  // 파티원 수에 따라 로그패널 top 조정 (겹침 방지)
+  const logEl=document.getElementById('log-panel');
+  if(logEl){
+    const offset=75+members.length*32;
+    logEl.style.top=offset+'px';
+  }
 }
 
 /* 다른 플레이어 캔버스에 그리기 */
@@ -3482,20 +3488,3 @@ setInterval(()=>{
 },30000);
 
 // ── 탭 닫기 / 새로고침 시 저장 ──
-window.addEventListener('beforeunload',()=>{
-  if(running&&player) saveGameData();
-});
-
-// ── 백그라운드 전환 시 저장 (모바일 홈 버튼 등) ──
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden&&running&&player) saveGameData();
-});
-
-// WebSocket 자동 연결 시도
-setTimeout(()=>{
-  const serverEl=document.getElementById('inp-server');
-  if(serverEl) wsConnect();
-},300);
-</script>
-</body>
-</html>
