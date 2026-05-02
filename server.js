@@ -116,6 +116,32 @@ async function initDB() {
     );
   `);
 
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id          SERIAL PRIMARY KEY,
+      user_id     INT REFERENCES users(id) ON DELETE SET NULL,
+      nick        VARCHAR(20) NOT NULL,
+      is_anon     BOOLEAN DEFAULT FALSE,
+      title       VARCHAR(100) NOT NULL,
+      content     TEXT NOT NULL,
+      view_count  INT DEFAULT 0,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id          SERIAL PRIMARY KEY,
+      post_id     INT REFERENCES posts(id) ON DELETE CASCADE,
+      parent_id   INT REFERENCES comments(id) ON DELETE CASCADE,
+      user_id     INT REFERENCES users(id) ON DELETE SET NULL,
+      nick        VARCHAR(20) NOT NULL,
+      is_anon     BOOLEAN DEFAULT FALSE,
+      content     VARCHAR(500) NOT NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
   console.log('[DB] 테이블 초기화 완료');
 }
 
@@ -284,6 +310,82 @@ app.post('/api/save', async (req, res) => {
     console.error('[SAVE ERROR]', e.message);
     res.json({ ok: false, msg: '저장 실패' });
   }
+});
+
+/* ═══ 게시판 API ═══ */
+
+// 목록 조회
+app.get('/api/posts', async (req, res) => {
+  try {
+    const page=Math.max(1,parseInt(req.query.page)||1);
+    const limit=20, offset=(page-1)*limit;
+    const rows=await db.query(`
+      SELECT p.id, p.title,
+        CASE WHEN p.is_anon THEN '익명' ELSE p.nick END AS nick,
+        p.is_anon, p.view_count, p.created_at,
+        COUNT(c.id)::int AS comment_count
+      FROM posts p LEFT JOIN comments c ON c.post_id=p.id
+      GROUP BY p.id ORDER BY p.created_at DESC LIMIT $1 OFFSET $2
+    `,[limit,offset]);
+    const total=await db.query('SELECT COUNT(*) FROM posts');
+    res.json({ok:true,posts:rows.rows,
+      total:parseInt(total.rows[0].count),page,limit});
+  } catch(e){res.json({ok:false,msg:e.message});}
+});
+
+// 글 작성
+app.post('/api/posts', async (req, res) => {
+  const sess=await verifyToken(req.headers['authorization']);
+  if(!sess) return res.json({ok:false,msg:'로그인 필요'});
+  const {title,content,is_anon=false}=req.body;
+  if(!title?.trim()||!content?.trim()) return res.json({ok:false,msg:'제목/내용 필수'});
+  if(title.length>100||content.length>2000) return res.json({ok:false,msg:'길이 초과'});
+  try {
+    const r=await db.query(
+      `INSERT INTO posts(user_id,nick,is_anon,title,content)
+       VALUES($1,$2,$3,$4,$5) RETURNING id`,
+      [sess.user_id,sess.nick,!!is_anon,title.trim(),content.trim()]);
+    res.json({ok:true,id:r.rows[0].id});
+  } catch(e){res.json({ok:false,msg:e.message});}
+});
+
+// 글 상세 + 댓글
+app.get('/api/posts/:id', async (req, res) => {
+  const id=parseInt(req.params.id);
+  if(!id) return res.json({ok:false});
+  try {
+    await db.query('UPDATE posts SET view_count=view_count+1 WHERE id=$1',[id]);
+    const post=await db.getOne(`
+      SELECT id,title,content,
+        CASE WHEN is_anon THEN '익명' ELSE nick END AS nick,
+        is_anon,view_count,created_at FROM posts WHERE id=$1`,[id]);
+    if(!post) return res.json({ok:false,msg:'없는 글'});
+    const cmts=await db.query(`
+      SELECT id,parent_id,
+        CASE WHEN is_anon THEN '익명' ELSE nick END AS nick,
+        is_anon,content,created_at
+      FROM comments WHERE post_id=$1 ORDER BY created_at ASC`,[id]);
+    res.json({ok:true,post,comments:cmts.rows});
+  } catch(e){res.json({ok:false,msg:e.message});}
+});
+
+// 댓글/답글 작성
+app.post('/api/posts/:id/comments', async (req, res) => {
+  const sess=await verifyToken(req.headers['authorization']);
+  if(!sess) return res.json({ok:false,msg:'로그인 필요'});
+  const post_id=parseInt(req.params.id);
+  const {content,parent_id=null,is_anon=false}=req.body;
+  if(!content?.trim()) return res.json({ok:false,msg:'내용 필수'});
+  if(content.length>500) return res.json({ok:false,msg:'500자 이내'});
+  try {
+    const r=await db.query(
+      `INSERT INTO comments(post_id,parent_id,user_id,nick,is_anon,content)
+       VALUES($1,$2,$3,$4,$5,$6) RETURNING id,created_at`,
+      [post_id,parent_id||null,sess.user_id,sess.nick,!!is_anon,content.trim()]);
+    res.json({ok:true,id:r.rows[0].id,
+      nick:is_anon?'익명':sess.nick,
+      created_at:r.rows[0].created_at});
+  } catch(e){res.json({ok:false,msg:e.message});}
 });
 
 /* ─ 랭킹 (클리어 층 기준) ─ */
