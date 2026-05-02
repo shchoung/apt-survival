@@ -1766,9 +1766,7 @@ function update(){
   window.movePlayer();
   const eq=getEquipStats();
 
-  // 적 AI — 서버 권위 방식: 클라이언트는 AI 실행 안 함
-  // (enemy_sync 메시지로 서버에서 위치 수신)
-  if(!isMultiGame){  // 솔로 플레이만 로컬 AI 실행
+  // 적 AI — 멀티/솔로 모두 각자 실행
   enemies.forEach(e=>{
     // ── 멀티: 모든 플레이어 중 가장 가까운 플레이어를 타겟 ──
     let targetX=player.x,targetY=player.y;
@@ -1838,10 +1836,16 @@ function update(){
       if(!wallBox(e.x,ny,e.size))e.y=ny; else{e.wanderDy*=-1;e.wanderTick=120;}
     }
 
-    // 끼임 탈출: 현재 위치가 벽이면 강제로 안전 위치로 이동
+    // 끼임 탈출 — 벽 안에 있으면 4방향으로 밀어내기
     if(wallBox(e.x,e.y,e.size)){
-      const safe=findSafeSpawn(e.x,e.y);
-      e.x=safe.x;e.y=safe.y;
+      const step=TILE/2;
+      let freed=false;
+      for(const [dx2,dy2] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+        const nx=e.x+dx2*step,ny=e.y+dy2*step;
+        if(!wallBox(nx,ny,e.size)){e.x=nx;e.y=ny;freed=true;break;}
+      }
+      // 밀어내기 실패 시 안전 위치로
+      if(!freed){const safe=findSafeSpawn(e.x,e.y);e.x=safe.x;e.y=safe.y;}
     }
 
     // 공격 판정 — 타겟 플레이어에게 데미지
@@ -1863,7 +1867,6 @@ function update(){
     }
     if(e.flick>0)e.flick--;
   });
-  } // end isHost AI block
 
   particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.08;p.life--;return p.life>0;});
   drops_arr=drops_arr.filter(d=>{d.life--;
@@ -1882,16 +1885,15 @@ function update(){
     const eq2=getEquipStats();const h=Math.floor((30+player.lv*5)*(1+eq2.healBonus));
     player.hp=Math.min(player.maxHp,player.hp+h);addFloat(player.x,player.y,`+${h}`,'#5dcaa5');cdT[1]=180;
   }
-  // 층 클리어 — 솔로만 로컬 판정, 멀티는 서버 stage_clear 수신
-  if(!isMultiGame&&enemies.length===0&&waveKills>=waveTarget&&running){
+  // 층 클리어 — 멀티/솔로 모두 각자 판정
+  if(enemies.length===0&&waveKills>=waveTarget&&running){
     stageComplete();
   }
-  // 멀티: enemies가 비었을 때 stage_clear UI 표시 대기 (서버 응답 기다림)
   sendWsState();
 }
 
 function stageComplete(){
-  if(!running&&!isMultiGame) return;  // 솔로만 running 체크
+  if(!running) return;
   running=false;
   floorProgress[currentFloor]=true;
 
@@ -1934,11 +1936,6 @@ function nextFloor(){
     document.getElementById('go-sub').textContent='APT를 탈환했습니다!';
     return;
   }
-  if(isMultiGame){
-    wsSend({type:'next_floor'});
-    showToast('⏳ 다음 층 이동 중...');
-    return;
-  }
   currentFloor++;
   running=false;
   resetFloor();
@@ -1946,6 +1943,8 @@ function nextFloor(){
   running=true;
   lastTime=0;
   requestAnimationFrame(loop);
+  // 서버에 내 층 정보 전달 (같은 층 플레이어 동기화용)
+  if(isMultiGame) wsSend({type:'player_floor',floor:currentFloor});
 }
 
 function useSkill(i){
@@ -2014,20 +2013,21 @@ function useSkill(i){
       sparks(e.x,e.y,'#ff9070',7);
       if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
       hit++;
-      if(isMultiGame){
-        // 서버에 공격 요청 + 로컬 즉시 피격 효과(예측)
+      const isBossEnemy=e.boss||false;
+      if(isMultiGame&&isBossEnemy&&!isBossHost()){
+        // 보스 비호스트: 로컬 효과 + 호스트에게 데미지 전달
         e.flick=6;
         addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
         sparks(e.x,e.y,'#ff9070',7);
-        if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
-        wsSend({type:'attack_enemy',floor:currentFloor,
-          enemyId:e.id,dmg,x:Math.round(e.x),y:Math.round(e.y)});
+        spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
+        wsSend({type:'boss_attack',floor:currentFloor,dmg,
+          x:Math.round(e.x),y:Math.round(e.y)});
       } else {
-        // 솔로: 직접 처리
+        // 일반 몹 or 보스 호스트: 직접 처리
         e.hp-=dmg;e.flick=6;
         addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
         sparks(e.x,e.y,'#ff9070',7);
-        if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
+        if(isBossEnemy) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
         if(e.hp<=0) killEnemy(e);
       }
     }
@@ -2158,10 +2158,9 @@ function draw(){
     else{ctx.fillStyle='#fac77533';ctx.fill();ctx.strokeStyle='#fac775';ctx.lineWidth=1.5;ctx.stroke();}
     ctx.restore();
   });
-  // 적 렌더링 (멀티는 보간 위치 사용)
+  // 적 렌더링 (보스는 보간으로 부드럽게)
   enemies.forEach(e=>{
-    // 멀티: 보간으로 부드럽게 이동
-    if(isMultiGame&&e.targetX!==undefined){
+    if(isMultiGame&&e.boss&&e.targetX!==undefined&&!isBossHost()){
       e.x=e.x+(e.targetX-e.x)*0.3;
       e.y=e.y+(e.targetY-e.y)*0.3;
     }
@@ -3369,144 +3368,50 @@ function onWsMsg(msg){
       break;
     }
 
-    case 'game_start':{
-      // 처음 게임 시작 또는 재접속 시
-      if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
-      currentFloor=msg.floor||0;
-      running=false;
-      resetFloor();
-      startBGM(currentFloor);
-      running=true;
-      lastTime=0;
-      requestAnimationFrame(loop);
-      wsSend({type:'player_floor',floor:currentFloor});
-      addChatSys(`게임 시작! ${floorName(currentFloor)}`);
+    // 서버 게임엔진 제거로 무시
+    case 'game_start':
+    case 'kill_event':
+    case 'enemy_attack':
+    case 'enemy_sync':
+    case 'kill_sync':
+    case 'wave_sync':
+    case 'stage_clear':
+    case 'floor_change':
       break;
-    }
 
-    case 'kill_event':{
-      // 서버가 킬 확정 → 로컬에서 처리
-      if(msg.floor!==currentFloor) break;
-      enemies=enemies.filter(e=>e.id!==msg.enemyId);
-      waveKills=msg.waveKills??waveKills;
-      // 내가 킬한 경우 EXP/골드 획득
-      if(msg.killerId===myPlayerId){
-        gold+=msg.gold||0;
-        const expGain=msg.exp||0;
-        player.exp+=expGain;
-        addFloat(msg.x,msg.y,`EXP+${expGain}`,'#a99ef5');
-        while(player.exp>=player.expNext){
-          player.exp-=player.expNext;player.lv++;player.expNext=player.lv*80;
-          SFX.levelup();addLog(`LEVEL UP Lv${player.lv}!`,'lsys');
-        }
-      }
-      sparks(msg.x,msg.y,'#E24B4A',8);
-      addFloat(msg.x,msg.y,'처치!','#E24B4A');
-      addLog(`${msg.killerId===myPlayerId?'':'파티원 '}처치!`,'lsys');
-      kills++;
-      break;
-    }
-
-    case 'enemy_attack':{
-      // 서버가 데미지 확정
-      if(player&&player.invincible===0){
-        player.hp=Math.max(0,player.hp-msg.dmg);
-        player.invincible=20;
-        SFX.playerDmg?.();
-        sparks(player.x,player.y,'#ff7070',6);
-        addFloat(player.x,player.y,`-${msg.dmg}`,'#ff7070');
-        addLog(`적 공격 -${msg.dmg}`,'lhit');
-        if(player.hp<=0) gameOver();
+    // 보스 위치/HP 동기화 (호스트 → 비호스트)
+    case 'boss_sync':{
+      if(msg.floor!==currentFloor||isBossHost()) break;
+      const boss=enemies.find(e=>e.boss);
+      if(boss){
+        boss.targetX=msg.x; boss.targetY=msg.y;
+        boss.hp=msg.hp; boss.maxHp=msg.maxHp;
+        if(msg.flick) boss.flick=4;
       }
       break;
     }
 
-    case 'enemy_sync':{
-      if(msg.floor!==currentFloor) break;
-      if(!Array.isArray(msg.enemies)) break;
-
-      const localMap={};
-      enemies.forEach(e=>{localMap[e.id]=e;});
-
-      enemies=msg.enemies.map(re=>{
-        const local=localMap[re.id];
-        if(local){
-          // 보간 목표 위치 저장
-          local.targetX=re.x;local.targetY=re.y;
-          local.hp=re.hp;local.state=re.state;
-          if(re.flick) local.flick=3;
-          return local;
-        } else {
-          const isBoss=re.boss||false;
-          const pool=isBoss?BOSS_TYPES:ETYPES_BASE;
-          const tmpl=pool?{...pool[re.typeIdx%(pool.length||1)]}:{};
-          return {
-            ...tmpl,...re,
-            x:re.x,y:re.y,
-            targetX:re.x,targetY:re.y,
-            maxHp:re.maxHp||tmpl.hp||100,
-            state:re.state||'idle',flick:0,
-            path:[],pathTick:0,atkT:60,
-            wanderTick:0,wanderDx:0,wanderDy:0,
-          };
-        }
-      });
-      if(msg.waveKills!==undefined) waveKills=msg.waveKills;
-      if(msg.waveTarget!==undefined) waveTarget=msg.waveTarget;
-      break;
-    }
-
-    case 'kill_sync':{
-      // 비호스트: 킬 이벤트 수신
-      if(isHost) break;
-      if(msg.floor!==currentFloor) break;
-      // 해당 적 제거
-      enemies=enemies.filter(e=>e.id!==msg.enemyId);
-      waveKills=msg.waveKills||waveKills;
-      kills=msg.kills||kills;
-      // 파티클/플로트 효과
-      if(msg.x&&msg.y){
-        sparks(msg.x,msg.y,'#E24B4A',8);
-        addFloat(msg.x,msg.y,'처치!','#E24B4A');
+    // 비호스트 보스 공격 → 호스트에서 처리
+    case 'boss_attack':{
+      if(msg.floor!==currentFloor||!isBossHost()) break;
+      const boss=enemies.find(e=>e.boss);
+      if(boss){
+        boss.hp-=msg.dmg||0; boss.flick=6;
+        sparks(msg.x,msg.y,'#ff9070',5);
+        if(boss.hp<=0) killEnemy(boss);
       }
       break;
     }
 
-    case 'wave_sync':{
-      // 웨이브 상태 동기화
-      if(isHost) break;
-      waveNum=msg.waveNum||waveNum;
-      waveTarget=msg.waveTarget||waveTarget;
-      waveKills=msg.waveKills||waveKills;
+    // 보스 사망 동기화
+    case 'boss_dead':{
+      if(msg.floor!==currentFloor||isBossHost()) break;
+      enemies=enemies.filter(e=>!e.boss);
+      waveKills=waveTarget; // 클리어 조건 충족
       break;
     }
 
     case 'chat': appendChat(msg); break;
-
-    case 'stage_clear':{
-      if(msg.floor===currentFloor){
-        stageComplete();
-      }
-      break;
-    }
-
-    case 'floor_change':{
-      // 서버에서 층 이동 확정 — 완전 초기화 후 재시작
-      document.getElementById('stage-clear').style.display='none';
-      currentFloor=msg.floor;
-      if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
-      running=false;
-      resetFloor();          // 맵 재생성 + 적/파티클 초기화
-      startBGM(currentFloor);
-      running=true;
-      lastTime=0;
-      requestAnimationFrame(loop);
-      // 서버에 내 층 정보 전달
-      wsSend({type:'player_floor',floor:currentFloor});
-      addChatSys(`${floorName(currentFloor)}으로 이동`);
-      showToast(`🏃 ${floorName(currentFloor)}`);
-      break;
-    }
 
     case 'error': showToast('⚠ '+msg.msg); break;
     case 'pong': break;
@@ -3600,7 +3505,7 @@ let stateTickWs=0;
 function sendWsState(){
   if(!isMultiGame||!player) return;
   stateTickWs++;
-  if(stateTickWs%2!==0) return;  // 30fps 기준 (60fps에서 매 2프레임)
+  if(stateTickWs%2!==0) return;
   wsSend({
     type:'state',
     x:Math.round(player.x),y:Math.round(player.y),
@@ -3608,6 +3513,29 @@ function sendWsState(){
     lv:player.lv,exp:player.exp,kills,
     floor:currentFloor,
   });
+
+  // 보스 층 + 내가 같은 층 호스트 → 보스 상태 브로드캐스트 (6프레임마다)
+  if(BOSS_FLOORS.has(currentFloor)&&stateTickWs%6===0&&isBossHost()){
+    const boss=enemies.find(e=>e.boss);
+    if(boss){
+      wsSend({type:'boss_sync',floor:currentFloor,
+        id:boss.id,x:Math.round(boss.x),y:Math.round(boss.y),
+        hp:boss.hp,maxHp:boss.maxHp,flick:boss.flick>0?1:0});
+    } else if(enemies.length===0&&waveKills>=waveTarget){
+      // 보스 사망 브로드캐스트
+      wsSend({type:'boss_dead',floor:currentFloor});
+    }
+  }
+}
+
+// 같은 층 플레이어 중 내가 "보스 호스트"인지 판단 (닉네임 정렬 첫 번째)
+function isBossHost(){
+  if(!isMultiGame) return true;
+  const samePlayers=[myPlayerId,...Object.values(wsRoomPlayers)
+    .filter(p=>p.floor===currentFloor&&p.charIdx>=0)
+    .map(p=>p.id)];
+  samePlayers.sort();
+  return samePlayers[0]===myPlayerId;
 }
 
 /* 스킬 사용 시 멀티 브로드캐스트 — 같은 층만 */
