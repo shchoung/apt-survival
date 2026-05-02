@@ -1763,7 +1763,8 @@ function update(){
   window.movePlayer();
   const eq=getEquipStats();
 
-  // 적 AI — 상태머신 + A* 경로탐색
+  // 적 AI — 멀티 시 호스트만 실행
+  if(!isMultiGame||isHost){ // 상태머신 + A* 경로탐색
   enemies.forEach(e=>{
     const dx=player.x-e.x,dy=player.y-e.y;
     const dist=Math.sqrt(dx*dx+dy*dy);
@@ -1842,6 +1843,8 @@ function update(){
     }
     if(e.flick>0)e.flick--;
   });
+  } // end isHost AI block
+
   particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.08;p.life--;return p.life>0;});
   drops_arr=drops_arr.filter(d=>{d.life--;
     if(Math.abs(d.x-player.x)<22&&Math.abs(d.y-player.y)<22){
@@ -1859,8 +1862,13 @@ function update(){
     const eq2=getEquipStats();const h=Math.floor((30+player.lv*5)*(1+eq2.healBonus));
     player.hp=Math.min(player.maxHp,player.hp+h);addFloat(player.x,player.y,`+${h}`,'#5dcaa5');cdT[1]=180;
   }
-  // 층 클리어 조건 — stageComplete는 한 번만 호출
-  if(enemies.length===0&&waveKills>=waveTarget&&running) stageComplete();
+  // 층 클리어 (호스트 or 솔로만 판정, 호스트면 브로드캐스트)
+  if(enemies.length===0&&waveKills>=waveTarget&&running){
+    if(!isMultiGame||isHost){
+      if(isMultiGame) wsSend({type:'stage_clear',floor:currentFloor});
+      stageComplete();
+    }
+  }
   sendWsState();
 }
 
@@ -1979,11 +1987,19 @@ function useSkill(i){
     const dt=Math.sqrt((e.x-mw.x)**2+(e.y-mw.y)**2);
     if(dp<sk.range||(sk.aoe>0&&dt<sk.aoe)){
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55+rand(-5,8)));
-      e.hp-=dmg;e.flick=6;hit++;
       addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
       sparks(e.x,e.y,'#ff9070',7);
       if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
-      if(e.hp<=0)killEnemy(e);
+      hit++;
+      if(isMultiGame&&!isHost){
+        // 비호스트: 공격 요청을 호스트에 전달
+        wsSend({type:'attack_enemy',floor:currentFloor,
+          enemyId:e.id,dmg,x:Math.round(e.x),y:Math.round(e.y)});
+      } else {
+        // 호스트 or 솔로: 직접 처리
+        e.hp-=dmg;e.flick=6;
+        if(e.hp<=0) killEnemy(e);
+      }
     }
   });
   enemies=enemies.filter(e=>e.hp>0);
@@ -1997,10 +2013,8 @@ function killEnemy(e){
   const ex=Math.floor(e.exp*(1+eb));
   player.exp+=ex;addFloat(e.x,e.y,`EXP+${ex}`,'#a99ef5');sparks(e.x,e.y,e.color,12);
   gold+=(e.gold||10);
-  // 사망 효과음
   if(e.boss) SFX.death(); else SFX.hit();
   addLog(`${e.name} 처치 EXP+${ex}`,'lsys');
-  // 아이템 드롭
   const dropRoll=Math.random();
   if(dropRoll<0.3+dr){
     const pool=ITEM_POOL.filter(it=>it.type!=='consumable'||true);
@@ -2008,7 +2022,6 @@ function killEnemy(e){
     drops_arr.push({x:e.x+rand(-18,18),y:e.y+rand(-18,18),type:'item',itemId:it.id,life:350});
   }
   if(Math.random()<0.5+dr) drops_arr.push({x:e.x+rand(-12,12),y:e.y+rand(-12,12),type:'gold',amount:e.gold||10,life:280});
-  // EXP 레벨업
   while(player.exp>=player.expNext){
     player.exp-=player.expNext;player.lv++;player.expNext=player.lv*80;
     const cd=CHARS[selChar];
@@ -2020,6 +2033,19 @@ function killEnemy(e){
     document.getElementById('lvup-s').textContent=`${player.name} Lv${player.lv}  ATK${player.atk} DEF${player.def}`;
     setTimeout(()=>pp.style.display='none',2200);addLog(`LEVEL UP Lv${player.lv}!`,'lsys');
   }
+  // 멀티: 호스트가 킬 이벤트 브로드캐스트
+  if(isMultiGame&&isHost){
+    wsSend({type:'kill_sync',floor:currentFloor,
+      enemyId:e.id,x:Math.round(e.x),y:Math.round(e.y),
+      waveKills,kills});
+  }
+  enemies=enemies.filter(en=>en!==e);
+}
+
+// 비호스트가 공격한 적의 킬 처리 (호스트에서 실행)
+function doKillEnemy(e,x,y){
+  e.x=x;e.y=y;
+  killEnemy(e);
 }
 
 function gameOver(){
@@ -3314,8 +3340,84 @@ function onWsMsg(msg){
       break;
     }
 
-    case 'leave_ack': break;
-    case 'chat': appendChat(msg); break;
+    case 'enemy_sync':{
+      // 비호스트: 호스트 적 상태 수신 → 로컬 enemies 동기화
+      if(isHost) break;
+      if(msg.floor!==currentFloor) break;
+      if(!Array.isArray(msg.enemies)) break;
+
+      // 기존 enemies를 id로 매핑
+      const localMap={};
+      enemies.forEach(e=>{localMap[e.id]=e;});
+
+      // 호스트 데이터로 동기화
+      enemies=msg.enemies.map(re=>{
+        const local=localMap[re.id];
+        if(local){
+          // 기존 적 위치/HP 업데이트
+          local.x=re.x;local.y=re.y;
+          local.hp=re.hp;local.state=re.state;
+          local.flick=re.flick;
+          return local;
+        } else {
+          // 새 적 생성 (타입 정보 기반)
+          const ENEMY_TYPES_REF=getEnemyTypes(currentFloor);
+          const tmpl=ENEMY_TYPES_REF[re.typeIdx%ENEMY_TYPES_REF.length]||ENEMY_TYPES_REF[0];
+          return {
+            ...tmpl,
+            id:re.id,x:re.x,y:re.y,
+            hp:re.hp,maxHp:re.maxHp||tmpl.maxHp,
+            state:re.state||'idle',
+            flick:0,path:[],pathTick:0,
+            atkT:60,wanderTick:0,wanderDx:0,wanderDy:0,
+            boss:re.boss||false,typeIdx:re.typeIdx||0,
+          };
+        }
+      });
+      break;
+    }
+
+    case 'kill_sync':{
+      // 비호스트: 킬 이벤트 수신
+      if(isHost) break;
+      if(msg.floor!==currentFloor) break;
+      // 해당 적 제거
+      enemies=enemies.filter(e=>e.id!==msg.enemyId);
+      waveKills=msg.waveKills||waveKills;
+      kills=msg.kills||kills;
+      // 파티클/플로트 효과
+      if(msg.x&&msg.y){
+        sparks(msg.x,msg.y,'#E24B4A',8);
+        addFloat(msg.x,msg.y,'처치!','#E24B4A');
+      }
+      break;
+    }
+
+    case 'wave_sync':{
+      // 웨이브 상태 동기화
+      if(isHost) break;
+      waveNum=msg.waveNum||waveNum;
+      waveTarget=msg.waveTarget||waveTarget;
+      waveKills=msg.waveKills||waveKills;
+      break;
+    }
+
+    case 'stage_clear':{
+      // 호스트가 스테이지 클리어 알림
+      if(isHost) break;
+      if(msg.floor===currentFloor) stageComplete();
+      break;
+    }
+    case 'attack_enemy':{
+      if(!isHost) break;
+      if(msg.floor!==currentFloor) break;
+      const ae=enemies.find(e=>e.id===msg.enemyId);
+      if(ae){
+        ae.hp-=msg.dmg||0;ae.flick=8;
+        if(ae.hp<=0) doKillEnemy(ae,msg.x||ae.x,msg.y||ae.y);
+      }
+      break;
+    }
     case 'error': showToast('⚠ '+msg.msg); break;
     case 'pong': break;
     default: console.log('[WS unhandled]',msg.type);
@@ -3409,8 +3511,25 @@ function sendWsState(){
     x:Math.round(player.x),y:Math.round(player.y),
     hp:player.hp,maxHp:player.maxHp,
     lv:player.lv,exp:player.exp,kills,
-    floor:currentFloor,  // ← 층 정보 항상 포함
+    floor:currentFloor,
   });
+
+  // 호스트만 적 상태 브로드캐스트 (10프레임마다)
+  if(isHost&&stateTickWs%10===0&&enemies.length>0){
+    wsSend({
+      type:'enemy_sync',
+      floor:currentFloor,
+      enemies:enemies.map(e=>({
+        id:e.id,
+        x:Math.round(e.x),y:Math.round(e.y),
+        hp:e.hp,maxHp:e.maxHp,
+        state:e.state,
+        flick:e.flick>0?1:0,
+        boss:e.boss||false,
+        typeIdx:e.typeIdx||0,
+      })),
+    });
+  }
 }
 
 /* 스킬 사용 시 멀티 브로드캐스트 — 같은 층만 */
