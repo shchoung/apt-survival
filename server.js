@@ -467,10 +467,11 @@ class Room {
     const {MAP,rooms} = buildServerMap(seed);
     this.MAP   = MAP;
     this.rooms = rooms;
-    this.enemies   = [];
-    this.waveNum   = 1;
-    this.waveKills = 0;
-    this.stageClearSent = false;  // 클리어 중복 전송 방지
+    this.enemies      = [];
+    this.waveNum      = 1;
+    this.waveKills    = 0;
+    this.stageClearSent  = false;
+    this.nextFloorPending = false;
     this.waveTarget= BOSS_FLOORS_S.has(floor)?1:Math.max(3,3+floor);
     this.gameActive= true;
     this.spawnWave();
@@ -1051,9 +1052,14 @@ async function handleMessage(ws, raw) {
 
     // 다음 층 이동 요청
     case 'next_floor': {
+      // 이미 처리 중이면 무시
+      if(room.nextFloorPending) break;
+      room.nextFloorPending=true;
+
       const nextFloor = (room.floor||0) + 1;
       room.mapSeed = Math.floor(Math.random()*999999) + nextFloor * 13;
-      room.startGame(nextFloor);  // 게임루프 재시작 + 새 맵
+      room.startGame(nextFloor);  // 서버 게임루프 재시작
+      room.nextFloorPending=false;
       room.broadcastAll({
         type: 'floor_change',
         floor: nextFloor,
@@ -1063,9 +1069,8 @@ async function handleMessage(ws, raw) {
       break;
     }
 
-    // 플레이어 층 업데이트
     case 'player_floor': {
-      player.floor = msg.floor;
+      player.floor = msg.floor ?? player.floor;
       break;
     }
 
