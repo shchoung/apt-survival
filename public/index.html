@@ -2157,8 +2157,13 @@ function draw(){
     else{ctx.fillStyle='#fac77533';ctx.fill();ctx.strokeStyle='#fac775';ctx.lineWidth=1.5;ctx.stroke();}
     ctx.restore();
   });
-  // 적
+  // 적 렌더링 (멀티는 보간 위치 사용)
   enemies.forEach(e=>{
+    // 멀티: 보간으로 부드럽게 이동
+    if(isMultiGame&&e.targetX!==undefined){
+      e.x=e.x+(e.targetX-e.x)*0.3;
+      e.y=e.y+(e.targetY-e.y)*0.3;
+    }
     const s=w2s(e.x,e.y);if(s.x<-60||s.x>W+60||s.y<-60||s.y>H+60)return;
     const sz=e.size||12;
     ctx.save();if(e.flick>0)ctx.globalAlpha=.35;
@@ -3337,12 +3342,17 @@ function onWsMsg(msg){
     case 'player_state':{
       if(msg.playerId===myPlayerId) break;
       if(wsRoomPlayers[msg.playerId]){
-        Object.assign(wsRoomPlayers[msg.playerId],{
-          x:msg.x,y:msg.y,
+        const p=wsRoomPlayers[msg.playerId];
+        // 서버에서 받은 위치를 목표로 저장 (보간용)
+        p.targetX=msg.x??p.x;
+        p.targetY=msg.y??p.y;
+        Object.assign(p,{
           hp:msg.hp,maxHp:msg.maxHp,
           lv:msg.lv,charIdx:msg.charIdx,
-          floor:msg.floor??wsRoomPlayers[msg.playerId].floor,  // ← 층 저장
+          floor:msg.floor??p.floor,
         });
+        // x,y는 즉시 설정 (처음 수신 시)
+        if(!p.x&&!p.y){p.x=p.targetX;p.y=p.targetY;}
       }
       updateMultiPartyHUD();
       break;
@@ -3423,7 +3433,6 @@ function onWsMsg(msg){
     }
 
     case 'enemy_sync':{
-      if(isHost) break;
       if(msg.floor!==currentFloor) break;
       if(!Array.isArray(msg.enemies)) break;
 
@@ -3433,30 +3442,28 @@ function onWsMsg(msg){
       enemies=msg.enemies.map(re=>{
         const local=localMap[re.id];
         if(local){
-          local.x=re.x;local.y=re.y;
+          // 보간 목표 위치 저장
+          local.targetX=re.x;local.targetY=re.y;
           local.hp=re.hp;local.state=re.state;
           if(re.flick) local.flick=3;
           return local;
         } else {
-          // 새 적 — ETYPES_BASE or BOSS_TYPES 기반 생성
           const isBoss=re.boss||false;
-          let tmpl;
-          if(isBoss){
-            tmpl={...BOSS_TYPES[re.typeIdx%BOSS_TYPES.length]};
-          } else {
-            tmpl={...ETYPES_BASE[re.typeIdx%ETYPES_BASE.length]};
-          }
+          const pool=isBoss?BOSS_TYPES:ETYPES_BASE;
+          const tmpl=pool?{...pool[re.typeIdx%(pool.length||1)]}:{};
           return {
-            ...tmpl,
-            id:re.id,x:re.x,y:re.y,
-            hp:re.hp,maxHp:re.maxHp||tmpl.hp,
+            ...tmpl,...re,
+            x:re.x,y:re.y,
+            targetX:re.x,targetY:re.y,
+            maxHp:re.maxHp||tmpl.hp||100,
             state:re.state||'idle',flick:0,
             path:[],pathTick:0,atkT:60,
             wanderTick:0,wanderDx:0,wanderDy:0,
-            boss:isBoss,typeIdx:re.typeIdx||0,
           };
         }
       });
+      if(msg.waveKills!==undefined) waveKills=msg.waveKills;
+      if(msg.waveTarget!==undefined) waveTarget=msg.waveTarget;
       break;
     }
 
@@ -3562,15 +3569,20 @@ function drawMultiPlayers(){
     if(p.charIdx===selChar) return;
     if(!p.x&&!p.y) return;
     if(p.floor!==undefined&&p.floor!==currentFloor) return;
+
+    // ── 보간: 현재 위치 → 목표 위치로 부드럽게 이동 (LERP) ──
+    if(p.targetX!==undefined){
+      p.x=p.x+(p.targetX-p.x)*0.25;
+      p.y=p.y+(p.targetY-p.y)*0.25;
+    }
+
     const s=w2s(p.x,p.y);
     if(s.x<-60||s.x>W+60||s.y<-60||s.y>H+60) return;
 
-    // 이 플레이어의 atkAnim 가져오기
     const pAtk=wsAtkAnim[p.id]||0;
     if(pAtk>0) wsAtkAnim[p.id]=pAtk-1;
 
     ctx.save();ctx.globalAlpha=.85;
-    // drawCharSVG에 외부 atkAnim 전달
     drawCharSVGWithAtk(ctx,s.x,s.y,p.charIdx,0,false,pAtk);
     const hp=Math.min(1,Math.max(0,(p.hp/p.maxHp)||1));
     ctx.fillStyle='#1a2535';ctx.fillRect(s.x-18,s.y-26,36,4);
@@ -3600,7 +3612,7 @@ let stateTickWs=0;
 function sendWsState(){
   if(!isMultiGame||!player) return;
   stateTickWs++;
-  if(stateTickWs%6!==0) return;
+  if(stateTickWs%2!==0) return;  // 30fps 기준 (60fps에서 매 2프레임)
   wsSend({
     type:'state',
     x:Math.round(player.x),y:Math.round(player.y),
@@ -3608,23 +3620,6 @@ function sendWsState(){
     lv:player.lv,exp:player.exp,kills,
     floor:currentFloor,
   });
-
-  // 호스트만 적 상태 브로드캐스트 (10프레임마다)
-  if(isHost&&stateTickWs%10===0&&enemies.length>0){
-    wsSend({
-      type:'enemy_sync',
-      floor:currentFloor,
-      enemies:enemies.map(e=>({
-        id:e.id,
-        x:Math.round(e.x),y:Math.round(e.y),
-        hp:e.hp,maxHp:e.maxHp,
-        state:e.state,
-        flick:e.flick>0?1:0,
-        boss:e.boss||false,
-        typeIdx:e.typeIdx||0,
-      })),
-    });
-  }
 }
 
 /* 스킬 사용 시 멀티 브로드캐스트 — 같은 층만 */
