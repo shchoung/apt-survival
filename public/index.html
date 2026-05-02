@@ -3369,30 +3369,18 @@ function onWsMsg(msg){
       break;
     }
 
-    case 'floor_change':{
-      currentFloor=msg.floor;
-      if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
-      if(running){
-        resetFloor();   // sharedMapSeed 적용된 상태로 맵 재생성
-        running=true;
-        requestAnimationFrame(loop);
-      }
-      addChatSys(`${floorName(currentFloor)}으로 이동`);
-      break;
-    }
-
     case 'game_start':{
+      // 처음 게임 시작 또는 재접속 시
       if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
       currentFloor=msg.floor||0;
-      // 맵 재생성 (서버와 동일한 시드)
-      buildMap(currentFloor);
-      if(player){
-        const safe=findSafeSpawn(player.x||0,player.y||0);
-        player.x=safe.x;player.y=safe.y;
-        camX=player.x;camY=player.y;
-      }
-      enemies=[];waveKills=0;waveNum=1;
-      minimapDirty=true;
+      running=false;
+      resetFloor();
+      startBGM(currentFloor);
+      running=true;
+      lastTime=0;
+      requestAnimationFrame(loop);
+      wsSend({type:'player_floor',floor:currentFloor});
+      addChatSys(`게임 시작! ${floorName(currentFloor)}`);
       break;
     }
 
@@ -3501,26 +3489,23 @@ function onWsMsg(msg){
     }
 
     case 'floor_change':{
+      // 서버에서 층 이동 확정 — 완전 초기화 후 재시작
+      document.getElementById('stage-clear').style.display='none';
       currentFloor=msg.floor;
       if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
-      enemies=[];waveKills=0;waveNum=1;
-      minimapDirty=true;
-      resetFloor();
+      running=false;
+      resetFloor();          // 맵 재생성 + 적/파티클 초기화
+      startBGM(currentFloor);
       running=true;
+      lastTime=0;
       requestAnimationFrame(loop);
+      // 서버에 내 층 정보 전달
+      wsSend({type:'player_floor',floor:currentFloor});
       addChatSys(`${floorName(currentFloor)}으로 이동`);
+      showToast(`🏃 ${floorName(currentFloor)}`);
       break;
     }
-    case 'attack_enemy':{
-      if(!isHost) break;
-      if(msg.floor!==currentFloor) break;
-      const ae=enemies.find(e=>e.id===msg.enemyId);
-      if(ae){
-        ae.hp-=msg.dmg||0;ae.flick=8;
-        if(ae.hp<=0) doKillEnemy(ae,msg.x||ae.x,msg.y||ae.y);
-      }
-      break;
-    }
+
     case 'error': showToast('⚠ '+msg.msg); break;
     case 'pong': break;
     default: console.log('[WS unhandled]',msg.type);
