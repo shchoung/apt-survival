@@ -77,8 +77,8 @@ canvas{display:block;width:100%;height:100%}
 .skcd{position:absolute;bottom:2px;right:3px;font-family:var(--tf);font-size:8px;color:var(--ca)}
 
 /* PANELS */
-#log-panel{position:absolute;top:75px;left:8px;width:180px;background:#07090dbb;border:1px solid var(--c3)55;border-radius:6px;padding:5px;max-height:90px;overflow:hidden;pointer-events:none;z-index:19}
-.loge{font-size:10px;line-height:1.6;font-family:var(--tf)}
+#log-panel{position:absolute;top:110px;left:8px;width:200px;background:#07090daa;border:1px solid var(--c3)44;border-radius:6px;padding:5px 7px;max-height:120px;overflow:hidden;pointer-events:none;z-index:19}
+.loge{font-size:9px;line-height:1.6;font-family:var(--tf);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lhit{color:#ff7070}.lheal{color:#5dcaa5}.lsk{color:#a99ef5}.lsys{color:var(--ca)}.ldrop{color:#fac775}.lnet{color:#85b7eb}
 
 #minimap{position:absolute;top:6px;right:8px;background:#07090dcc;border:1px solid var(--c3);border-radius:6px;padding:3px}
@@ -2237,7 +2237,7 @@ function updateHUD(){
   document.getElementById('stat-gold').textContent=`💰 ${gold}G`;
   document.getElementById('stat-time').textContent=fmtTime(elapsed);
   cdT.forEach((t,i)=>{const el=document.getElementById('cd'+i);if(t>0){el.textContent=Math.ceil(t/60)+'s';document.getElementById('sk'+i).classList.add('cd');}else{el.textContent='';document.getElementById('sk'+i).classList.remove('cd');}});
-  document.getElementById('log-panel').innerHTML=logs.slice(-6).map(l=>`<div class="loge ${l.c}">${l.m}</div>`).join('');
+  document.getElementById('log-panel').innerHTML=logs.slice(-5).map(l=>`<div class="loge ${l.c}">${l.m}</div>`).join('');
 }
 
 function updateSkillIcons(){
@@ -3448,7 +3448,7 @@ function updateMultiPartyHUD(){
   // 파티원 수에 따라 로그패널 top 조정 (겹침 방지)
   const logEl=document.getElementById('log-panel');
   if(logEl){
-    const offset=75+members.length*32;
+    const offset=110+members.length*32;
     logEl.style.top=offset+'px';
   }
 }
