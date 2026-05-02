@@ -3222,7 +3222,7 @@ const WS_CHAR_COLORS=['#378ADD','#1D9E75','#BA7517','#993556'];
 
 function wsConnect(){
   const url=getWsUrl();
-  if(ws&&ws.readyState===WebSocket.OPEN) return; // 이미 연결됨
+  if(ws&&ws.readyState===WebSocket.OPEN) return;
   try{
     ws=new WebSocket(url);
     ws.onopen=()=>{
@@ -3236,7 +3236,9 @@ function wsConnect(){
       console.log('[WS] 연결 끊김');
       clearInterval(pingInterval);
       ws=null;
-      // 게임 중이면 3초 후 재연결 시도
+      // 접속 해제 시 다른 플레이어 목록 초기화
+      wsRoomPlayers={};
+      updateMultiPartyHUD();
       if(isMultiGame) setTimeout(wsConnect,3000);
     };
     ws.onerror=e=>console.warn('[WS] 오류',e);
@@ -3341,19 +3343,17 @@ function onWsMsg(msg){
 
     case 'player_state':{
       if(msg.playerId===myPlayerId) break;
-      if(wsRoomPlayers[msg.playerId]){
-        const p=wsRoomPlayers[msg.playerId];
-        // 서버에서 받은 위치를 목표로 저장 (보간용)
-        p.targetX=msg.x??p.x;
-        p.targetY=msg.y??p.y;
-        Object.assign(p,{
-          hp:msg.hp,maxHp:msg.maxHp,
-          lv:msg.lv,charIdx:msg.charIdx,
-          floor:msg.floor??p.floor,
-        });
-        // x,y는 즉시 설정 (처음 수신 시)
-        if(!p.x&&!p.y){p.x=p.targetX;p.y=p.targetY;}
-      }
+      // 이미 퇴장한 플레이어면 무시 (player_left 이후 늦게 도착한 패킷)
+      if(!wsRoomPlayers[msg.playerId]) break;
+      const p=wsRoomPlayers[msg.playerId];
+      p.targetX=msg.x??p.x;
+      p.targetY=msg.y??p.y;
+      Object.assign(p,{
+        hp:msg.hp,maxHp:msg.maxHp,
+        lv:msg.lv,charIdx:msg.charIdx,
+        floor:msg.floor??p.floor,
+      });
+      if(!p.x&&!p.y){p.x=p.targetX;p.y=p.targetY;}
       updateMultiPartyHUD();
       break;
     }
