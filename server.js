@@ -340,6 +340,101 @@ const rooms     = new Map(); // roomCode → Room
 const clients   = new Map(); // ws → ClientInfo
 
 /* ══════════════════════════════════════
+   서버사이드 게임 상수
+══════════════════════════════════════ */
+const TICK_RATE = 20;           // 초당 20틱 (50ms)
+const TICK_DT   = 1000 / TICK_RATE;
+const TILE_S    = 40;           // 타일 크기 (클라이언트와 동일)
+const COLS_S    = 28, ROWS_S = 20;
+
+// 적 타입 정의 (클라이언트와 동일)
+const ETYPES_S = [
+  {name:'순찰 드론',  hp:50,  atk:10, spd:1.4, size:9,  exp:15, gold:5,  color:'#888780'},
+  {name:'전투 로봇',  hp:120, atk:25, spd:1.1, size:12, exp:45, gold:15, color:'#1D9E75'},
+  {name:'해킹 유닛',  hp:80,  atk:18, spd:1.8, size:9,  exp:30, gold:10, color:'#7f77dd'},
+  {name:'제압 타격대',hp:200, atk:40, spd:0.9, size:15, exp:80, gold:25, color:'#e24b4b'},
+];
+const BOSS_S = [
+  {name:'AI 감시자',  hp:800, atk:60, spd:0.8, size:20, exp:300, gold:150, color:'#ef9f27', boss:true},
+  {name:'중앙 제어기',hp:1500,atk:90, spd:0.7, size:24, exp:600, gold:300, color:'#e24b4b', boss:true},
+];
+
+function sRand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+
+/* ── 시드 기반 난수 (맵 생성용) ── */
+function mkSeeded(seed){
+  let s=((seed^0xdeadbeef)>>>0);
+  return ()=>{
+    s=(s+0x6D2B79F5)>>>0;
+    let t=Math.imul(s^(s>>>15),1|s);
+    t=t+Math.imul(t^(t>>>7),61|t)^t;
+    return ((t^(t>>>14))>>>0)/4294967296;
+  };
+}
+
+/* ── BSP 맵 생성 ── */
+function buildServerMap(seed){
+  const rng=mkSeeded(seed);
+  const rngInt=(a,b)=>Math.floor(rng()*(b-a+1))+a;
+  const MAP=[];
+  for(let r=0;r<ROWS_S;r++){MAP[r]=[];for(let c=0;c<COLS_S;c++)MAP[r][c]=1;}
+
+  function bsp(node,depth){
+    const MAX_DEPTH=4,MIN_SIZE=6;
+    if(depth>=MAX_DEPTH||node.w<MIN_SIZE*2||node.h<MIN_SIZE*2){
+      if(node.w<MIN_SIZE+2||node.h<MIN_SIZE+2) return [];
+      const rw=rngInt(4,Math.min(node.w-2,9));
+      const rh=rngInt(4,Math.min(node.h-2,7));
+      const rx=node.x+rngInt(1,node.w-rw-1);
+      const ry=node.y+rngInt(1,node.h-rh-1);
+      for(let r=ry;r<ry+rh;r++) for(let c=rx;c<rx+rw;c++) MAP[r][c]=0;
+      return [{x:rx,y:ry,w:rw,h:rh}];
+    }
+    const splitH=node.h>=node.w;
+    if(splitH){
+      const sp=rngInt(MIN_SIZE,node.h-MIN_SIZE);
+      return [...bsp({x:node.x,y:node.y,w:node.w,h:sp},depth+1),
+              ...bsp({x:node.x,y:node.y+sp,w:node.w,h:node.h-sp},depth+1)];
+    } else {
+      const sp=rngInt(MIN_SIZE,node.w-MIN_SIZE);
+      return [...bsp({x:node.x,y:node.y,w:sp,h:node.h},depth+1),
+              ...bsp({x:node.x+sp,y:node.y,w:node.w-sp,h:node.h},depth+1)];
+    }
+  }
+  const rooms=bsp({x:1,y:1,w:COLS_S-2,h:ROWS_S-2},0);
+  for(let i=1;i<rooms.length;i++){
+    const a=rooms[i-1],b=rooms[i];
+    const ax=Math.floor(a.x+a.w/2),ay=Math.floor(a.y+a.h/2);
+    const bx=Math.floor(b.x+b.w/2),by=Math.floor(b.y+b.h/2);
+    const minX=Math.min(ax,bx),maxX=Math.max(ax,bx);
+    const minY=Math.min(ay,by),maxY=Math.max(ay,by);
+    for(let c=minX;c<=maxX;c++) MAP[ay][c]=0;
+    for(let r=minY;r<=maxY;r++) MAP[r][bx]=0;
+  }
+  return {MAP,rooms};
+}
+
+function sWall(MAP,x,y){
+  const c=Math.floor(x/TILE_S),r=Math.floor(y/TILE_S);
+  if(r<0||r>=ROWS_S||c<0||c>=COLS_S) return true;
+  return MAP[r][c]>=1;
+}
+function sWallBox(MAP,x,y,size=10){
+  const r=Math.max(1,size-2);
+  return sWall(MAP,x-r,y-r)||sWall(MAP,x+r,y-r)||sWall(MAP,x-r,y+r)||sWall(MAP,x+r,y+r);
+}
+function sFindSafe(MAP,rooms,px,py){
+  if(!sWallBox(MAP,px,py,10)) return {x:px,y:py};
+  for(const room of rooms){
+    for(let dr=0;dr<room.h;dr++) for(let dc=0;dc<room.w;dc++){
+      const tx=(room.x+dc)*TILE_S+TILE_S/2,ty=(room.y+dr)*TILE_S+TILE_S/2;
+      if(!sWallBox(MAP,tx,ty,10)) return {x:tx,y:ty};
+    }
+  }
+  return {x:px,y:py};
+}
+
+/* ══════════════════════════════════════
    방 & 플레이어 클래스
 ══════════════════════════════════════ */
 class Room {
@@ -351,7 +446,165 @@ class Room {
     this.mapSeed   = Math.floor(Math.random() * 999999);
     this.phase     = 'lobby';
     this.createdAt = Date.now();
+
+    // ── 서버사이드 게임 상태 ──
+    this.MAP        = null;
+    this.rooms      = [];
+    this.enemies    = [];
+    this.waveNum    = 1;
+    this.waveTarget = 5;
+    this.waveKills  = 0;
+    this.totalKills = 0;
+    this.gameActive = false;
+    this.tickTimer  = null;
+    this._eidSeq    = 0;
   }
+
+  /* 게임 시작 — 맵 생성 + 첫 웨이브 */
+  startGame(floor=0){
+    this.floor = floor;
+    const seed = this.mapSeed + floor * 999983;
+    const {MAP,rooms} = buildServerMap(seed);
+    this.MAP   = MAP;
+    this.rooms = rooms;
+    this.enemies   = [];
+    this.waveNum   = 1;
+    this.waveKills = 0;
+    this.waveTarget= BOSS_FLOORS_S.has(floor)?1:Math.max(3,3+floor);
+    this.gameActive= true;
+    this.spawnWave();
+    if(!this.tickTimer) this.startTick();
+  }
+
+  spawnWave(){
+    const isBoss=BOSS_FLOORS_S.has(this.floor);
+    const count=this.waveTarget;
+    const lb=this.floor*0.05;
+    for(let i=0;i<count;i++){
+      setTimeout(()=>{
+        if(!this.gameActive) return;
+        const tmpl=isBoss
+          ? {...BOSS_S[Math.floor(this.floor/5)%BOSS_S.length]}
+          : {...ETYPES_S[Math.min(3,Math.floor(this.floor/3))]};
+        tmpl.hp=Math.floor(tmpl.hp*(1+lb));
+        tmpl.maxHp=tmpl.hp;
+        tmpl.atk=Math.floor(tmpl.atk*(1+lb*0.4));
+        tmpl.typeIdx=ETYPES_S.indexOf(ETYPES_S.find(e=>e.name===tmpl.name))??0;
+
+        // 안전 스폰 위치
+        const sp=this.rooms[sRand(1,this.rooms.length-1)]||this.rooms[0];
+        if(!sp) return;
+        const sx=(sp.x+Math.floor(sp.w/2))*TILE_S+TILE_S/2;
+        const sy=(sp.y+Math.floor(sp.h/2))*TILE_S+TILE_S/2;
+        const safe=sFindSafe(this.MAP,this.rooms,sx,sy);
+
+        this.enemies.push({
+          id: ++this._eidSeq,
+          ...tmpl,
+          x:safe.x, y:safe.y,
+          state:'idle',
+          atkT:sRand(30,90),
+          path:[],
+        });
+      }, i*500);
+    }
+  }
+
+  /* 20틱 게임루프 */
+  startTick(){
+    this.tickTimer=setInterval(()=>this.tick(), TICK_DT);
+  }
+  stopTick(){
+    if(this.tickTimer){clearInterval(this.tickTimer);this.tickTimer=null;}
+    this.gameActive=false;
+  }
+
+  tick(){
+    if(!this.gameActive||this.players.size===0) return;
+
+    // 플레이어 위치 목록 (타겟팅용)
+    const playerPositions=[...this.players.values()]
+      .filter(p=>p.x&&p.y)
+      .map(p=>({id:p.id,x:p.x,y:p.y,hp:p.hp,maxHp:p.maxHp,floor:p.floor,nick:p.nick}));
+    const samePlayers=playerPositions.filter(p=>p.floor===this.floor);
+
+    const dt=1; // 서버는 고정 틱
+    const dead=[];
+
+    this.enemies.forEach(e=>{
+      if(!this.MAP) return;
+      // 가장 가까운 플레이어 타겟
+      let target=null,minD=Infinity;
+      samePlayers.forEach(p=>{
+        const d=Math.hypot(p.x-e.x,p.y-e.y);
+        if(d<minD){minD=d;target=p;}
+      });
+      if(!target) return;
+
+      const dx=target.x-e.x,dy=target.y-e.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      const sight=e.boss?320:220;
+
+      if(dist<sight) e.state='chase';
+      else if(e.state==='idle') e.state='wander';
+
+      // 이동
+      if(e.state==='chase'&&dist>2){
+        const nx=e.x+dx/dist*e.spd*dt;
+        const ny=e.y+dy/dist*e.spd*dt;
+        if(!sWallBox(this.MAP,nx,e.y,e.size)) e.x=nx;
+        if(!sWallBox(this.MAP,e.x,ny,e.size)) e.y=ny;
+      }
+
+      // 공격
+      e.atkT--;
+      if(e.atkT<=0&&dist<(e.size||12)+20){
+        e.atkT=90;
+        // 해당 플레이어에게 데미지 전송
+        const tp=this.players.get(target.id);
+        if(tp){
+          const dmg=Math.max(1,e.atk-Math.floor((tp.def||10)*0.5)+sRand(-5,5));
+          tp.hp=Math.max(0,tp.hp-dmg);
+          tp.send({type:'enemy_attack',dmg,enemyId:e.id,
+            x:Math.round(e.x),y:Math.round(e.y)});
+          if(tp.hp<=0) tp.send({type:'game_over'});
+        }
+      }
+    });
+
+    // 죽은 적 제거
+    this.enemies=this.enemies.filter(e=>e.hp>0);
+
+    // 웨이브 완료 체크
+    if(this.enemies.length===0&&this.waveKills>=this.waveTarget){
+      this.broadcastAll({type:'stage_clear',floor:this.floor,
+        waveNum:this.waveNum,kills:this.totalKills});
+    }
+
+    // 20틱마다 전체 브로드캐스트
+    this.broadcastSameFloor({
+      type:'enemy_sync',
+      floor:this.floor,
+      enemies:this.enemies.map(e=>({
+        id:e.id,x:Math.round(e.x),y:Math.round(e.y),
+        hp:e.hp,maxHp:e.maxHp,state:e.state,
+        boss:e.boss||false,typeIdx:e.typeIdx||0,
+        color:e.color,name:e.name,size:e.size,
+      })),
+      waveKills:this.waveKills,
+      waveTarget:this.waveTarget,
+    });
+  }
+
+  /* 같은 층 플레이어에게만 전송 */
+  broadcastSameFloor(msg){
+    const data=JSON.stringify(msg);
+    this.players.forEach(p=>{
+      if(p.floor===this.floor&&p.ws?.readyState===WebSocket.OPEN)
+        p.ws.send(data);
+    });
+  }
+
   broadcast(msg, excludeId = null) {
     const data = JSON.stringify(msg);
     this.players.forEach((p, id) => {
@@ -369,6 +622,8 @@ class Room {
     };
   }
 }
+
+const BOSS_FLOORS_S = new Set([2,6,11,16,21,27]); // 클라이언트와 동일
 
 class PlayerState {
   constructor(ws, id, nick, charIdx, userId) {
@@ -456,7 +711,8 @@ async function removePlayer(ws) {
   room.players.delete(playerId);
   clients.delete(ws);
 
-  // 호스트 위임
+  // 서버가 게임을 관리하므로 호스트 위임 불필요
+  // 단, 클라이언트 호환성을 위해 첫 번째 플레이어에게 isHost 전달
   if (player?.isHost && room.players.size > 0) {
     const next = [...room.players.values()][0];
     next.isHost = true;
@@ -464,6 +720,7 @@ async function removePlayer(ws) {
   }
 
   if (room.players.size === 0) {
+    room.stopTick();
     rooms.delete(roomCode);
   } else {
     room.broadcast({ type: 'player_left', playerId, nick: player?.nick });
@@ -557,10 +814,17 @@ async function handleMessage(ws, raw) {
     player.send({
       type: 'joined', playerId, roomCode: room.code,
       isHost: player.isHost, mapSeed: room.mapSeed,
+      floor: room.floor,
       room: room.toPublic(), recentChat: room.chat.slice(-20),
     });
     room.broadcast({ type:'player_joined', player:player.toPublic() }, playerId);
     room.broadcastAll({ type:'room_state', room:room.toPublic() });
+
+    // 방이 새로 만들어졌거나 게임이 아직 안 시작됐으면 시작
+    if(!room.gameActive){
+      room.startGame(room.floor);
+      room.broadcastAll({type:'game_start',floor:room.floor,mapSeed:room.mapSeed});
+    }
     console.log(`[AUTO_MATCH] ${nick}(${assignedChar}) → ${room.code} (${room.memberCount}명)`);
     return;
   }
@@ -758,48 +1022,45 @@ async function handleMessage(ws, raw) {
       break;
     }
 
-    // 몹 동기화 (호스트 → 같은 층 전체)
-    case 'enemy_sync': {
-      room.players.forEach((p,id) => {
-        if(id===playerId) return;
-        if(p.ws?.readyState!==WebSocket.OPEN) return;
-        if(p.floor!==player.floor) return;
-        p.ws.send(JSON.stringify(msg));
-      });
-      break;
-    }
-
-    // 킬 동기화 (호스트 → 같은 층 전체)
-    case 'kill_sync': {
-      room.players.forEach((p,id) => {
-        if(id===playerId) return;
-        if(p.ws?.readyState!==WebSocket.OPEN) return;
-        if(p.floor!==player.floor) return;
-        p.ws.send(JSON.stringify(msg));
-      });
-      break;
-    }
-
-    // 비호스트 공격 → 호스트에게만 전달
+    // 플레이어 공격 → 서버가 적 HP 처리
     case 'attack_enemy': {
-      room.players.forEach((p,id) => {
-        if(id===playerId) return;
-        if(p.ws?.readyState!==WebSocket.OPEN) return;
-        if(!p.isHost) return;
-        p.ws.send(JSON.stringify(msg));
+      const ae = room.enemies.find(e => e.id === msg.enemyId);
+      if (!ae) break;
+      ae.hp -= msg.dmg || 0;
+      ae.flick = 6;
+      if (ae.hp <= 0) {
+        room.enemies = room.enemies.filter(e => e.id !== ae.id);
+        room.waveKills++;
+        room.totalKills++;
+        player.kills++;
+        // 킬 이벤트 브로드캐스트
+        room.broadcastSameFloor({
+          type: 'kill_event', floor: room.floor,
+          enemyId: ae.id, killerId: playerId,
+          x: Math.round(ae.x), y: Math.round(ae.y),
+          exp: ae.exp, gold: ae.gold,
+          waveKills: room.waveKills, waveTarget: room.waveTarget,
+        });
+      }
+      break;
+    }
+
+    // 다음 층 이동 요청
+    case 'next_floor': {
+      const nextFloor = (room.floor||0) + 1;
+      room.stopTick();
+      room.floor = nextFloor;
+      room.mapSeed = Math.floor(Math.random()*999999) + nextFloor;
+      room.startGame(nextFloor);
+      room.broadcastAll({
+        type: 'floor_change', floor: nextFloor, mapSeed: room.mapSeed,
       });
       break;
     }
 
-    // 웨이브/스테이지 동기화
-    case 'wave_sync':
-    case 'stage_clear': {
-      room.players.forEach((p,id) => {
-        if(id===playerId) return;
-        if(p.ws?.readyState!==WebSocket.OPEN) return;
-        if(p.floor!==player.floor) return;
-        p.ws.send(JSON.stringify(msg));
-      });
+    // 플레이어 층 업데이트
+    case 'player_floor': {
+      player.floor = msg.floor;
       break;
     }
 
