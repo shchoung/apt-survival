@@ -758,6 +758,51 @@ async function handleMessage(ws, raw) {
       break;
     }
 
+    // 몹 동기화 (호스트 → 같은 층 전체)
+    case 'enemy_sync': {
+      room.players.forEach((p,id) => {
+        if(id===playerId) return;
+        if(p.ws?.readyState!==WebSocket.OPEN) return;
+        if(p.floor!==player.floor) return;
+        p.ws.send(JSON.stringify(msg));
+      });
+      break;
+    }
+
+    // 킬 동기화 (호스트 → 같은 층 전체)
+    case 'kill_sync': {
+      room.players.forEach((p,id) => {
+        if(id===playerId) return;
+        if(p.ws?.readyState!==WebSocket.OPEN) return;
+        if(p.floor!==player.floor) return;
+        p.ws.send(JSON.stringify(msg));
+      });
+      break;
+    }
+
+    // 비호스트 공격 → 호스트에게만 전달
+    case 'attack_enemy': {
+      room.players.forEach((p,id) => {
+        if(id===playerId) return;
+        if(p.ws?.readyState!==WebSocket.OPEN) return;
+        if(!p.isHost) return;
+        p.ws.send(JSON.stringify(msg));
+      });
+      break;
+    }
+
+    // 웨이브/스테이지 동기화
+    case 'wave_sync':
+    case 'stage_clear': {
+      room.players.forEach((p,id) => {
+        if(id===playerId) return;
+        if(p.ws?.readyState!==WebSocket.OPEN) return;
+        if(p.floor!==player.floor) return;
+        p.ws.send(JSON.stringify(msg));
+      });
+      break;
+    }
+
     case 'ping': player.send({ type:'pong', ts:msg.ts }); break;
   }
 }
