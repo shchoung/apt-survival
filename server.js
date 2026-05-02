@@ -342,7 +342,7 @@ const clients   = new Map(); // ws → ClientInfo
 /* ══════════════════════════════════════
    서버사이드 게임 상수
 ══════════════════════════════════════ */
-const TICK_RATE = 20;           // 초당 20틱 (50ms)
+const TICK_RATE = 30;           // 초당 30틱 (33ms)
 const TICK_DT   = 1000 / TICK_RATE;
 const TILE_S    = 40;           // 타일 크기 (클라이언트와 동일)
 const COLS_S    = 28, ROWS_S = 20;
