@@ -1023,7 +1023,8 @@ async function handleMessage(ws, raw) {
       };
       room.chat.push(chatMsg);
       if (room.chat.length > 50) room.chat.shift();
-      room.broadcastAll(chatMsg);
+      // 보낸 사람 제외하고 브로드캐스트 (클라이언트에서 즉시 로컬 표시)
+      room.broadcast(chatMsg, playerId);
       break;
     }
 
