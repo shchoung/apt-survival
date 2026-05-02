@@ -1766,8 +1766,9 @@ function update(){
   window.movePlayer();
   const eq=getEquipStats();
 
-  // 적 AI — 멀티 시 호스트만 실행
-  if(!isMultiGame||isHost){ // 상태머신 + A* 경로탐색
+  // 적 AI — 서버 권위 방식: 클라이언트는 AI 실행 안 함
+  // (enemy_sync 메시지로 서버에서 위치 수신)
+  if(!isMultiGame){  // 솔로 플레이만 로컬 AI 실행
   enemies.forEach(e=>{
     // ── 멀티: 모든 플레이어 중 가장 가까운 플레이어를 타겟 ──
     let targetX=player.x,targetY=player.y;
@@ -1881,12 +1882,9 @@ function update(){
     const eq2=getEquipStats();const h=Math.floor((30+player.lv*5)*(1+eq2.healBonus));
     player.hp=Math.min(player.maxHp,player.hp+h);addFloat(player.x,player.y,`+${h}`,'#5dcaa5');cdT[1]=180;
   }
-  // 층 클리어 (호스트 or 솔로만 판정, 호스트면 브로드캐스트)
-  if(enemies.length===0&&waveKills>=waveTarget&&running){
-    if(!isMultiGame||isHost){
-      if(isMultiGame) wsSend({type:'stage_clear',floor:currentFloor});
-      stageComplete();
-    }
+  // 층 클리어 — 솔로만 로컬 판정, 멀티는 서버에서 stage_clear 수신
+  if(!isMultiGame&&enemies.length===0&&waveKills>=waveTarget&&running){
+    stageComplete();
   }
   sendWsState();
 }
@@ -1935,13 +1933,18 @@ function nextFloor(){
     document.getElementById('go-sub').textContent='APT를 탈환했습니다!';
     return;
   }
+  if(isMultiGame){
+    wsSend({type:'next_floor'});
+    showToast('⏳ 다음 층 이동 중...');
+    return;
+  }
   currentFloor++;
-  running=false;           // 기존 루프 확실히 정지
+  running=false;
   resetFloor();
   startBGM(currentFloor);
   running=true;
-  lastTime=0;  // deltaTime 초기화
-  requestAnimationFrame(loop);  // 루프 새로 시작
+  lastTime=0;
+  requestAnimationFrame(loop);
 }
 
 function useSkill(i){
@@ -2010,8 +2013,8 @@ function useSkill(i){
       sparks(e.x,e.y,'#ff9070',7);
       if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
       hit++;
-      if(isMultiGame&&!isHost){
-        // 비호스트: 로컬 피격 효과 즉시 표시 + 서버 경유 호스트에 전달
+      if(isMultiGame){
+        // 서버에 공격 요청 + 로컬 즉시 피격 효과(예측)
         e.flick=6;
         addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
         sparks(e.x,e.y,'#ff9070',7);
@@ -2019,8 +2022,10 @@ function useSkill(i){
         wsSend({type:'attack_enemy',floor:currentFloor,
           enemyId:e.id,dmg,x:Math.round(e.x),y:Math.round(e.y)});
       } else {
-        // 호스트 or 솔로: 직접 처리
+        // 솔로: 직접 처리
         e.hp-=dmg;e.flick=6;
+        addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
+        sparks(e.x,e.y,'#ff9070',7);
         if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
         if(e.hp<=0) killEnemy(e);
       }
@@ -3365,10 +3370,55 @@ function onWsMsg(msg){
       break;
     }
 
-    case 'host_promoted':{
-      isHost=true;
+    case 'game_start':{
       if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
-      addChatSys('호스트가 되었습니다');
+      currentFloor=msg.floor||0;
+      // 맵 재생성 (서버와 동일한 시드)
+      buildMap(currentFloor);
+      if(player){
+        const safe=findSafeSpawn(player.x||0,player.y||0);
+        player.x=safe.x;player.y=safe.y;
+        camX=player.x;camY=player.y;
+      }
+      enemies=[];waveKills=0;waveNum=1;
+      minimapDirty=true;
+      break;
+    }
+
+    case 'kill_event':{
+      // 서버가 킬 확정 → 로컬에서 처리
+      if(msg.floor!==currentFloor) break;
+      enemies=enemies.filter(e=>e.id!==msg.enemyId);
+      waveKills=msg.waveKills??waveKills;
+      // 내가 킬한 경우 EXP/골드 획득
+      if(msg.killerId===myPlayerId){
+        gold+=msg.gold||0;
+        const expGain=msg.exp||0;
+        player.exp+=expGain;
+        addFloat(msg.x,msg.y,`EXP+${expGain}`,'#a99ef5');
+        while(player.exp>=player.expNext){
+          player.exp-=player.expNext;player.lv++;player.expNext=player.lv*80;
+          SFX.levelup();addLog(`LEVEL UP Lv${player.lv}!`,'lsys');
+        }
+      }
+      sparks(msg.x,msg.y,'#E24B4A',8);
+      addFloat(msg.x,msg.y,'처치!','#E24B4A');
+      addLog(`${msg.killerId===myPlayerId?'':'파티원 '}처치!`,'lsys');
+      kills++;
+      break;
+    }
+
+    case 'enemy_attack':{
+      // 서버가 데미지 확정
+      if(player&&player.invincible===0){
+        player.hp=Math.max(0,player.hp-msg.dmg);
+        player.invincible=20;
+        SFX.playerDmg?.();
+        sparks(player.x,player.y,'#ff7070',6);
+        addFloat(player.x,player.y,`-${msg.dmg}`,'#ff7070');
+        addLog(`적 공격 -${msg.dmg}`,'lhit');
+        if(player.hp<=0) gameOver();
+      }
       break;
     }
 
@@ -3436,9 +3486,21 @@ function onWsMsg(msg){
     }
 
     case 'stage_clear':{
-      // 호스트가 스테이지 클리어 알림
-      if(isHost) break;
-      if(msg.floor===currentFloor) stageComplete();
+      if(msg.floor===currentFloor&&running){
+        stageComplete();
+      }
+      break;
+    }
+
+    case 'floor_change':{
+      currentFloor=msg.floor;
+      if(msg.mapSeed!==undefined) sharedMapSeed=msg.mapSeed;
+      enemies=[];waveKills=0;waveNum=1;
+      minimapDirty=true;
+      resetFloor();
+      running=true;
+      requestAnimationFrame(loop);
+      addChatSys(`${floorName(currentFloor)}으로 이동`);
       break;
     }
     case 'attack_enemy':{
