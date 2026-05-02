@@ -1769,7 +1769,19 @@ function update(){
   // 적 AI — 멀티 시 호스트만 실행
   if(!isMultiGame||isHost){ // 상태머신 + A* 경로탐색
   enemies.forEach(e=>{
-    const dx=player.x-e.x,dy=player.y-e.y;
+    // ── 멀티: 모든 플레이어 중 가장 가까운 플레이어를 타겟 ──
+    let targetX=player.x,targetY=player.y;
+    if(isMultiGame){
+      let minDist=Math.sqrt((player.x-e.x)**2+(player.y-e.y)**2);
+      Object.values(wsRoomPlayers).forEach(p=>{
+        if(!p||p.id===myPlayerId||p.floor!==currentFloor) return;
+        if(!p.x&&!p.y) return;
+        const pd=Math.sqrt((p.x-e.x)**2+(p.y-e.y)**2);
+        if(pd<minDist){minDist=pd;targetX=p.x;targetY=p.y;}
+      });
+    }
+
+    const dx=targetX-e.x,dy=targetY-e.y;
     const dist=Math.sqrt(dx*dx+dy*dy);
     const sightRange=e.boss?320:220;
     const chaseRange=e.boss?400:280;
@@ -1785,7 +1797,7 @@ function update(){
       if(e.pathTick>=20||!e.path||e.path.length===0){
         e.pathTick=0;
         const sr=Math.floor(e.y/TILE),sc=Math.floor(e.x/TILE);
-        const er=Math.floor(player.y/TILE),ec=Math.floor(player.x/TILE);
+        const er=Math.floor(targetY/TILE),ec=Math.floor(targetX/TILE);
         e.path=aStar(sr,sc,er,ec);
       }
       if(e.path&&e.path.length>0){
@@ -1831,16 +1843,20 @@ function update(){
       e.x=safe.x;e.y=safe.y;
     }
 
-    // 공격 판정
+    // 공격 판정 — 타겟 플레이어에게 데미지
     e.atkT--;
     if(e.atkT<=0&&dist<(e.size||12)+20){
       e.atkT=90;e.state='chase';
-      if(player.invincible===0){
+      // 호스트 자신이 타겟이면 직접 데미지
+      const isTargetMe=(targetX===player.x&&targetY===player.y);
+      if(isTargetMe&&player.invincible===0){
         const defTotal=player.def+eq.def;
         const dmg=Math.max(1,e.atk-Math.floor(defTotal*.5)+rand(-5,5));
         player.hp=Math.max(0,player.hp-dmg);player.invincible=20;
         SFX.playerDmg();
-        addLog(`${e.name} -${dmg}`,'lhit');sparks(player.x,player.y,'#ff7070',6);addFloat(player.x,player.y,`-${dmg}`,'#ff7070');
+        addLog(`${e.name} -${dmg}`,'lhit');
+        sparks(player.x,player.y,'#ff7070',6);
+        addFloat(player.x,player.y,`-${dmg}`,'#ff7070');
         if(player.hp<=0)gameOver();
       }
     }
