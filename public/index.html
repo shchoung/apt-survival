@@ -3481,6 +3481,8 @@ function onWsMsg(msg){
       break;
     }
 
+    case 'chat': appendChat(msg); break;
+
     case 'stage_clear':{
       if(msg.floor===currentFloor){
         stageComplete();
@@ -3648,7 +3650,18 @@ function addChatSys(text){
 function sendChat(){
   const inp=document.getElementById('chat-inp');if(!inp)return;
   const text=inp.value.trim();if(!text)return;
-  if(!ws||ws.readyState!==WebSocket.OPEN){showToast('채팅: 서버 미연결');return;}
+
+  // 채팅창이 닫혀 있으면 열기
+  if(!chatOpen) showChatPanel(true);
+
+  if(!ws||ws.readyState!==WebSocket.OPEN){
+    // 오프라인: 로컬 표시만
+    appendChat({nick:currentUser?.nick||'나',charIdx:selChar,text,playerId:myPlayerId});
+    inp.value='';
+    return;
+  }
+  // 내 채팅 즉시 로컬 표시 (서버 에코 기다리지 않음)
+  appendChat({nick:currentUser?.nick||'나',charIdx:selChar,text,playerId:myPlayerId});
   wsSend({type:'chat',text});
   inp.value='';
 }
