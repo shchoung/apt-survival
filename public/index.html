@@ -1000,7 +1000,8 @@ function getSpriteFrame(angle){
 
 let minimapCache=null,minimapDirty=true;
 let walkFrame=0,walkTick=0;
-let atkAnim=0;
+let atkAnim=0;  // 내 캐릭터 어택 애니메이션
+const wsAtkAnim={}; // 다른 플레이어 어택 애니메이션 {playerId: frames}
 
 function renderCharSelect(){
   const g=document.getElementById('csg');
@@ -1674,8 +1675,8 @@ function spawnWave(){
   } else {
     const count=waveTarget;
     for(let i=0;i<count;i++) setTimeout(()=>{
-      const ti=Math.floor(Math.random()*(Math.min(3,Math.floor(currentFloor/3)+1)));
-      const et={...ETYPES_BASE[ti]};
+      const ti=Math.floor(seededRandom()*(Math.min(3,Math.floor(currentFloor/3)+1)));
+      const et={...ETYPES_BASE[ti],typeIdx:ti};
       const lb=currentFloor*.05;et.hp=Math.floor(et.hp*(1+lb));et.atk=Math.floor(et.atk*(1+lb*.4));
       spawnEnemy(et);
     },i*500);
@@ -1710,6 +1711,8 @@ function spawnEnemy(t){
     ...t,x:sx,y:sy,id:Math.random(),atkT:rand(30,90),flick:0,
     path:[],pathTick:0,alertTick:0,wanderTick:0,wanderDx:0,wanderDy:0,
     state:'idle',
+    typeIdx:t.typeIdx??0,  // 비호스트 동기화용
+    maxHp:t.hp,           // maxHp 저장
   });
 }
 
@@ -1992,12 +1995,17 @@ function useSkill(i){
       if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
       hit++;
       if(isMultiGame&&!isHost){
-        // 비호스트: 공격 요청을 호스트에 전달
+        // 비호스트: 로컬 피격 효과 즉시 표시 + 서버 경유 호스트에 전달
+        e.flick=6;
+        addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
+        sparks(e.x,e.y,'#ff9070',7);
+        if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
         wsSend({type:'attack_enemy',floor:currentFloor,
           enemyId:e.id,dmg,x:Math.round(e.x),y:Math.round(e.y)});
       } else {
         // 호스트 or 솔로: 직접 처리
         e.hp-=dmg;e.flick=6;
+        if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
         if(e.hp<=0) killEnemy(e);
       }
     }
@@ -2492,8 +2500,15 @@ const SFX={
 /* ═══════ SVG CHARACTER DRAW (스프라이트 시트 우선, 폴백 SVG) ═══════ */
 
 // 이미지 업로드 핸들러
+// 외부 atkAnim 파라미터 버전 (다른 플레이어용)
+function drawCharSVGWithAtk(ctx,x,y,charIdx,angle,invBlink,extAtkAnim){
+  const savedAtk=atkAnim;
+  atkAnim=extAtkAnim||0;
+  drawCharSVG(ctx,x,y,charIdx,angle,invBlink);
+  atkAnim=savedAtk;
+}
+
 function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
-  if(invBlink) return;
   ctx.save();
   ctx.translate(x,y);
 
@@ -3314,10 +3329,11 @@ function onWsMsg(msg){
 
     case 'skill_fx':{
       if(msg.playerId===myPlayerId) break;
-      // ── 같은 층일 때만 스킬 이펙트 표시 ──
       if(msg.floor!==undefined&&msg.floor!==currentFloor) break;
       const fxTypes=['slash','hack','dash','heal'];
       spawnSkillFX(fxTypes[msg.charIdx]||'slash',msg.x,msg.y,msg.angle,WS_CHAR_COLORS[msg.charIdx]||'#fff');
+      // 해당 플레이어 어택 애니메이션 트리거
+      wsAtkAnim[msg.playerId]=12;
       break;
     }
 
@@ -3341,36 +3357,37 @@ function onWsMsg(msg){
     }
 
     case 'enemy_sync':{
-      // 비호스트: 호스트 적 상태 수신 → 로컬 enemies 동기화
       if(isHost) break;
       if(msg.floor!==currentFloor) break;
       if(!Array.isArray(msg.enemies)) break;
 
-      // 기존 enemies를 id로 매핑
       const localMap={};
       enemies.forEach(e=>{localMap[e.id]=e;});
 
-      // 호스트 데이터로 동기화
       enemies=msg.enemies.map(re=>{
         const local=localMap[re.id];
         if(local){
-          // 기존 적 위치/HP 업데이트
           local.x=re.x;local.y=re.y;
           local.hp=re.hp;local.state=re.state;
-          local.flick=re.flick;
+          if(re.flick) local.flick=3;
           return local;
         } else {
-          // 새 적 생성 (타입 정보 기반)
-          const ENEMY_TYPES_REF=getEnemyTypes(currentFloor);
-          const tmpl=ENEMY_TYPES_REF[re.typeIdx%ENEMY_TYPES_REF.length]||ENEMY_TYPES_REF[0];
+          // 새 적 — ETYPES_BASE or BOSS_TYPES 기반 생성
+          const isBoss=re.boss||false;
+          let tmpl;
+          if(isBoss){
+            tmpl={...BOSS_TYPES[re.typeIdx%BOSS_TYPES.length]};
+          } else {
+            tmpl={...ETYPES_BASE[re.typeIdx%ETYPES_BASE.length]};
+          }
           return {
             ...tmpl,
             id:re.id,x:re.x,y:re.y,
-            hp:re.hp,maxHp:re.maxHp||tmpl.maxHp,
-            state:re.state||'idle',
-            flick:0,path:[],pathTick:0,
-            atkT:60,wanderTick:0,wanderDx:0,wanderDy:0,
-            boss:re.boss||false,typeIdx:re.typeIdx||0,
+            hp:re.hp,maxHp:re.maxHp||tmpl.hp,
+            state:re.state||'idle',flick:0,
+            path:[],pathTick:0,atkT:60,
+            wanderTick:0,wanderDx:0,wanderDy:0,
+            boss:isBoss,typeIdx:re.typeIdx||0,
           };
         }
       });
@@ -3462,21 +3479,21 @@ function updateMultiPartyHUD(){
 function drawMultiPlayers(){
   if(!isMultiGame||!wsRoomPlayers) return;
   Object.values(wsRoomPlayers).forEach(p=>{
-    if(!p) return;
-    // 내 playerId 제외
-    if(p.id===myPlayerId) return;
-    // 내 닉네임과 동일하면 제외 (같은 계정 중복 접속)
+    if(!p||p.id===myPlayerId||p.charIdx<0||p.charIdx===undefined) return;
     if(currentUser&&p.nick===currentUser.nick) return;
-    // 내 캐릭터와 같은 charIdx 제외
     if(p.charIdx===selChar) return;
-    if(p.charIdx<0||p.charIdx===undefined) return;
     if(!p.x&&!p.y) return;
-    // 다른 층이면 제외
     if(p.floor!==undefined&&p.floor!==currentFloor) return;
     const s=w2s(p.x,p.y);
     if(s.x<-60||s.x>W+60||s.y<-60||s.y>H+60) return;
+
+    // 이 플레이어의 atkAnim 가져오기
+    const pAtk=wsAtkAnim[p.id]||0;
+    if(pAtk>0) wsAtkAnim[p.id]=pAtk-1;
+
     ctx.save();ctx.globalAlpha=.85;
-    drawCharSVG(ctx,s.x,s.y,p.charIdx,0,false);
+    // drawCharSVG에 외부 atkAnim 전달
+    drawCharSVGWithAtk(ctx,s.x,s.y,p.charIdx,0,false,pAtk);
     const hp=Math.min(1,Math.max(0,(p.hp/p.maxHp)||1));
     ctx.fillStyle='#1a2535';ctx.fillRect(s.x-18,s.y-26,36,4);
     ctx.fillStyle=WS_CHAR_COLORS[p.charIdx]||'#888';
