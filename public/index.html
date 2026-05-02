@@ -1882,15 +1882,16 @@ function update(){
     const eq2=getEquipStats();const h=Math.floor((30+player.lv*5)*(1+eq2.healBonus));
     player.hp=Math.min(player.maxHp,player.hp+h);addFloat(player.x,player.y,`+${h}`,'#5dcaa5');cdT[1]=180;
   }
-  // 층 클리어 — 솔로만 로컬 판정, 멀티는 서버에서 stage_clear 수신
+  // 층 클리어 — 솔로만 로컬 판정, 멀티는 서버 stage_clear 수신
   if(!isMultiGame&&enemies.length===0&&waveKills>=waveTarget&&running){
     stageComplete();
   }
+  // 멀티: enemies가 비었을 때 stage_clear UI 표시 대기 (서버 응답 기다림)
   sendWsState();
 }
 
 function stageComplete(){
-  if(!running) return;
+  if(!running&&!isMultiGame) return;  // 솔로만 running 체크
   running=false;
   floorProgress[currentFloor]=true;
 
@@ -3493,7 +3494,7 @@ function onWsMsg(msg){
     }
 
     case 'stage_clear':{
-      if(msg.floor===currentFloor&&running){
+      if(msg.floor===currentFloor){
         stageComplete();
       }
       break;
