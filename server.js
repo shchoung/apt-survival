@@ -470,6 +470,7 @@ class Room {
     this.enemies   = [];
     this.waveNum   = 1;
     this.waveKills = 0;
+    this.stageClearSent = false;  // 클리어 중복 전송 방지
     this.waveTarget= BOSS_FLOORS_S.has(floor)?1:Math.max(3,3+floor);
     this.gameActive= true;
     this.spawnWave();
@@ -575,10 +576,13 @@ class Room {
     // 죽은 적 제거
     this.enemies=this.enemies.filter(e=>e.hp>0);
 
-    // 웨이브 완료 체크
-    if(this.enemies.length===0&&this.waveKills>=this.waveTarget){
+    // 웨이브 완료 체크 — 한 번만 전송
+    if(this.enemies.length===0&&this.waveKills>=this.waveTarget&&!this.stageClearSent){
+      this.stageClearSent=true;
+      this.gameActive=false;  // 루프 일시정지 (next_floor 받을 때까지)
       this.broadcastAll({type:'stage_clear',floor:this.floor,
         waveNum:this.waveNum,kills:this.totalKills});
+      console.log(`[STAGE CLEAR] ${this.code} floor:${this.floor}`);
     }
 
     // 20틱마다 전체 브로드캐스트
@@ -1048,13 +1052,14 @@ async function handleMessage(ws, raw) {
     // 다음 층 이동 요청
     case 'next_floor': {
       const nextFloor = (room.floor||0) + 1;
-      room.stopTick();
-      room.floor = nextFloor;
-      room.mapSeed = Math.floor(Math.random()*999999) + nextFloor;
-      room.startGame(nextFloor);
+      room.mapSeed = Math.floor(Math.random()*999999) + nextFloor * 13;
+      room.startGame(nextFloor);  // 게임루프 재시작 + 새 맵
       room.broadcastAll({
-        type: 'floor_change', floor: nextFloor, mapSeed: room.mapSeed,
+        type: 'floor_change',
+        floor: nextFloor,
+        mapSeed: room.mapSeed,
       });
+      console.log(`[NEXT FLOOR] ${room.code} → floor ${nextFloor}`);
       break;
     }
 
