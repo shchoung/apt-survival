@@ -3318,7 +3318,17 @@ function onWsMsg(msg){
 
     case 'room_state':{
       wsRoomPlayers={};
-      msg.room.players.forEach(p=>{wsRoomPlayers[p.id]=p;});
+      msg.room.players.forEach(p=>{
+        if(p.id===myPlayerId) return; // 내 자신 제외
+        wsRoomPlayers[p.id]=p;
+      });
+      // 퇴장 기록 정리 (방 상태 갱신 후 오래된 항목 삭제)
+      if(window._leftPlayers){
+        const now=Date.now();
+        Object.keys(window._leftPlayers).forEach(id=>{
+          if(now-window._leftPlayers[id]>5000) delete window._leftPlayers[id];
+        });
+      }
       isHost=wsRoomPlayers[myPlayerId]?.isHost||false;
       updateMultiPartyHUD();
       break;
@@ -3333,8 +3343,17 @@ function onWsMsg(msg){
     }
 
     case 'player_left':{
-      const nick=wsRoomPlayers[msg.playerId]?.nick||'?';
+      const nick=wsRoomPlayers[msg.playerId]?.nick||msg.nick||'?';
       delete wsRoomPlayers[msg.playerId];
+      if(!window._leftPlayers) window._leftPlayers={};
+      window._leftPlayers[msg.playerId]=Date.now();
+
+      // 남은 파티원이 없으면 솔로로 전환
+      const remaining=Object.keys(wsRoomPlayers).filter(id=>id!==myPlayerId);
+      if(remaining.length===0){
+        showChatPanel(false);
+        addChatSys('파티원이 없습니다');
+      }
       updateMultiPartyHUD();
       addChatSys(`${nick} 님이 나갔습니다`);
       showToast(`${nick} 퇴장`);
@@ -3343,7 +3362,9 @@ function onWsMsg(msg){
 
     case 'player_state':{
       if(msg.playerId===myPlayerId) break;
-      // 이미 퇴장한 플레이어면 무시 (player_left 이후 늦게 도착한 패킷)
+      // 퇴장한 플레이어면 완전 무시 (5초간 차단)
+      const leftTime=window._leftPlayers?.[msg.playerId];
+      if(leftTime&&Date.now()-leftTime<5000) break;
       if(!wsRoomPlayers[msg.playerId]) break;
       const p=wsRoomPlayers[msg.playerId];
       p.targetX=msg.x??p.x;
