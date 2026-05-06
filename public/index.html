@@ -1071,8 +1071,19 @@ function getSpriteFrame(angle){
 
 let minimapCache=null,minimapDirty=true;
 let walkFrame=0,walkTick=0;
-let atkAnim=0;  // 내 캐릭터 어택 애니메이션
-const wsAtkAnim={}; // 다른 플레이어 어택 애니메이션 {playerId: frames}
+let atkAnim=0;
+const wsAtkAnim={};
+
+// 동적 애니메이션 상태
+let charAnimState={
+  breathPhase:0,      // 호흡 위상 (sin파)
+  walkPhase:0,        // 걷기 위상
+  isMoving:false,     // 이동 중 여부
+  lastX:0,lastY:0,    // 이전 위치 (이동 감지)
+  skillGlow:0,        // 스킬 발광 타이머
+  atkFlash:0,         // 어택 섬광 타이머
+  atkPush:0,          // 어택 전진 타이머
+};
 
 function renderCharSelect(){
   const g=document.getElementById('csg');
@@ -1835,6 +1846,17 @@ function loop(ts=0){
 function update(){
   camX=player.x;camY=player.y;
   window.movePlayer();
+
+  // 캐릭터 애니메이션 상태 업데이트
+  const moved=Math.abs(player.x-charAnimState.lastX)+Math.abs(player.y-charAnimState.lastY)>0.5;
+  charAnimState.isMoving=moved;
+  charAnimState.lastX=player.x;charAnimState.lastY=player.y;
+  charAnimState.breathPhase+=0.035;
+  if(moved) charAnimState.walkPhase+=0.22;
+  if(charAnimState.skillGlow>0) charAnimState.skillGlow--;
+  if(charAnimState.atkFlash>0)  charAnimState.atkFlash--;
+  if(charAnimState.atkPush>0)   charAnimState.atkPush--;
+
   const eq=getEquipStats();
 
   // 적 AI — 멀티/솔로 모두 각자 실행
@@ -2038,6 +2060,10 @@ function useSkill(i){
 
   // 어택 애니메이션 (12프레임 = 약 0.2초)
   atkAnim=12;
+  // 동적 효과 트리거
+  charAnimState.atkFlash=8;   // 섬광
+  charAnimState.atkPush=10;   // 전진
+  if(i>=1) charAnimState.skillGlow=20; // 스킬 발광 (0번 제외)
 
   // 멀티 브로드캐스트
   sendWsSkill(i,player.x,player.y,ang);
@@ -2606,14 +2632,47 @@ function drawCharSVGWithAtk(ctx,x,y,charIdx,angle,invBlink,extAtkAnim){
 }
 
 function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
+  if(invBlink) return;
   ctx.save();
-  ctx.translate(x,y);
+
+  // 내 캐릭터 여부 (외부 atkAnim 전달된 경우 다른 플레이어)
+  const isMe=(charIdx===selChar&&arguments.length<=6);
+  const anim=isMe?charAnimState:null;
+
+  // ── 동적 오프셋 계산 ──
+  let offsetY=0,scaleX=1,scaleY=1,rotation=0,glowAlpha=0;
+  if(anim){
+    if(atkAnim>0){
+      // 어택: 앞으로 튀어나오는 느낌
+      const p=atkAnim/12;
+      offsetY=-p*5;
+      scaleX=1+p*0.12;
+      scaleY=1-p*0.08;
+    } else if(anim.skillGlow>0){
+      // 스킬: 발광 + 살짝 커짐
+      const p=anim.skillGlow/20;
+      scaleX=1+p*0.1;
+      scaleY=1+p*0.1;
+      glowAlpha=p*0.8;
+    } else if(anim.isMoving){
+      // 걷기: 위아래 바운스 + 살짝 흔들림
+      offsetY=Math.sin(anim.walkPhase*2)*2.5;
+      rotation=Math.sin(anim.walkPhase)*0.05;
+      scaleY=1+Math.abs(Math.sin(anim.walkPhase*2))*0.03;
+    } else {
+      // 대기: 호흡 (부드러운 위아래)
+      offsetY=Math.sin(anim.breathPhase)*1.5;
+      scaleY=1+Math.sin(anim.breathPhase*0.7)*0.02;
+    }
+  }
+
+  ctx.translate(x, y+offsetY);
+  if(rotation) ctx.rotate(rotation);
 
   const sp=CHAR_SPRITES[charIdx];
   const isLoaded=sp?.loaded&&sp?.img;
 
   if(isLoaded){
-    // 어택 애니메이션 중이면 프레임3, 아니면 방향 프레임
     let frame, flip;
     if(atkAnim>0){
       frame=3;
@@ -2624,25 +2683,36 @@ function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
       const sf=getSpriteFrame(angle);
       frame=sf.frame; flip=sf.flip;
     }
-
-    // 캐릭터별 프레임 크기 적용
     const frames=getSpriteFrames(charIdx);
     const fr=frames[frame];
     const {w:fw,h:fh}=CHAR_FRAME_SIZE[charIdx]||{w:128,h:150};
+    const drawH=50*scaleY;
+    const drawW=Math.round(fw/fh*50*scaleX);
 
-    // 화면 표시 크기 — 높이 50 기준, 가로는 비율 유지
-    const drawH=50;
-    const drawW=Math.round(fw/fh*drawH);
-
-    ctx.beginPath();ctx.ellipse(0,drawH/2-2,drawW/2-4,4,0,0,Math.PI*2);
+    // 그림자
+    ctx.beginPath();
+    ctx.ellipse(0,Math.round(50/2)-2,drawW/2-4,4,0,0,Math.PI*2);
     ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fill();
+
+    // 스킬 발광
+    if(glowAlpha>0){
+      ctx.shadowColor=CHARS[charIdx]?.color||'#a0c0ff';
+      ctx.shadowBlur=18*glowAlpha;
+    }
+    // 어택 섬광
+    if(isMe&&charAnimState.atkFlash>0){
+      ctx.shadowColor='#ffffff';
+      ctx.shadowBlur=12*(charAnimState.atkFlash/8);
+    }
 
     ctx.save();
     if(flip) ctx.scale(-1,1);
     ctx.drawImage(sp.img, fr.srcX,fr.srcY,fr.srcW,fr.srcH,
       -drawW/2,-drawH/2+2, drawW,drawH);
     ctx.restore();
+    ctx.shadowBlur=0;
   } else {
+    ctx.scale(scaleX,scaleY);
     switch(charIdx){
       case 0: drawJun(ctx,angle);  break;
       case 1: drawSea(ctx,angle);  break;
