@@ -167,7 +167,12 @@ canvas{display:block;width:100%;height:100%}
   background:var(--c1);border:0.5px solid var(--c3);border-radius:6px;
   padding:5px;display:flex;flex-direction:column;min-height:0;overflow:hidden;
 }
-.inv-panel-title{font-family:var(--tf);font-size:9px;color:var(--ca);margin-bottom:4px;flex-shrink:0}
+.inv-tab-btn{
+  font-family:var(--tf);font-size:8px;padding:1px 5px;border-radius:3px;
+  border:1px solid var(--c3);background:transparent;color:#5a7a94;cursor:pointer;
+}
+.inv-tab-btn.active{border-color:var(--ct);color:var(--ct);background:var(--c2)}
+.inv-tab-btn:active{opacity:.7}
 /* 아이템 슬롯 3열 — 42x42 고정 (장착슬롯과 동일) */
 .inv-slots{
   display:grid;grid-template-columns:repeat(3,42px);
@@ -730,7 +735,13 @@ canvas{display:block;width:100%;height:100%}
     <div class="inv-layout">
       <!-- 아이템 목록 -->
       <div class="inv-panel">
-        <div class="inv-panel-title">아이템</div>
+        <div class="inv-panel-title">아이템
+          <span style="float:right;display:flex;gap:3px">
+            <button class="inv-tab-btn active" id="tab-equip"   onclick="setInvTab('equip')">장착</button>
+            <button class="inv-tab-btn"         id="tab-consume" onclick="setInvTab('consume')">소모</button>
+            <button class="inv-tab-btn"         id="tab-mat"     onclick="setInvTab('mat')">재료</button>
+          </span>
+        </div>
         <div class="inv-slots" id="inv-slots"></div>
       </div>
       <!-- 장착 슬롯 -->
@@ -837,29 +848,66 @@ const BOSS_TYPES=[
 const GRADES={C:{label:"C",color:"#888780",bg:"#F1EFE8"},B:{label:"B",color:"#378ADD",bg:"#E6F1FB"},A:{label:"A",color:"#7f77dd",bg:"#EEEDFE"},S:{label:"S",color:"#ef9f27",bg:"#FAEEDA"}};
 const GRADE_ORDER=["C","B","A","S"];
 
-const ITEM_POOL=[
-  // 무기
-  {id:"iron_pipe",name:"철제 파이프",icon:"🔧",type:"weapon",grade:"C",slot:"weapon",atk:8,shared:true,desc:"분리수거장에서 주운 파이프."},
-  {id:"mod_gun",name:"개조 권총",icon:"🔫",type:"weapon",grade:"B",slot:"weapon",atk:22,shared:true,desc:"부품을 모아 개조한 권총."},
-  {id:"plasma_rod",name:"플라즈마 봉",icon:"⚡",type:"weapon",grade:"A",slot:"weapon",atk:45,shared:true,desc:"AI 코어로 만든 전기 무기."},
-  {id:"apex_slayer",name:"APEX 슬레이어",icon:"🗡️",type:"weapon",grade:"S",slot:"weapon",atk:90,shared:true,desc:"전설의 대AI 무기."},
-  // 방어
-  {id:"board_shield",name:"판자 방패",icon:"🛡",type:"armor",grade:"C",slot:"armor",def:6,shared:true,desc:"나무판자로 만든 방어구."},
-  {id:"bulletproof",name:"방탄 재킷",icon:"🧥",type:"armor",grade:"B",slot:"armor",def:18,shared:false,charId:"jun",desc:"경찰관 전용 방탄 재킷.",charName:"이준호"},
-  {id:"nano_suit",name:"나노 슈트",icon:"🥋",type:"armor",grade:"A",slot:"armor",def:35,shared:true,desc:"나노섬유 방어 슈트."},
-  {id:"ai_shield",name:"AI 방어막",icon:"💠",type:"armor",grade:"S",slot:"armor",def:70,shared:true,desc:"AI 기술로 만든 최강 방어막."},
-  // 악세서리
-  {id:"old_watch",name:"낡은 시계",icon:"⌚",type:"acc",grade:"C",slot:"acc",spd:0.2,shared:true,desc:"속도를 조금 올려준다."},
-  {id:"hack_device",name:"해킹 디바이스",icon:"💻",type:"acc",grade:"B",slot:"acc",dropRate:0.15,shared:false,charId:"sea",desc:"서포터 전용. 드롭률+15%",charName:"김서아"},
-  {id:"athlete_band",name:"각성 밴드",icon:"📿",type:"acc",grade:"A",slot:"acc",atkBonus:0.15,shared:false,charId:"min",desc:"딜러 전용. 공격력+15%",charName:"박민재"},
-  {id:"med_kit",name:"의료 키트",icon:"💊",type:"acc",grade:"B",slot:"acc",healBonus:0.2,shared:false,charId:"hana",desc:"힐러 전용. 회복량+20%",charName:"오하나"},
-  // 소모품
-  {id:"potion_s",name:"소형 회복제",icon:"🧪",type:"consumable",grade:"C",slot:null,healAmt:50,shared:true,desc:"HP 50 즉시 회복."},
-  {id:"potion_m",name:"중형 회복제",icon:"⚗️",type:"consumable",grade:"B",slot:null,healAmt:120,shared:true,desc:"HP 120 즉시 회복."},
-  {id:"ai_core",name:"AI 코어",icon:"🔴",type:"material",grade:"B",slot:null,shared:true,desc:"강화 재료. 상점에서 사용."},
-  {id:"nano_bot",name:"나노봇",icon:"🤖",type:"material",grade:"A",slot:null,shared:true,desc:"고급 강화 재료."},
-  {id:"circuit",name:"회로판",icon:"📟",type:"material",grade:"C",slot:null,shared:true,desc:"기본 강화 재료."},
+// ── 장착 아이템 (무기/방어구/악세서리) ──
+const EQUIP_POOL=[
+  // 무기 C
+  {id:"iron_pipe",   name:"철제 파이프",  icon:"🔧",type:"weapon",grade:"C",slot:"weapon",atk:8, shared:true, desc:"분리수거장에서 주운 파이프."},
+  {id:"broken_bat",  name:"부러진 배트",  icon:"🏏",type:"weapon",grade:"C",slot:"weapon",atk:10,shared:true, desc:"끝이 부러진 야구 배트."},
+  // 무기 B
+  {id:"mod_gun",     name:"개조 권총",    icon:"🔫",type:"weapon",grade:"B",slot:"weapon",atk:22,shared:true, desc:"부품을 모아 개조한 권총."},
+  {id:"stun_rod",    name:"전기 충격봉",  icon:"⚡",type:"weapon",grade:"B",slot:"weapon",atk:25,shared:true, desc:"전기를 방전하는 봉."},
+  // 무기 A
+  {id:"plasma_rod",  name:"플라즈마 봉",  icon:"🌩",type:"weapon",grade:"A",slot:"weapon",atk:45,shared:true, desc:"AI 코어로 만든 전기 무기."},
+  {id:"rail_gun",    name:"레일건",       icon:"🚀",type:"weapon",grade:"A",slot:"weapon",atk:52,shared:false,charId:"min",desc:"딜러 전용 초강력 레일건.",charName:"박민재"},
+  // 무기 S (매우 희귀)
+  {id:"apex_slayer", name:"APEX 슬레이어",icon:"🗡️",type:"weapon",grade:"S",slot:"weapon",atk:90,shared:true, desc:"전설의 대AI 무기."},
+  {id:"nexus_blade", name:"넥서스 블레이드",icon:"✨",type:"weapon",grade:"S",slot:"weapon",atk:100,shared:false,charId:"jun",desc:"탱커 전용. 전설의 검.",charName:"이준호"},
+
+  // 방어구 C
+  {id:"board_shield",name:"판자 방패",    icon:"🛡",type:"armor",grade:"C",slot:"armor",def:6, shared:true, desc:"나무판자로 만든 방어구."},
+  {id:"leather_vest",name:"가죽 조끼",    icon:"🦺",type:"armor",grade:"C",slot:"armor",def:8, shared:true, desc:"낡은 가죽 조끼."},
+  // 방어구 B
+  {id:"bulletproof", name:"방탄 재킷",    icon:"🧥",type:"armor",grade:"B",slot:"armor",def:18,shared:false,charId:"jun",desc:"경찰관 전용 방탄 재킷.",charName:"이준호"},
+  {id:"fiber_suit",  name:"섬유 슈트",    icon:"👕",type:"armor",grade:"B",slot:"armor",def:20,shared:true, desc:"가벼운 방탄 섬유 슈트."},
+  // 방어구 A
+  {id:"nano_suit",   name:"나노 슈트",    icon:"🥋",type:"armor",grade:"A",slot:"armor",def:35,shared:true, desc:"나노섬유 방어 슈트."},
+  {id:"barrier_cloak",name:"배리어 클oak",icon:"🔮",type:"armor",grade:"A",slot:"armor",def:40,shared:false,charId:"sea",desc:"서포터 전용 배리어 망토.",charName:"김서아"},
+  // 방어구 S
+  {id:"ai_shield",   name:"AI 방어막",    icon:"💠",type:"armor",grade:"S",slot:"armor",def:70,shared:true, desc:"AI 기술로 만든 최강 방어막."},
+
+  // 악세서리 C
+  {id:"old_watch",   name:"낡은 시계",    icon:"⌚",type:"acc",grade:"C",slot:"acc",spd:0.2,  shared:true, desc:"속도를 조금 올려준다."},
+  {id:"lucky_charm", name:"행운의 부적",  icon:"🍀",type:"acc",grade:"C",slot:"acc",dropRate:0.05,shared:true,desc:"드롭률+5%."},
+  // 악세서리 B
+  {id:"hack_device", name:"해킹 디바이스",icon:"💻",type:"acc",grade:"B",slot:"acc",dropRate:0.15,shared:false,charId:"sea",desc:"서포터 전용. 드롭률+15%",charName:"김서아"},
+  {id:"med_kit",     name:"의료 키트",    icon:"💊",type:"acc",grade:"B",slot:"acc",healBonus:0.2,shared:false,charId:"hana",desc:"힐러 전용. 회복량+20%",charName:"오하나"},
+  {id:"scope",       name:"조준경",       icon:"🔭",type:"acc",grade:"B",slot:"acc",atkBonus:0.1,shared:true,desc:"공격력+10%."},
+  // 악세서리 A
+  {id:"athlete_band",name:"각성 밴드",    icon:"📿",type:"acc",grade:"A",slot:"acc",atkBonus:0.15,shared:false,charId:"min",desc:"딜러 전용. 공격력+15%",charName:"박민재"},
+  {id:"reflex_ring", name:"반사 링",      icon:"💍",type:"acc",grade:"A",slot:"acc",spd:0.5,shared:true,desc:"이동속도+0.5."},
+  // 악세서리 S
+  {id:"omega_core",  name:"오메가 코어",  icon:"🔱",type:"acc",grade:"S",slot:"acc",atkBonus:0.3,shared:true,desc:"전설. 공격력+30%."},
 ];
+
+// ── 소모품 (사용 즉시 효과) ──
+const CONSUME_POOL=[
+  {id:"potion_s",  name:"소형 회복제",  icon:"🧪",type:"consumable",grade:"C",slot:null,healAmt:60,  shared:true,desc:"HP 60 즉시 회복."},
+  {id:"potion_m",  name:"중형 회복제",  icon:"⚗️",type:"consumable",grade:"B",slot:null,healAmt:150, shared:true,desc:"HP 150 즉시 회복."},
+  {id:"potion_l",  name:"대형 회복제",  icon:"🫙",type:"consumable",grade:"A",slot:null,healAmt:350, shared:true,desc:"HP 350 즉시 회복."},
+  {id:"antidote",  name:"해독제",       icon:"💉",type:"consumable",grade:"C",slot:null,healAmt:30,  shared:true,desc:"HP 30 회복."},
+  {id:"energy_bar",name:"에너지 바",    icon:"🍫",type:"consumable",grade:"C",slot:null,healAmt:40,  shared:true,desc:"HP 40 회복."},
+  {id:"elixir",    name:"엘릭서",       icon:"🌟",type:"consumable",grade:"B",slot:null,healAmt:200, shared:true,desc:"HP 200 즉시 회복."},
+];
+
+// ── 강화 재료 ──
+const MATERIAL_POOL=[
+  {id:"circuit",   name:"회로판",   icon:"📟",type:"material",grade:"C",slot:null,shared:true,desc:"기본 강화 재료."},
+  {id:"ai_core",   name:"AI 코어",  icon:"🔴",type:"material",grade:"B",slot:null,shared:true,desc:"강화 재료."},
+  {id:"nano_bot",  name:"나노봇",   icon:"🤖",type:"material",grade:"A",slot:null,shared:true,desc:"고급 강화 재료."},
+];
+
+// 전체 풀 (하위 호환용)
+const ITEM_POOL=[...EQUIP_POOL,...CONSUME_POOL,...MATERIAL_POOL];
 
 /* 강화 시스템 */
 const ENH_LEVELS=[
@@ -1206,19 +1254,37 @@ function addItem(itemId,qty=1){
   for(let i=0;i<qty;i++) inventory.push({item:{...base},enhLevel:0});
   showToast(`${base.name} 획득!`);
 }
-let selInvIdx=-1;   // 선택된 아이템 (상세/장착)
-let selEnhIdx=-1;   // 강화 대상 아이템
-let selMatIdx=-1;   // 강화 재료 (같은 아이템 or 재료 아이템)
+let selInvIdx=-1;
+let selEnhIdx=-1;
+let selMatIdx=-1;
+let invTab='equip'; // 'equip' | 'consume' | 'mat'
+
+function setInvTab(tab){
+  invTab=tab;
+  selInvIdx=-1;
+  ['equip','consume','mat'].forEach(t=>{
+    const el=document.getElementById(`tab-${t}`);
+    if(el) el.classList.toggle('active',t===tab);
+  });
+  renderInv();
+}
 
 function renderInv(){
-  /* ── 아이템 목록 (S>A>B>C 등급순, 같은 등급은 강화단계 높은 순) ── */
   const GRADE_ORDER={S:0,A:1,B:2,C:3};
+
+  // 탭별 필터
+  const tabFilter={
+    equip:  e=>['weapon','armor','acc'].includes(e.item.type),
+    consume:e=>e.item.type==='consumable',
+    mat:    e=>e.item.type==='material',
+  };
+
   const sorted=inventory
     .map((entry,idx)=>({entry,idx}))
+    .filter(({entry})=>tabFilter[invTab]?.(entry))
     .sort((a,b)=>{
       const gDiff=(GRADE_ORDER[a.entry.item.grade]??9)-(GRADE_ORDER[b.entry.item.grade]??9);
-      if(gDiff!==0) return gDiff;
-      return b.entry.enhLevel-a.entry.enhLevel; // 강화단계 높은 순
+      return gDiff!==0?gDiff:b.entry.enhLevel-a.entry.enhLevel;
     });
 
   const slots=document.getElementById('inv-slots');
@@ -2014,17 +2080,43 @@ function stageComplete(){
   document.getElementById('sc-title').textContent=isBoss?'BOSS CLEAR!':'STAGE CLEAR!';
   document.getElementById('sc-sub').textContent=`${floorName(currentFloor)} 클리어 · 처치 ${kills} · EXP+${Math.floor(currentFloor*50+100)}`;
   const bonusDrops=[];
-  const dropCount=isBoss?3+rand(1,3):1+rand(0,2);
-  const availableItems=ITEM_POOL.filter(it=>it.type!=='material'||(it.type==='material'));
+  const dropCount=isBoss?3+rand(1,2):1+rand(0,1);
+
   for(let i=0;i<dropCount;i++){
     const roll=Math.random();
-    let grade='C';
-    if(isBoss&&roll<.15)grade='S';
-    else if(isBoss&&roll<.4)grade='A';
-    else if(roll<.2)grade='A';
-    else if(roll<.5)grade='B';
-    const pool=availableItems.filter(x=>x.grade===grade&&(x.shared||(x.charId===CHARS[selChar].id)));
-    if(pool.length){const it=pool[rand(0,pool.length-1)];addItem(it.id);bonusDrops.push(it);}
+    let grade,pool;
+
+    if(isBoss){
+      // 보스 드롭: S 3%, A 20%, B 40%, C 37%
+      if(roll<0.03)      grade='S';
+      else if(roll<0.23) grade='A';
+      else if(roll<0.63) grade='B';
+      else               grade='C';
+    } else {
+      // 일반 드롭: S 0%, A 8%, B 35%, C 57%
+      if(roll<0.08)      grade='A';
+      else if(roll<0.43) grade='B';
+      else               grade='C';
+    }
+
+    // 드롭 타입 결정: 장착 60% / 소모품 30% / 재료 10%
+    const typeRoll=Math.random();
+    if(typeRoll<0.60){
+      pool=EQUIP_POOL.filter(x=>x.grade===grade&&(x.shared||(x.charId===CHARS[selChar].id)));
+      if(!pool.length) pool=EQUIP_POOL.filter(x=>x.grade===grade&&x.shared);
+    } else if(typeRoll<0.90){
+      pool=CONSUME_POOL.filter(x=>x.grade===grade);
+      if(!pool.length) pool=CONSUME_POOL; // 등급 없으면 아무거나
+    } else {
+      pool=MATERIAL_POOL.filter(x=>x.grade===grade);
+      if(!pool.length) pool=MATERIAL_POOL;
+    }
+
+    if(pool.length){
+      const it=pool[rand(0,pool.length-1)];
+      addItem(it.id);
+      bonusDrops.push(it);
+    }
   }
   const goldBonus=(isBoss?rand(100,300):rand(20,80))+currentFloor*10;gold+=goldBonus;
   document.getElementById('sc-drops').innerHTML=[...bonusDrops.map(it=>`<span class="sc-drop" style="border-color:${GRADES[it.grade].color};color:${GRADES[it.grade].color}">${it.icon} [${it.grade}] ${it.name}</span>`),`<span class="sc-drop" style="border-color:var(--ca);color:var(--ca)">💰 ${goldBonus}G</span>`].join('');
@@ -2155,12 +2247,26 @@ function killEnemy(e){
   if(e.boss) SFX.death(); else SFX.hit();
   addLog(`${e.name} 처치 EXP+${ex}`,'lsys');
   const dropRoll=Math.random();
-  if(dropRoll<0.3+dr){
-    const pool=ITEM_POOL.filter(it=>it.type!=='consumable'||true);
-    const it=pool[rand(0,pool.length-1)];
-    drops_arr.push({x:e.x+rand(-18,18),y:e.y+rand(-18,18),type:'item',itemId:it.id,life:350});
+  if(dropRoll<0.28+dr){
+    const grRoll=Math.random();
+    const grade=grRoll<0.05?'A':grRoll<0.30?'B':'C';
+    const typeRoll=Math.random();
+    let pool;
+    if(typeRoll<0.50){
+      pool=EQUIP_POOL.filter(x=>x.grade===grade&&(x.shared||(x.charId===CHARS[selChar].id)));
+      if(!pool.length) pool=EQUIP_POOL.filter(x=>x.grade===grade&&x.shared);
+    } else if(typeRoll<0.80){
+      pool=CONSUME_POOL.filter(x=>x.grade===grade);
+      if(!pool.length) pool=CONSUME_POOL;
+    } else {
+      pool=MATERIAL_POOL;
+    }
+    if(pool?.length){
+      const it=pool[rand(0,pool.length-1)];
+      drops_arr.push({x:e.x+rand(-18,18),y:e.y+rand(-18,18),type:'item',itemId:it.id,life:350});
+    }
   }
-  if(Math.random()<0.5+dr) drops_arr.push({x:e.x+rand(-12,12),y:e.y+rand(-12,12),type:'gold',amount:e.gold||10,life:280});
+  if(Math.random()<0.45+dr) drops_arr.push({x:e.x+rand(-12,12),y:e.y+rand(-12,12),type:'gold',amount:e.gold||10,life:280});
   while(player.exp>=player.expNext){
     player.exp-=player.expNext;player.lv++;player.expNext=player.lv*80;
     const cd=CHARS[selChar];
