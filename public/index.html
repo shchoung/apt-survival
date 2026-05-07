@@ -257,7 +257,25 @@ canvas{display:block;width:100%;height:100%}
 .kbkey.listen{border-color:var(--ca);color:var(--ca);animation:blink .6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* ── 게시판 ── */
+/* ── 상점 ── */
+.shop-item{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 10px;background:var(--c1);border:1px solid var(--c3)55;
+  border-radius:6px;cursor:pointer;transition:.1s;
+}
+.shop-item:active{border-color:var(--ct)}
+.shop-item.s-grade{border-color:#ef9f2766}
+.shop-item.a-grade{border-color:#5dcaa566}
+.shop-icon{font-size:20px;flex-shrink:0;width:28px;text-align:center}
+.shop-info{flex:1;min-width:0}
+.shop-name{font-size:11px;font-weight:600;color:#e0e8f0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shop-desc{font-family:var(--tf);font-size:9px;color:#5a7a94;margin-top:1px}
+.shop-price{font-family:var(--tf);font-size:11px;color:#f5c842;
+  font-weight:700;flex-shrink:0;text-align:right}
+.shop-price.cant-afford{color:#e24b4b}
+.shop-grade-badge{font-family:var(--tf);font-size:8px;font-weight:700;
+  padding:1px 4px;border-radius:3px;flex-shrink:0}
 .board-item{
   display:flex;flex-direction:column;gap:2px;
   padding:8px 10px;border-bottom:0.5px solid var(--c3)44;cursor:pointer;
@@ -456,6 +474,25 @@ canvas{display:block;width:100%;height:100%}
 <div id="game-wrap">
   <canvas id="gc"></canvas>
 
+  <!-- 인게임 상점 -->
+  <div id="shop-screen" class="hidden" style="position:absolute;inset:0;background:#07090dee;z-index:60;display:flex;flex-direction:column;align-items:center;padding:10px;overflow:hidden">
+    <div style="width:100%;max-width:480px;display:flex;flex-direction:column;height:100%;gap:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div style="font-family:var(--tf);font-size:15px;color:#f5c842;letter-spacing:2px">🏪 상점</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="font-family:var(--tf);font-size:12px;color:#f5c842">💰 <span id="shop-gold">0</span>G</div>
+          <button class="sbtn gray" style="padding:2px 10px;font-size:10px" onclick="closeShop()">✕ 닫기</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="inv-tab-btn active" id="shop-tab-buy"  onclick="setShopTab('buy')">🛒 구매</button>
+        <button class="inv-tab-btn"        id="shop-tab-sell" onclick="setShopTab('sell')">💸 판매</button>
+      </div>
+      <div id="shop-buy-panel"  style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px"></div>
+      <div id="shop-sell-panel" style="flex:1;overflow-y:auto;display:none;flex-direction:column;gap:3px"></div>
+    </div>
+  </div>
+
   <!-- 좌측 상단 HUD (캐릭터 정보 + 버튼) -->
   <div id="hud">
     <div class="hud-left"><div class="char-hud" id="player-hud"></div></div>
@@ -465,6 +502,7 @@ canvas{display:block;width:100%;height:100%}
       <div class="hchip" id="stat-time">00:00</div>
       <div class="hchip" onclick="showFloorMap()">🗺 층</div>
       <div class="hchip" onclick="showInv()">🎒 인벤</div>
+      <div class="hchip" style="color:#f5c842" onclick="openShop()">🏪 상점</div>
       <div class="hchip" onclick="openSettings()" style="color:var(--ca)">⚙ 설정</div>
     </div>
   </div>
@@ -1051,8 +1089,17 @@ function hideShop(){}
 function renderShop(){}
 function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
 function hideFloorMap(){document.getElementById('floor-map-screen').classList.add('hidden');}
-function showInv(){document.getElementById('inv-screen').classList.remove('hidden');renderInv();}
-function hideInv(){document.getElementById('inv-screen').classList.add('hidden');}
+function showInv(){
+  document.getElementById('inv-screen').classList.remove('hidden');
+  renderInv();
+  // 인벤토리 열면 무적 (닫을 때까지)
+  if(player) player.invincible=9999;
+}
+function hideInv(){
+  document.getElementById('inv-screen').classList.add('hidden');
+  // 인벤토리 닫으면 무적 해제 (짧은 유예시간)
+  if(player) player.invincible=Math.min(player.invincible,30);
+}
 
 /* ═══════ CHAR SELECT ═══════ */
 let selChar=-1,takenChars=new Set();
@@ -2051,7 +2098,13 @@ function update(){
   floats=floats.filter(f=>{f.y-=1.2;f.life--;f.a=f.life/40;return f.life>0;});
   cdT=cdT.map(t=>Math.max(0,t-1));
   updateSkillFX();
-  if(player.invincible>0)player.invincible--;
+  if(player.invincible>0){
+    // 인벤토리 열려있으면 무적 유지
+    if(!document.getElementById('inv-screen')?.classList.contains('hidden'))
+      player.invincible=9999;
+    else
+      player.invincible--;
+  }
   // 힐러 자동
   if(selChar===3&&player.hp<player.maxHp*.5&&cdT[1]===0){
     const eq2=getEquipStats();const h=Math.floor((30+player.lv*5)*(1+eq2.healBonus));
@@ -3186,6 +3239,170 @@ function sparks(wx,wy,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.P
 function fmtTime(s){const m=Math.floor(s/60);return`${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;}
 function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',1800);}
+
+/* ═══════ 상점 시스템 ═══════ */
+
+// 등급별 기준 가격
+const SHOP_BASE_PRICE={C:50, B:200, A:600, S:2500};
+// 판매 시 구매가의 35%
+const SELL_RATE=0.35;
+
+// 상점 재고 — 층에 따라 변경, 진입마다 랜덤 8개
+let shopStock=[];
+let shopTab='buy';
+
+function calcBuyPrice(item){
+  const base=SHOP_BASE_PRICE[item.grade]||50;
+  let price=base;
+  if(item.grade==='S') price=Math.floor(base*(1.5+Math.random()*0.5)); // S등급 변동
+  if(!item.shared)     price=Math.floor(price*1.8);  // 전용 아이템 80% 비쌈
+  return price;
+}
+function calcSellPrice(entry){
+  const base=SHOP_BASE_PRICE[entry.item.grade]||50;
+  const enh=entry.enhLevel||0;
+  return Math.floor((base + enh*80)*SELL_RATE);
+}
+
+function genShopStock(){
+  const charId=CHARS[selChar].id;
+  const floor=currentFloor;
+  const stock=[];
+
+  // 층에 따라 등장 가능 등급 결정
+  const grades=floor<5?['C','B']:floor<12?['C','B','A']:['B','A','S'];
+
+  // 구매 가능 풀 (내 캐릭 전용 + 공용)
+  const pool=[...EQUIP_POOL,...CONSUME_POOL].filter(it=>{
+    if(!grades.includes(it.grade)) return false;
+    if(!it.shared && it.charId!==charId) return false;
+    return true;
+  });
+
+  // S등급은 1개 이하, A는 2개 이하
+  let sCount=0, aCount=0;
+  const shuffled=[...pool].sort(()=>Math.random()-0.5);
+  for(const it of shuffled){
+    if(stock.length>=8) break;
+    if(it.grade==='S'){ if(sCount>=1) continue; sCount++; }
+    if(it.grade==='A'){ if(aCount>=2) continue; aCount++; }
+    stock.push({item:it, price:calcBuyPrice(it)});
+  }
+  // 재료도 2~3개 추가
+  const mats=[...MATERIAL_POOL].sort(()=>Math.random()-0.5).slice(0,2);
+  mats.forEach(it=>stock.push({item:it,price:calcBuyPrice(it)}));
+
+  shopStock=stock;
+}
+
+function openShop(){
+  if(player) player.invincible=9999; // 상점 열면 무적
+  genShopStock();
+  setShopTab('buy');
+  document.getElementById('shop-screen').classList.remove('hidden');
+  renderShopBuy();
+}
+function closeShop(){
+  document.getElementById('shop-screen').classList.add('hidden');
+  if(player) player.invincible=Math.min(player.invincible,30);
+}
+
+function setShopTab(tab){
+  shopTab=tab;
+  ['buy','sell'].forEach(t=>{
+    document.getElementById(`shop-tab-${t}`)?.classList.toggle('active',t===tab);
+    const panel=document.getElementById(`shop-${t}-panel`);
+    if(panel) panel.style.display=t===tab?'flex':'none';
+  });
+  if(tab==='buy') renderShopBuy();
+  else            renderShopSell();
+}
+
+function renderShopBuy(){
+  const el=document.getElementById('shop-buy-panel');
+  if(!el) return;
+  document.getElementById('shop-gold').textContent=gold;
+  const gc=GRADES||{C:{color:'#888780'},B:{color:'#378ADD'},A:{color:'#5dcaa5'},S:{color:'#ef9f27'}};
+
+  el.innerHTML=shopStock.map((s,i)=>{
+    const {item,price}=s;
+    const gradeColor=gc[item.grade]?.color||'#888';
+    const canAfford=gold>=price;
+    const exclusive=!item.shared?`<span style="font-size:8px;color:#f5c842">[${item.charName||'전용'}]</span>`:'';
+    return `<div class="shop-item ${item.grade==='S'?'s-grade':item.grade==='A'?'a-grade':''}"
+      onclick="buyShopItem(${i})">
+      <div class="shop-icon">${item.icon}</div>
+      <div class="shop-info">
+        <div class="shop-name">
+          <span class="shop-grade-badge" style="color:${gradeColor};border:1px solid ${gradeColor}44">${item.grade}</span>
+          ${escHtml(item.name)} ${exclusive}
+        </div>
+        <div class="shop-desc">${escHtml(item.desc)}</div>
+      </div>
+      <div class="shop-price ${canAfford?'':'cant-afford'}">${price.toLocaleString()}G</div>
+    </div>`;
+  }).join('')||'<div style="font-family:var(--tf);font-size:11px;color:#5a7a94;padding:20px;text-align:center">재고 없음</div>';
+}
+
+function renderShopSell(){
+  const el=document.getElementById('shop-sell-panel');
+  if(!el) return;
+  document.getElementById('shop-gold').textContent=gold;
+  const gc=GRADES||{C:{color:'#888780'},B:{color:'#378ADD'},A:{color:'#5dcaa5'},S:{color:'#ef9f27'}};
+
+  // 인벤토리 전체 (장착 중 제외)
+  const sellable=inventory.map((entry,idx)=>({entry,idx}))
+    .filter(({entry})=>{
+      // 장착 중인 아이템 제외
+      const eq=equipped||{};
+      return !Object.values(eq).some(e=>e?.id===entry.item.id&&e?.enhLevel===entry.enhLevel);
+    })
+    .sort((a,b)=>{
+      const go={S:0,A:1,B:2,C:3};
+      return (go[a.entry.item.grade]??9)-(go[b.entry.item.grade]??9);
+    });
+
+  el.innerHTML=sellable.map(({entry,idx})=>{
+    const {item,enhLevel}=entry;
+    const price=calcSellPrice(entry);
+    const gradeColor=gc[item.grade]?.color||'#888';
+    const enhTxt=enhLevel>0?` <span style="color:#f5c842">+${enhLevel}</span>`:'';
+    return `<div class="shop-item" onclick="sellItem(${idx})">
+      <div class="shop-icon">${item.icon}</div>
+      <div class="shop-info">
+        <div class="shop-name">
+          <span class="shop-grade-badge" style="color:${gradeColor};border:1px solid ${gradeColor}44">${item.grade}</span>
+          ${escHtml(item.name)}${enhTxt}
+        </div>
+        <div class="shop-desc">${escHtml(item.desc)}</div>
+      </div>
+      <div class="shop-price" style="color:#5dcaa5">+${price.toLocaleString()}G</div>
+    </div>`;
+  }).join('')||'<div style="font-family:var(--tf);font-size:11px;color:#5a7a94;padding:20px;text-align:center">판매할 아이템이 없습니다</div>';
+}
+
+function buyShopItem(i){
+  const s=shopStock[i];
+  if(!s) return;
+  if(gold<s.price){showToast('💰 골드가 부족합니다!');return;}
+  gold-=s.price;
+  addItem(s.item.id);
+  showToast(`✅ ${s.item.name} 구매!`);
+  // 구매한 아이템 재고에서 제거
+  shopStock.splice(i,1);
+  renderShopBuy();
+}
+
+function sellItem(idx){
+  const entry=inventory[idx];
+  if(!entry) return;
+  const price=calcSellPrice(entry);
+  gold+=price;
+  inventory.splice(idx,1);
+  showToast(`💸 ${entry.item.name} 판매 (+${price}G)`);
+  renderShopSell();
+  document.getElementById('shop-gold').textContent=gold;
+}
 
 /* ═══════ 게시판 시스템 ═══════ */
 let boardPage=1;
