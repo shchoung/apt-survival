@@ -2140,15 +2140,15 @@ function stageComplete(){
     let grade,pool;
 
     if(isBoss){
-      // 보스 드롭: S 3%, A 20%, B 40%, C 37%
-      if(roll<0.03)      grade='S';
-      else if(roll<0.23) grade='A';
-      else if(roll<0.63) grade='B';
-      else               grade='C';
+      // 보스 드롭: S 0.5%, A 15%, B 42%, C 42.5%
+      if(roll<0.005)      grade='S';
+      else if(roll<0.155) grade='A';
+      else if(roll<0.575) grade='B';
+      else                grade='C';
     } else {
-      // 일반 드롭: S 0%, A 8%, B 35%, C 57%
-      if(roll<0.08)      grade='A';
-      else if(roll<0.43) grade='B';
+      // 일반 드롭: S 0%, A 5%, B 30%, C 65%
+      if(roll<0.05)      grade='A';
+      else if(roll<0.35) grade='B';
       else               grade='C';
     }
 
@@ -2302,7 +2302,7 @@ function killEnemy(e){
   const dropRoll=Math.random();
   if(dropRoll<0.28+dr){
     const grRoll=Math.random();
-    const grade=grRoll<0.05?'A':grRoll<0.30?'B':'C';
+    const grade=grRoll<0.03?'A':grRoll<0.25?'B':'C';
     const typeRoll=Math.random();
     let pool;
     if(typeRoll<0.50){
@@ -3270,7 +3270,9 @@ function genShopStock(){
   const stock=[];
 
   // 층에 따라 등장 가능 등급 결정
-  const grades=floor<5?['C','B']:floor<12?['C','B','A']:['B','A','S'];
+  const grades=floor<5?['C','B']:floor<12?['C','B','A']:['B','A'];
+  // S등급은 20층 이상에서 30% 확률로 재고에 1개만
+  const allowS=floor>=20&&Math.random()<0.3;
 
   // 구매 가능 풀 (내 캐릭 전용 + 공용)
   const pool=[...EQUIP_POOL,...CONSUME_POOL].filter(it=>{
@@ -3284,7 +3286,7 @@ function genShopStock(){
   const shuffled=[...pool].sort(()=>Math.random()-0.5);
   for(const it of shuffled){
     if(stock.length>=8) break;
-    if(it.grade==='S'){ if(sCount>=1) continue; sCount++; }
+    if(it.grade==='S'){ if(!allowS||sCount>=1) continue; sCount++; }
     if(it.grade==='A'){ if(aCount>=2) continue; aCount++; }
     stock.push({item:it, price:calcBuyPrice(it)});
   }
