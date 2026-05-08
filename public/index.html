@@ -89,9 +89,25 @@ canvas{display:block;width:100%;height:100%}
 .pmbg{height:3px;border-radius:2px;background:#1a2535;overflow:hidden;width:100%;margin-top:2px}
 .pmhp{height:100%;border-radius:2px;background:#ff7070;transition:width .3s}
 
-#lvup-popup{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--c1);border:2px solid var(--cp);border-radius:10px;padding:14px 24px;text-align:center;z-index:60;display:none}
-.lvup-t{font-family:var(--tf);font-size:16px;color:#a99ef5;letter-spacing:4px}
-.lvup-s{font-size:10px;color:#7a9ab8;margin-top:4px;font-family:var(--tf)}
+#lvup-popup{
+  position:absolute;
+  bottom:calc(70px + var(--safe-bot));
+  left:50%;transform:translateX(-50%);
+  background:#0d1117ee;
+  border:1.5px solid var(--cp);
+  border-radius:8px;
+  padding:6px 18px;
+  text-align:center;
+  z-index:60;
+  display:none;
+  white-space:nowrap;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .25s;
+}
+#lvup-popup.show{opacity:1}
+.lvup-t{font-family:var(--tf);font-size:13px;color:#a99ef5;letter-spacing:3px}
+.lvup-s{font-size:9px;color:#7a9ab8;margin-top:2px;font-family:var(--tf)}
 
 /* TOUCH */
 #joy-wrap{position:absolute;bottom:60px;left:14px;width:110px;height:110px;pointer-events:auto;user-select:none;display:none}
@@ -2327,9 +2343,15 @@ function killEnemy(e){
     player.atk=Math.floor(cd.stats.ATK*(1+(player.lv-1)*.1));player.def=Math.floor(cd.stats.DEF*(1+(player.lv-1)*.08));
     SFX.levelup();
     spawnSkillFX('levelup',player.x,player.y,0,'#7f77dd');
-    const pp=document.getElementById('lvup-popup');pp.style.display='block';
-    document.getElementById('lvup-s').textContent=`${player.name} Lv${player.lv}  ATK${player.atk} DEF${player.def}`;
-    setTimeout(()=>pp.style.display='none',2200);addLog(`LEVEL UP Lv${player.lv}!`,'lsys');
+    const pp=document.getElementById('lvup-popup');
+    pp.style.display='block';
+    requestAnimationFrame(()=>pp.classList.add('show'));
+    document.getElementById('lvup-s').textContent=`Lv${player.lv}  ATK ${player.atk} DEF ${player.def}`;
+    clearTimeout(pp._lvTimer);
+    pp._lvTimer=setTimeout(()=>{
+      pp.classList.remove('show');
+      setTimeout(()=>pp.style.display='none',260);
+    },1800);addLog(`LEVEL UP Lv${player.lv}!`,'lsys');
   }
   // 멀티: 호스트가 킬 이벤트 브로드캐스트
   if(isMultiGame&&isHost){
