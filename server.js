@@ -72,12 +72,13 @@ async function initDB() {
     );
   `);
 
+  // game_saves: 캐릭터별 슬롯 (user_id + char_idx 복합 유니크)
   await db.query(`
     CREATE TABLE IF NOT EXISTS game_saves (
       id          SERIAL PRIMARY KEY,
       user_id     INT REFERENCES users(id) ON DELETE CASCADE,
       nick        VARCHAR(10) NOT NULL,
-      char_idx    SMALLINT DEFAULT 0,
+      char_idx    SMALLINT NOT NULL DEFAULT 0,
       lv          INT DEFAULT 1,
       exp         INT DEFAULT 0,
       hp          INT DEFAULT 100,
@@ -91,9 +92,28 @@ async function initDB() {
       inventory   JSONB DEFAULT '[]',
       equipped    JSONB DEFAULT '{"weapon":null,"armor":null,"acc":null}',
       saved_at    TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(user_id)
+      UNIQUE(user_id, char_idx)
     );
   `);
+
+  // 기존 UNIQUE(user_id) 제약 → UNIQUE(user_id, char_idx) 마이그레이션
+  // (이미 배포된 DB에 안전하게 적용)
+  try {
+    await db.query(`
+      DO $$
+      BEGIN
+        -- 구버전 단일 유니크 제약 제거
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'game_saves_user_id_key'
+        ) THEN
+          ALTER TABLE game_saves DROP CONSTRAINT game_saves_user_id_key;
+          ALTER TABLE game_saves ADD CONSTRAINT game_saves_user_id_char_idx_key
+            UNIQUE (user_id, char_idx);
+        END IF;
+      END$$;
+    `);
+  } catch(e) { console.warn('[MIGRATE] game_saves 마이그레이션 스킵:', e.message); }
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -192,11 +212,13 @@ app.post('/api/register', async (req, res) => {
       [nick, hash]
     );
 
-    // 기본 세이브 데이터 생성
-    await db.query(
-      'INSERT INTO game_saves(user_id,nick) VALUES($1,$2)',
-      [user.id, nick]
-    );
+    // 기본 세이브 데이터 생성 — 캐릭터 4개 슬롯 초기화
+    for (let ci = 0; ci < 4; ci++) {
+      await db.query(
+        'INSERT INTO game_saves(user_id, nick, char_idx) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',
+        [user.id, nick, ci]
+      );
+    }
 
     console.log(`[REGISTER] ${nick}`);
     res.json({ ok: true, msg: '회원가입 완료!' });
@@ -227,14 +249,28 @@ app.post('/api/login', async (req, res) => {
       [token, user.id, user.nick]
     );
 
-    // 세이브 데이터 조회
-    const save = await db.getOne(
-      'SELECT * FROM game_saves WHERE user_id=$1',
+    // 세이브 데이터 조회 — 캐릭터별 4개 슬롯
+    const savesResult = await db.query(
+      'SELECT * FROM game_saves WHERE user_id=$1 ORDER BY char_idx ASC',
       [user.id]
     );
+    // 슬롯이 없으면 초기화
+    if (savesResult.rows.length === 0) {
+      for (let ci = 0; ci < 4; ci++) {
+        await db.query(
+          'INSERT INTO game_saves(user_id, nick, char_idx) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',
+          [user.id, nick, ci]
+        );
+      }
+      savesResult.rows = Array.from({length:4}, (_,i) => ({user_id:user.id, nick, char_idx:i, lv:1, exp:0, hp:100, max_hp:100, atk:50, def_stat:50, floor:0, gold:0, kills:0, cleared_floors:[], inventory:[], equipped:{}, saved_at:null}));
+    }
+    const saves = [0,1,2,3].map(ci => {
+      const row = savesResult.rows.find(r => r.char_idx === ci) || null;
+      return formatSave(row, ci);
+    });
 
     console.log(`[LOGIN] ${nick}`);
-    res.json({ ok: true, token, nick: user.nick, save: formatSave(save) });
+    res.json({ ok: true, token, nick: user.nick, saves });
   } catch (e) {
     console.error('[LOGIN ERROR]', e.message);
     res.json({ ok: false, msg: '서버 오류가 발생했습니다.' });
@@ -248,19 +284,23 @@ app.post('/api/logout', async (req, res) => {
   res.json({ ok: true });
 });
 
-/* ─ 세이브 불러오기 ─ */
+/* ─ 세이브 불러오기 — 캐릭터 4개 슬롯 전체 ─ */
 app.get('/api/save', async (req, res) => {
   const sess = await verifyToken(req.headers['authorization']);
   if (!sess) return res.json({ ok: false, msg: '인증 실패' });
 
-  const save = await db.getOne(
-    'SELECT * FROM game_saves WHERE nick=$1',
-    [sess.nick]
+  const result = await db.query(
+    'SELECT * FROM game_saves WHERE user_id=$1 ORDER BY char_idx ASC',
+    [sess.user_id]
   );
-  res.json({ ok: true, save: formatSave(save) });
+  const saves = [0,1,2,3].map(ci => {
+    const row = result.rows.find(r => r.char_idx === ci) || null;
+    return formatSave(row, ci);
+  });
+  res.json({ ok: true, saves });
 });
 
-/* ─ 세이브 저장 ─ */
+/* ─ 세이브 저장 — char_idx별 개별 저장 ─ */
 app.post('/api/save', async (req, res) => {
   try {
     const sess = await verifyToken(req.headers['authorization']);
@@ -272,13 +312,15 @@ app.post('/api/save', async (req, res) => {
       inventory, equipped,
     } = req.body;
 
+    if (charIdx === undefined || charIdx < 0 || charIdx > 3)
+      return res.json({ ok: false, msg: '잘못된 캐릭터 인덱스' });
+
     await db.query(`
       INSERT INTO game_saves
         (user_id, nick, char_idx, lv, exp, hp, max_hp, atk, def_stat,
          floor, gold, kills, cleared_floors, inventory, equipped, saved_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
-      ON CONFLICT (user_id) DO UPDATE SET
-        char_idx       = EXCLUDED.char_idx,
+      ON CONFLICT (user_id, char_idx) DO UPDATE SET
         lv             = EXCLUDED.lv,
         exp            = EXCLUDED.exp,
         hp             = EXCLUDED.hp,
@@ -294,7 +336,7 @@ app.post('/api/save', async (req, res) => {
         saved_at       = NOW()
     `, [
       sess.user_id, sess.nick,
-      charIdx ?? 0,
+      charIdx,
       lv ?? 1, exp ?? 0,
       hp ?? 100, maxHp ?? 100,
       atk ?? 50, def ?? 50,
@@ -304,7 +346,7 @@ app.post('/api/save', async (req, res) => {
       JSON.stringify(equipped ?? {}),
     ]);
 
-    console.log(`[SAVE] ${sess.nick} Lv${lv} floor:${floor}`);
+    console.log(`[SAVE] ${sess.nick} char:${charIdx} Lv${lv} floor:${floor}`);
     res.json({ ok: true });
   } catch (e) {
     console.error('[SAVE ERROR]', e.message);
@@ -388,16 +430,25 @@ app.post('/api/posts/:id/comments', async (req, res) => {
   } catch(e){res.json({ok:false,msg:e.message});}
 });
 
-/* ─ 랭킹 (클리어 층 기준) ─ */
+/* ─ 랭킹 (캐릭터별 최고 기록) ─ */
 app.get('/api/ranking', async (req, res) => {
   try {
+    const sort = req.query.sort || 'floor';
+    const orderMap = {
+      floor: 'floor DESC, lv DESC, kills DESC',
+      lv:    'lv DESC, floor DESC, kills DESC',
+      kills: 'kills DESC, floor DESC, lv DESC',
+    };
+    const orderBy = orderMap[sort] || orderMap.floor;
+    // 유저+캐릭터 조합별 최고 기록 (신규: 캐릭터별 row가 존재하므로 바로 조회)
     const rows = await db.query(`
       SELECT nick, char_idx, lv, floor, kills, gold,
              array_length(cleared_floors,1) AS clear_count,
              saved_at
       FROM game_saves
-      ORDER BY floor DESC, lv DESC, kills DESC
-      LIMIT 20
+      WHERE lv > 1 OR floor > 0 OR kills > 0
+      ORDER BY ${orderBy}
+      LIMIT 30
     `);
     res.json({ ok: true, ranking: rows.rows });
   } catch (e) {
@@ -405,19 +456,35 @@ app.get('/api/ranking', async (req, res) => {
   }
 });
 
-/* ─ 내 정보 ─ */
+/* ─ 내 정보 — 캐릭터별 4슬롯 ─ */
 app.get('/api/me', async (req, res) => {
   const sess = await verifyToken(req.headers['authorization']);
   if (!sess) return res.json({ ok: false });
-  const save = await db.getOne('SELECT * FROM game_saves WHERE nick=$1', [sess.nick]);
-  res.json({ ok: true, nick: sess.nick, save: formatSave(save) });
+  const result = await db.query(
+    'SELECT * FROM game_saves WHERE user_id=$1 ORDER BY char_idx ASC', [sess.user_id]
+  );
+  const saves = [0,1,2,3].map(ci => {
+    const row = result.rows.find(r => r.char_idx === ci) || null;
+    return formatSave(row, ci);
+  });
+  res.json({ ok: true, nick: sess.nick, saves });
 });
 
 // DB row → 클라이언트 형식 변환
-function formatSave(row) {
-  if (!row) return null;
+// charIdx: 슬롯이 없을 때도 기본값 객체 반환 (신규 캐릭터)
+function formatSave(row, charIdx) {
+  const ci = row ? row.char_idx : (charIdx ?? 0);
+  if (!row) {
+    return {
+      charIdx: ci, lv: 1, exp: 0,
+      hp: 100, maxHp: 100, atk: 50, def: 50,
+      floor: 0, gold: 0, kills: 0,
+      clearedFloors: [], inventory: [], equipped: {},
+      savedAt: null, isNew: true,
+    };
+  }
   return {
-    charIdx:       row.char_idx,
+    charIdx:       ci,
     lv:            row.lv,
     exp:           row.exp,
     hp:            row.hp,
@@ -431,6 +498,7 @@ function formatSave(row) {
     inventory:     row.inventory || [],
     equipped:      row.equipped  || {},
     savedAt:       row.saved_at,
+    isNew:         false,
   };
 }
 
@@ -521,16 +589,17 @@ class PlayerState {
    저장 함수 (DB + 인메모리 세션)
 ══════════════════════════════════════ */
 async function savePlayerToDB(player) {
-  if (!player?.userId) return;
+  if (!player?.userId || player.charIdx < 0) return;
   try {
     const sd = player.toSaveData();
+    // ON CONFLICT (user_id, char_idx) — 캐릭터 슬롯별 저장
     await db.query(`
       INSERT INTO game_saves
         (user_id,nick,char_idx,lv,exp,hp,max_hp,atk,def_stat,
          floor,gold,kills,cleared_floors,inventory,equipped,saved_at)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
-      ON CONFLICT(user_id) DO UPDATE SET
-        char_idx=$3,lv=$4,exp=$5,hp=$6,max_hp=$7,atk=$8,def_stat=$9,
+      ON CONFLICT(user_id,char_idx) DO UPDATE SET
+        lv=$4,exp=$5,hp=$6,max_hp=$7,atk=$8,def_stat=$9,
         floor=$10,gold=$11,kills=$12,cleared_floors=$13,
         inventory=$14,equipped=$15,saved_at=NOW()
     `, [
@@ -541,7 +610,7 @@ async function savePlayerToDB(player) {
       JSON.stringify(sd.inventory),
       JSON.stringify(sd.equipped),
     ]);
-    console.log(`[AUTO-SAVE] ${player.nick} Lv${sd.lv} floor:${sd.floor}`);
+    console.log(`[AUTO-SAVE] ${player.nick} char:${sd.charIdx} Lv${sd.lv} floor:${sd.floor}`);
   } catch (e) {
     console.error('[SAVE ERROR]', e.message);
   }
@@ -646,9 +715,12 @@ async function handleMessage(ws, raw) {
     const player   = new PlayerState(ws, playerId, nick, assignedChar, userId);
     player.isHost  = room.players.size === 0;
 
-    // 저장 데이터 복원
-    if (userId) {
-      const save = await db.getOne('SELECT * FROM game_saves WHERE user_id=$1',[userId]).catch(()=>null);
+    // 저장 데이터 복원 — 선택한 캐릭터 슬롯만
+    if (userId && assignedChar >= 0) {
+      const save = await db.getOne(
+        'SELECT * FROM game_saves WHERE user_id=$1 AND char_idx=$2',
+        [userId, assignedChar]
+      ).catch(()=>null);
       if (save) {
         player.lv=save.lv;player.exp=save.exp;
         player.hp=save.hp;player.maxHp=save.max_hp;
@@ -705,7 +777,6 @@ async function handleMessage(ws, raw) {
       ws.send(JSON.stringify({ type: 'error', msg: '방이 가득 찼습니다' })); return;
     }
     const taken = [...room.players.values()].map(p => p.charIdx);
-    // 클라이언트가 요청한 charIdx가 이미 사용 중이면 오류 반환
     if (charIdx >= 0 && taken.includes(charIdx)) {
       ws.send(JSON.stringify({ type: 'error', msg: '이미 선택된 캐릭터입니다' })); return;
     }
@@ -714,10 +785,11 @@ async function handleMessage(ws, raw) {
     const player   = new PlayerState(ws, playerId, nick, charIdx ?? -1, userId);
     player.isHost  = room.players.size === 0;
 
-    // 저장 데이터 복원
-    if (userId) {
+    // 저장 데이터 복원 — 선택한 캐릭터 슬롯만
+    if (userId && (charIdx ?? -1) >= 0) {
       const save = await db.getOne(
-        'SELECT * FROM game_saves WHERE user_id=$1', [userId]
+        'SELECT * FROM game_saves WHERE user_id=$1 AND char_idx=$2',
+        [userId, charIdx]
       );
       if (save) {
         player.lv = save.lv; player.exp = save.exp;
@@ -728,12 +800,7 @@ async function handleMessage(ws, raw) {
         player.clearedFloors = save.cleared_floors || [];
         player.inventory = save.inventory || [];
         player.equipped  = save.equipped  || {};
-        if (save.char_idx >= 0 && charIdx < 0) {
-          // 저장된 캐릭터가 이미 같은 방에서 사용 중이면 복원하지 않음
-          const alreadyTaken = [...room.players.values()]
-            .some(p => p.id !== playerId && p.charIdx === save.char_idx);
-          if (!alreadyTaken) player.charIdx = save.char_idx;
-        }
+        // charIdx는 클라이언트가 선택한 값 그대로 (저장값으로 덮지 않음)
       }
     }
 
