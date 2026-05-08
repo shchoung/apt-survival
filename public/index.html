@@ -1006,8 +1006,10 @@ function openSettings(){prevScr=running?'__game':'title';showScr('settings');ren
 
 // 타이틀로 돌아가기 (상태 저장 후)
 // ── 저장 키: 닉네임 기준으로 통일 ──
-function getSaveKey(){
-  return 'apt_save_'+(currentUser?.nick||'guest');
+// 캐릭터별 localStorage 키
+function getSaveKey(charIdx){
+  const ci=(charIdx>=0?charIdx:selChar);
+  return 'apt_save_'+(currentUser?.nick||'guest')+'_char'+ci;
 }
 
 function saveGameData(){
@@ -1032,7 +1034,9 @@ function saveGameData(){
       gold,kills,
       savedAt:Date.now(),
     };
-    localStorage.setItem(getSaveKey(),JSON.stringify(sd));
+    // 캐릭터별 로컬 저장
+    localStorage.setItem(getSaveKey(selChar),JSON.stringify(sd));
+    // 서버 저장 (캐릭터 슬롯 지정)
     if(currentUser?.token){
       fetch(getApiBase()+'/api/save',{
         method:'POST',
@@ -1040,15 +1044,22 @@ function saveGameData(){
         body:JSON.stringify(sd),
       }).catch(()=>{});
     }
-    console.log(`[SAVE] Lv${player.lv} floor:${currentFloor} cleared:${clearedFloors.length}층`);
+    // currentUser.saves 인메모리 갱신
+    if(currentUser){
+      if(!currentUser.saves) currentUser.saves=Array(4).fill(null);
+      currentUser.saves[selChar]={...sd,isNew:false};
+    }
+    console.log(`[SAVE] char:${selChar} Lv${player.lv} floor:${currentFloor}`);
   }catch(e){console.warn('[SAVE] 실패',e);}
 }
 
-function loadGameData(){
+// charIdx 슬롯의 저장 데이터 로드
+function loadGameData(charIdx){
+  const ci=(charIdx>=0?charIdx:selChar);
   try{
-    // 1순위: currentUser.save (서버), 2순위: localStorage
-    const raw=currentUser?.save||JSON.parse(localStorage.getItem(getSaveKey())||'null');
-    if(!raw) return null;
+    // 1순위: currentUser.saves[ci] (서버), 2순위: localStorage
+    const raw=currentUser?.saves?.[ci]||JSON.parse(localStorage.getItem(getSaveKey(ci))||'null');
+    if(!raw||raw.isNew) return null;
     // inventory 복원 (itemId → 실제 아이템 객체)
     const inv=[];
     (raw.inventory||[]).forEach(e=>{
@@ -1060,7 +1071,7 @@ function loadGameData(){
       const id=raw.equipped?.[slot];
       if(id){const idx=inv.findIndex(e=>e.item.id===id);if(idx>=0)eq[slot]=idx;}
     });
-    return{...raw,inventoryObj:inv,equippedObj:eq};
+    return{...raw,charIdx:ci,inventoryObj:inv,equippedObj:eq};
   }catch(e){return null;}
 }
 
@@ -1215,6 +1226,16 @@ function renderCharSelect(){
     const taken=takenChars.has(i)&&i!==selChar,picked=selChar===i;
     const sc={HP:'#e24b4b',ATK:c.color,DEF:'#5dcaa5',SPD:'#7f77dd'};
     const cvId=`char-illust-${i}`;
+    // 해당 캐릭터의 저장 데이터
+    const charSave=currentUser?.saves?.[i];
+    const hasData=charSave&&!charSave.isNew&&(charSave.lv>1||charSave.floor>0||charSave.kills>0);
+    const saveLabel=hasData
+      ?`<div style="font-family:var(--tf);font-size:8px;color:#5dcaa5;margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">
+          <span>Lv${charSave.lv}</span>
+          <span>${floorName(charSave.floor||0)}</span>
+          <span>처치 ${charSave.kills||0}</span>
+        </div>`
+      :`<div style="font-family:var(--tf);font-size:8px;color:#5a7a94;margin-top:3px">새 게임</div>`;
     return `<div class="ccard${picked?' picked':''}${taken?' taken':''}" onclick="pickChar(${i})" style="position:relative">
       ${taken?'<span class="taken-b">사용중</span>':''}
       <div style="display:flex;gap:10px;align-items:flex-start">
@@ -1228,6 +1249,7 @@ function renderCharSelect(){
           </div>
           <div class="ccdesc">${c.desc}</div>
           <div class="stml">${Object.entries(c.stats).map(([k,v])=>`<span class="stpil" style="background:${sc[k]}22;color:${sc[k]};border:1px solid ${sc[k]}44">${k}${v}</span>`).join('')}</div>
+          ${saveLabel}
         </div>
       </div>
       ${picked?`<div style="position:absolute;top:6px;right:6px;font-family:var(--tf);font-size:9px;padding:2px 7px;border-radius:20px;background:${c.color}22;color:${c.color};border:1px solid ${c.color}55">선택됨</div>`:''}
@@ -1827,21 +1849,22 @@ function makePlayer(save){
 function startGame(){
   if(selChar<0){alert('캐릭터를 선택하세요');return;}
   hideAllOverlays();
-  const save=loadGameData();
-  if(save&&save.charIdx===selChar){
+  // 해당 캐릭터 슬롯의 저장 데이터만 불러옴
+  const save=loadGameData(selChar);
+  if(save){
     currentFloor=save.floor||0;
     inventory=save.inventoryObj||[];
     equipped=save.equippedObj||{weapon:null,armor:null,acc:null};
     gold=save.gold||0;kills=save.kills||0;
     clearedFloors=save.clearedFloors||[];
     clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
-    showToast(`💾 저장 데이터 복원 Lv${save.lv} / ${floorName(currentFloor)}`);
+    showToast(`💾 ${CHARS[selChar]?.name} 데이터 복원 Lv${save.lv} / ${floorName(currentFloor)}`);
   } else {
     currentFloor=0;inventory=[];equipped={weapon:null,armor:null,acc:null};
     gold=0;kills=0;clearedFloors=[];floorProgress=new Array(TOTAL_FLOORS).fill(false);
   }
   resize();buildMap(currentFloor);
-  player=makePlayer(save?.charIdx===selChar?save:null);
+  player=makePlayer(save||null);
   enemies=[];drops_arr=[];particles=[];floats=[];
   waveKills=0;waveNum=1;cdT=[0,0,0,0];
   startTime=Date.now();running=true;
@@ -3773,7 +3796,7 @@ async function doLogin(){
     const data=await res.json();
     if(data.ok){
       setApiDot('green');
-      currentUser={nick:data.nick,token:data.token,save:data.save};
+      currentUser={nick:data.nick,token:data.token,saves:data.saves||[]};
       isGuest=false;
       try{localStorage.setItem('apt_session',JSON.stringify({nick:data.nick,token:data.token}));}catch(e){}
       afterLogin();
@@ -3854,16 +3877,27 @@ function guestPlay(){
 
 function afterLogin(){
   const u=currentUser;
+  // save → saves[] 정규화 (구버전 호환)
+  if(u.save&&!u.saves){
+    // 구버전 단일 save → saves 배열로 마이그레이션
+    u.saves=Array(4).fill(null);
+    const ci=u.save.charIdx??0;
+    if(ci>=0&&ci<4) u.saves[ci]=u.save;
+    delete u.save;
+  }
+  if(!u.saves) u.saves=Array(4).fill(null);
+
   // 타이틀 유저 정보 표시
   const tn=document.getElementById('title-nick');
   const ts=document.getElementById('title-save-info');
   if(tn) tn.textContent=u.nick+(isGuest?' [비회원]':'');
   if(ts){
-    if(u.save){
-      const d=new Date(u.save.savedAt);
-      ts.textContent=`Lv${u.save.lv} · ${floorName?.(u.save.floor)||'B3F'} · ${d.toLocaleDateString()}`;
+    const activeSaves=u.saves?.filter(s=>s&&!s.isNew&&(s.lv>1||s.floor>0))||[];
+    if(activeSaves.length>0){
+      const best=activeSaves.reduce((a,b)=>(b.floor>a.floor?b:a));
+      ts.textContent=`${CHARS[best.charIdx]?.name||'?'} Lv${best.lv} · ${floorName?.(best.floor)||'B3F'} 외 ${activeSaves.length}캐릭`;
     } else {
-      ts.textContent=isGuest?'진행상황이 저장되지 않습니다':'새 게임';
+      ts.textContent=isGuest?'진행상황이 저장되지 않습니다':'새 게임 (캐릭터를 선택하세요)';
     }
   }
   // 멀티로비 닉네임 자동 입력
@@ -3892,23 +3926,31 @@ async function tryAutoLogin(){
     const s=JSON.parse(localStorage.getItem('apt_session')||'null');
     if(!s?.nick||!s?.token) return false;
     // 서버 검증
-    const res=await fetch(getApiBase()+'/api/save/'+s.nick,{
+    const res=await fetch(getApiBase()+'/api/save',{
       headers:{'Authorization':s.token}
     });
     const data=await res.json();
     if(data.ok){
-      currentUser={nick:s.nick,token:s.token,save:data.save};
+      currentUser={nick:s.nick,token:s.token,saves:data.saves||[]};
       isGuest=false;
       afterLogin();
       return true;
     }
   } catch(e){
-    // 오프라인 — 세션만으로 로그인
+    // 오프라인 — localStorage에서 캐릭터별 슬롯 복원
     try{
       const s=JSON.parse(localStorage.getItem('apt_session')||'null');
       if(s?.nick){
-        const save=JSON.parse(localStorage.getItem('apt_save_'+s.nick)||'null');
-        currentUser={nick:s.nick,token:null,save};
+        const saves=Array(4).fill(null).map((_,ci)=>{
+          try{return JSON.parse(localStorage.getItem('apt_save_'+s.nick+'_char'+ci)||'null');}
+          catch(e){return null;}
+        });
+        // 구버전 단일 세이브 마이그레이션
+        if(saves.every(v=>v===null)){
+          const oldSave=JSON.parse(localStorage.getItem('apt_save_'+s.nick)||'null');
+          if(oldSave){const ci=oldSave.charIdx??0;saves[ci]=oldSave;}
+        }
+        currentUser={nick:s.nick,token:null,saves};
         isGuest=false;
         afterLogin();
         return true;
@@ -3975,7 +4017,7 @@ function wsAutoMatch(){
     type:'auto_match',
     token:currentUser?.token||null,
     nick:currentUser?.nick||'생존자',
-    charIdx:selChar,  // 반드시 클라이언트가 선택한 캐릭터 전달
+    charIdx:selChar,
   });
 }
 
@@ -4007,20 +4049,6 @@ function onWsMsg(msg){
       isHost=msg.isHost;
       wsRoomPlayers={};
       msg.room.players.forEach(p=>{wsRoomPlayers[p.id]=p;});
-
-      // ── takenChars 동기화 (다른 플레이어가 선택한 캐릭터) ──
-      takenChars=new Set();
-      msg.room.players.forEach(p=>{
-        if(p.id===myPlayerId){
-          // 서버가 저장 데이터로 charIdx를 다르게 복원했을 경우 보정
-          if(p.charIdx>=0 && p.charIdx!==selChar){
-            selChar=p.charIdx;
-          }
-        } else {
-          if(p.charIdx>=0) takenChars.add(p.charIdx);
-        }
-      });
-
       // ── 맵 시드 동기화 ──
       if(msg.mapSeed!==undefined){
         sharedMapSeed=msg.mapSeed;
@@ -4042,12 +4070,9 @@ function onWsMsg(msg){
 
     case 'room_state':{
       wsRoomPlayers={};
-      // takenChars도 동기화
-      takenChars=new Set();
       msg.room.players.forEach(p=>{
         if(p.id===myPlayerId) return; // 내 자신 제외
         wsRoomPlayers[p.id]=p;
-        if(p.charIdx>=0) takenChars.add(p.charIdx);
       });
       // 퇴장 기록 정리 (방 상태 갱신 후 오래된 항목 삭제)
       if(window._leftPlayers){
