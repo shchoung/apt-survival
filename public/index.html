@@ -1207,11 +1207,11 @@ function floorName(idx){
 
 /* ═══════ ENEMY TYPES ═══════ */
 const ETYPES_BASE=[
-  {name:"순찰 드론",   hp:70,  atk:14, spd:1.4,size:9, color:"#888780",exp:15,gold:5},
-  {name:"전투 로봇",   hp:165, atk:35, spd:1.1,size:12,color:"#1D9E75",exp:45,gold:15},
-  {name:"해커봇",      hp:250, atk:50, spd:1.6,size:10,color:"#534AB7",exp:80,gold:25},
-  {name:"엘리트 센티넬",hp:420,atk:70, spd:1.0,size:15,color:"#BA7517",exp:160,gold:50},
-  {name:"사이버 헌터", hp:300, atk:85, spd:1.8,size:11,color:"#993556",exp:120,gold:40},
+  {name:"순찰 드론",   hp:90,  atk:18, spd:1.4,size:9, color:"#888780",exp:15,gold:5},
+  {name:"전투 로봇",   hp:210, atk:45, spd:1.1,size:12,color:"#1D9E75",exp:45,gold:15},
+  {name:"해커봇",      hp:320, atk:65, spd:1.6,size:10,color:"#534AB7",exp:80,gold:25},
+  {name:"엘리트 센티넬",hp:550,atk:90, spd:1.0,size:15,color:"#BA7517",exp:160,gold:50},
+  {name:"사이버 헌터", hp:380, atk:110,spd:1.8,size:11,color:"#993556",exp:120,gold:40},
 ];
 
 const BOSS_TYPES=[
@@ -2240,7 +2240,7 @@ function resetFloor(){
 
 function setWaveTarget(){
   if(BOSS_FLOORS.has(currentFloor)) waveTarget=1;
-  else waveTarget=Math.max(3,3+currentFloor);
+  else waveTarget=Math.max(4,4+currentFloor);
 }
 
 function spawnWave(){
@@ -2255,11 +2255,12 @@ function spawnWave(){
   } else {
     const count=waveTarget;
     for(let i=0;i<count;i++) setTimeout(()=>{
-      const ti=Math.floor(seededRandom()*(Math.min(3,Math.floor(currentFloor/3)+1)));
+      const tier=Math.min(4,Math.floor(currentFloor/2)+1);
+      const ti=Math.floor(seededRandom()*tier);
       const et={...ETYPES_BASE[ti],typeIdx:ti};
-      const lb=currentFloor*.08;et.hp=Math.floor(et.hp*(1+lb));et.atk=Math.floor(et.atk*(1+lb*.6));
+      const lb=currentFloor*.11;et.hp=Math.floor(et.hp*(1+lb));et.atk=Math.floor(et.atk*(1+lb*.85));
       spawnEnemy(et);
-    },i*500);
+    },i*400);
     addLog(`WAVE ${waveNum} — ${count}마리 출현`,'lsys');
   }
 }
@@ -2288,7 +2289,7 @@ function spawnEnemy(t){
   sx=safe.x; sy=safe.y;
 
   enemies.push({
-    ...t,x:sx,y:sy,id:Math.random(),atkT:rand(30,90),flick:0,
+    ...t,x:sx,y:sy,id:Math.random(),atkT:rand(20,65),flick:0,
     path:[],pathTick:0,alertTick:0,wanderTick:0,wanderDx:0,wanderDy:0,
     state:'idle',
     typeIdx:t.typeIdx??0,  // 비호스트 동기화용
@@ -2443,7 +2444,7 @@ function update(){
     // 공격 판정 — 타겟 플레이어에게 데미지
     e.atkT--;
     if(e.atkT<=0&&dist<(e.size||12)+20){
-      e.atkT=90;e.state='chase';
+      e.atkT=65;e.state='chase';
       // 호스트 자신이 타겟이면 직접 데미지
       const isTargetMe=(targetX===player.x&&targetY===player.y);
       if(isTargetMe&&player.invincible===0){
