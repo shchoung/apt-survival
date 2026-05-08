@@ -323,6 +323,299 @@ canvas{display:block;width:100%;height:100%}
   display:flex;flex-direction:column;gap:5px;flex-shrink:0}
 .cmt-input-wrap.reply-mode{background:#07090d;border-left:2px solid var(--ct)}
 
+/* ══════════════════════════════════════
+   QUEST / ACHIEVEMENT SYSTEM STYLES
+══════════════════════════════════════ */
+/* 퀘스트 버튼 HUD */
+#quest-hud-btn{
+  position:absolute;top:5px;right:8px;
+  font-family:var(--tf);font-size:9px;padding:3px 7px;border-radius:4px;
+  background:var(--c2);border:1px solid var(--c3);color:#a0bcd0;cursor:pointer;z-index:25;
+  display:flex;align-items:center;gap:3px;
+  transition:.15s;
+}
+#quest-hud-btn:active{border-color:var(--ca);color:var(--ca)}
+#quest-badge{
+  display:none;width:14px;height:14px;border-radius:50%;
+  background:var(--cr);color:#fff;font-size:7px;font-weight:700;
+  align-items:center;justify-content:center;
+  animation:pulseBadge .8s infinite alternate;
+}
+#quest-badge.show{display:flex}
+@keyframes pulseBadge{0%{transform:scale(1)}100%{transform:scale(1.25)}}
+
+/* 퀘스트/도전과제 화면 */
+#quest-screen{
+  position:absolute;inset:0;background:#07090df7;
+  display:flex;flex-direction:column;z-index:92;
+  padding:8px 8px calc(8px + var(--safe-bot));overflow:hidden;
+}
+#quest-screen.hidden{display:none}
+.qs-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:8px}
+.qs-title{font-family:var(--tf);font-size:13px;color:var(--ct);letter-spacing:2px}
+.qs-tabs{display:flex;gap:4px;flex-shrink:0;margin-bottom:8px}
+.qs-tab{font-family:var(--tf);font-size:9px;padding:3px 10px;border-radius:4px;
+  border:1px solid var(--c3);background:transparent;color:#5a7a94;cursor:pointer;}
+.qs-tab.active{border-color:var(--ct);color:var(--ct);background:var(--c2)}
+.qs-tab:active{opacity:.7}
+.qs-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+
+/* 퀘스트 카드 */
+.qcard{
+  background:var(--c1);border:1px solid var(--c3);border-radius:7px;
+  padding:8px 10px;display:flex;flex-direction:column;gap:5px;
+  position:relative;overflow:hidden;transition:.15s;
+}
+.qcard.complete{border-color:#1D9E7566;background:#0a1912}
+.qcard.claimable{border-color:var(--ca);background:#1a130a;animation:glowCard 1s infinite alternate}
+@keyframes glowCard{0%{box-shadow:0 0 4px var(--ca)44}100%{box-shadow:0 0 10px var(--ca)88}}
+.qcard-top{display:flex;align-items:flex-start;gap:8px}
+.qcard-icon{font-size:18px;flex-shrink:0;width:28px;text-align:center;margin-top:1px}
+.qcard-info{flex:1;min-width:0}
+.qcard-name{font-size:11px;font-weight:700;color:#e0e8f0;margin-bottom:2px}
+.qcard-desc{font-family:var(--tf);font-size:9px;color:#5a7a94;line-height:1.5}
+.qcard-reward{font-family:var(--tf);font-size:9px;color:var(--ca);margin-top:1px}
+.qcard-prog{display:flex;align-items:center;gap:6px}
+.qpbar{flex:1;height:4px;border-radius:2px;background:#1a2535;overflow:hidden}
+.qpfill{height:100%;border-radius:2px;background:var(--ct);transition:width .4s}
+.qcard.complete .qpfill{background:#1D9E75}
+.qpct{font-family:var(--tf);font-size:8px;color:#7a9ab8;flex-shrink:0;min-width:32px;text-align:right}
+.qclaim-btn{
+  font-family:var(--tf);font-size:9px;padding:3px 10px;border-radius:4px;
+  border:1px solid var(--ca);background:var(--ca)22;color:var(--ca);cursor:pointer;
+  flex-shrink:0;transition:.1s;
+}
+.qclaim-btn:active{background:var(--ca);color:var(--c0)}
+.qcard-badge{
+  position:absolute;top:6px;right:8px;
+  font-family:var(--tf);font-size:8px;padding:1px 6px;border-radius:20px;
+}
+.qbadge-daily{background:#7f77dd22;color:#7f77dd;border:1px solid #7f77dd44}
+.qbadge-weekly{background:#ba751722;color:#BA7517;border:1px solid #BA751744}
+.qbadge-achiev{background:#e24b4b22;color:#E24B4A;border:1px solid #E24B4A44}
+.qbadge-story{background:#1D9E7522;color:#1D9E75;border:1px solid #1D9E7544}
+
+/* 보상 팝업 */
+#reward-popup{
+  position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%) scale(.85);
+  background:#0d1117ee;border:2px solid var(--ca);border-radius:12px;
+  padding:16px 22px;text-align:center;z-index:200;
+  display:none;pointer-events:none;
+  opacity:0;transition:opacity .2s, transform .2s;
+  min-width:180px;
+}
+#reward-popup.show{opacity:1;transform:translate(-50%,-50%) scale(1);display:block}
+.rp-title{font-family:var(--tf);font-size:11px;color:var(--ca);letter-spacing:2px;margin-bottom:8px}
+.rp-icon{font-size:28px;margin-bottom:6px}
+.rp-text{font-family:var(--tf);font-size:10px;color:#c0d8f0;line-height:1.6}
+
+/* 인게임 퀘스트 추적기 */
+#quest-tracker{
+  position:absolute;bottom:calc(70px + var(--safe-bot) + 8px);right:8px;
+  width:160px;pointer-events:none;z-index:20;
+  display:flex;flex-direction:column;gap:3px;
+}
+.qtk{
+  background:#07090dbb;border:1px solid var(--c3)55;border-radius:5px;
+  padding:4px 7px;
+}
+.qtk-name{font-family:var(--tf);font-size:8px;color:#a0bcd0;margin-bottom:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.qtk-bar{height:3px;border-radius:2px;background:#1a2535;overflow:hidden}
+.qtk-fill{height:100%;border-radius:2px;background:var(--ct);transition:width .3s}
+
+/* ══════════════════════════════════════
+   VISUAL IMPROVEMENTS
+══════════════════════════════════════ */
+/* 화면 전환 애니메이션 */
+.scr{transition:opacity .18s}
+.scr.hidden{opacity:0;pointer-events:none}
+.scr:not(.hidden){opacity:1}
+
+/* 강화된 타이틀 화면 */
+.stitle{
+  text-shadow:0 0 20px var(--ct)66, 0 0 40px var(--ct)33;
+  animation:titlePulse 3s infinite alternate;
+}
+@keyframes titlePulse{0%{text-shadow:0 0 18px var(--ct)55,0 0 35px var(--ct)22}100%{text-shadow:0 0 28px var(--ct)99,0 0 55px var(--ct)55}}
+
+/* 스킬 버튼 강화 */
+.skbtn{
+  position:relative;overflow:hidden;
+  transition:border-color .12s,background .12s,transform .08s,box-shadow .12s;
+}
+.skbtn:active{transform:scale(.92);box-shadow:0 0 8px var(--ca)88}
+.skbtn.act{box-shadow:0 0 12px var(--ca)cc}
+.skbtn::after{
+  content:'';position:absolute;inset:0;border-radius:8px;
+  background:radial-gradient(circle at 50% 50%, rgba(255,255,255,0.08) 0%, transparent 70%);
+  pointer-events:none;
+}
+
+/* 바 강화 */
+.bfill{
+  background:linear-gradient(90deg, #c03030 0%, #e24b4b 100%);
+  box-shadow:0 0 6px #e24b4b66;
+}
+.expf{
+  background:linear-gradient(90deg, #5a50c0 0%, #7f77dd 100%) !important;
+  box-shadow:0 0 5px #7f77dd55 !important;
+}
+.hpf{
+  background:linear-gradient(90deg, #b03030 0%, #e24b4b 100%) !important;
+}
+
+/* HUD 개선 */
+.char-hud{
+  background:linear-gradient(135deg, var(--c1)ee 0%, var(--c2)ee 100%);
+  box-shadow:0 2px 8px rgba(0,0,0,0.4);
+  border-color:var(--c3) !important;
+}
+.hchip{
+  background:linear-gradient(135deg, var(--c1)ee 0%, var(--c2)dd 100%);
+  box-shadow:0 1px 4px rgba(0,0,0,0.3);
+  transition:border-color .12s, color .12s, transform .08s;
+}
+.hchip:active{transform:scale(.93)}
+
+/* 토스트 강화 */
+#toast{
+  position:absolute;bottom:calc(74px + var(--safe-bot));left:50%;
+  transform:translateX(-50%);background:var(--c1)ee;
+  border:1px solid var(--ct)88;border-radius:6px;padding:5px 14px;
+  font-family:var(--tf);font-size:11px;color:var(--ct);z-index:100;
+  display:none;white-space:nowrap;pointer-events:none;
+  box-shadow:0 4px 16px rgba(0,0,0,0.5), 0 0 12px var(--ct)33;
+  animation:toastFadeIn .2s ease;
+}
+@keyframes toastFadeIn{from{opacity:0;transform:translateX(-50%) translateY(6px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* 미니맵 강화 */
+#minimap{
+  box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  border-color:var(--c3) !important;
+}
+
+/* 스테이지 클리어 오버레이 강화 */
+#stage-clear{
+  background:linear-gradient(180deg, rgba(7,9,13,0.92) 0%, rgba(13,17,23,0.96) 100%) !important;
+  backdrop-filter:blur(2px);
+}
+.sc-title{
+  text-shadow:0 0 20px var(--ct)88;
+  animation:clearTitle .5s ease-out;
+}
+@keyframes clearTitle{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* 상점 강화 */
+.shop-item{
+  background:linear-gradient(135deg, var(--c1) 0%, var(--c2)88 100%);
+  border-color:var(--c3)88 !important;
+  transition:border-color .12s, background .12s, transform .08s;
+}
+.shop-item:active{transform:scale(.98)}
+.shop-item.s-grade{
+  background:linear-gradient(135deg, #1a130a 0%, #221808 100%) !important;
+  box-shadow:0 0 6px #ef9f2733;
+}
+.shop-item.a-grade{
+  background:linear-gradient(135deg, #0d1a1f 0%, #101e24 100%) !important;
+}
+
+/* 버튼 강화 */
+.sbtn{
+  transition:background .15s, color .15s, transform .08s, box-shadow .15s;
+  text-shadow:none;
+}
+.sbtn:hover{
+  box-shadow:0 0 10px currentColor;
+  transform:translateY(-1px);
+}
+.sbtn:active{transform:scale(.96)}
+
+/* 인벤 패널 강화 */
+.inv-panel{
+  background:linear-gradient(180deg, var(--c1) 0%, var(--c0) 100%) !important;
+}
+.islot{
+  transition:border-color .12s, background .12s, transform .08s;
+}
+.islot:active{transform:scale(.93)}
+
+/* 보스 HP바 */
+#boss-hp-bar-wrap{
+  position:absolute;bottom:calc(70px + var(--safe-bot) + 6px);left:50%;
+  transform:translateX(-50%);width:min(320px, 80vw);
+  background:#07090dcc;border:1px solid var(--cr)55;border-radius:6px;
+  padding:5px 8px;z-index:30;display:none;pointer-events:none;
+}
+#boss-hp-bar-wrap.show{display:block}
+.boss-name-lbl{font-family:var(--tf);font-size:9px;color:var(--cr);margin-bottom:3px;text-align:center;letter-spacing:1px}
+.boss-hp-bg{height:6px;border-radius:3px;background:#1a2535;overflow:hidden}
+.boss-hp-fill{height:100%;border-radius:3px;
+  background:linear-gradient(90deg, #8b0000 0%, #e24b4b 100%);
+  box-shadow:0 0 6px #e24b4b88;transition:width .3s;}
+
+/* 레벨업 팝업 강화 */
+#lvup-popup{
+  background:linear-gradient(135deg, #0d1117ee 0%, #1a1030ee 100%) !important;
+  box-shadow:0 4px 20px rgba(127,119,221,0.3);
+}
+.lvup-t{text-shadow:0 0 12px var(--cp)99}
+
+/* 파티클 캔버스 효과 강화 — CSS 레이어로 depth */
+#game-wrap::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:1;
+  background:radial-gradient(ellipse at 50% 100%, rgba(29,58,95,0.06) 0%, transparent 70%);
+}
+
+/* 채팅 패널 */
+#chat-panel{
+  position:absolute;bottom:calc(70px + var(--safe-bot));left:8px;
+  width:min(240px,55vw);
+  background:#07090dcc;border:1px solid var(--c3)66;border-radius:6px;
+  display:flex;flex-direction:column;gap:0;overflow:hidden;z-index:22;
+  box-shadow:0 2px 10px rgba(0,0,0,0.4);
+}
+#chat-log{
+  flex:1;overflow-y:auto;max-height:100px;padding:4px 6px;
+}
+.chat-line{font-family:var(--tf);font-size:9px;line-height:1.6;padding:1px 0}
+.chat-sys{color:#5a7a94;font-style:italic}
+#chat-input-row{display:flex;gap:4px;padding:4px 6px;border-top:1px solid var(--c3)44}
+#chat-inp{flex:1;font-family:var(--tf);font-size:10px;background:transparent;border:none;outline:none;color:#e0e8f0}
+#chat-send{font-family:var(--tf);font-size:9px;padding:2px 7px;border:1px solid var(--c3);border-radius:3px;background:transparent;color:#5a7a94;cursor:pointer}
+#chat-send:active{color:var(--ct);border-color:var(--ct)}
+#chat-toggle{
+  position:absolute;bottom:calc(70px + var(--safe-bot));left:8px;
+  font-family:var(--tf);font-size:9px;padding:3px 8px;border-radius:4px;
+  background:var(--c2)cc;border:1px solid var(--c3);color:#7a9ab8;cursor:pointer;z-index:22;
+}
+
+/* 화면 스캔라인 효과 (경미) */
+@keyframes scanline{0%{background-position:0 0}100%{background-position:0 100%}}
+
+/* 수치 플로팅 텍스트 강화 */
+.float-crit{font-size:16px!important;color:#ef9f27!important}
+
+/* auth 화면 강화 */
+.auth-input{
+  transition:border-color .15s, box-shadow .15s;
+}
+.auth-input:focus{
+  border-color:var(--ct) !important;
+  box-shadow:0 0 6px var(--ct)44;
+}
+
+/* 로그인 화면 배경 */
+#scr-login .stitle{
+  font-size:26px;
+  background:linear-gradient(135deg, var(--ct) 0%, #5dcaa5 50%, var(--cp) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:none;text-shadow:none;
+}
+
 /* ── 랭킹 ── */
 #scr-ranking{overflow-y:auto}
 .rank-table{width:100%;max-width:480px;border-collapse:collapse;margin-top:8px}
@@ -515,6 +808,7 @@ canvas{display:block;width:100%;height:100%}
       <div class="hchip" id="stat-kills">처치 0</div>
       <div class="hchip" id="stat-gold">💰 0</div>
       <div class="hchip" id="stat-time">00:00</div>
+      <div class="hchip" onclick="showQuest()">📋 퀘스트<span id="quest-badge" class=""></span></div>
       <div class="hchip" onclick="showFloorMap()">🗺 층</div>
       <div class="hchip" onclick="showInv()">🎒 인벤</div>
       <div class="hchip" style="color:#f5c842" onclick="openShop()">🏪 상점</div>
@@ -555,6 +849,22 @@ canvas{display:block;width:100%;height:100%}
   <!-- 멀티 파티 HUD -->
   <div id="multi-party-hud"></div>
 
+  <!-- 보스 HP바 (인게임 중앙 하단) -->
+  <div id="boss-hp-bar-wrap">
+    <div class="boss-name-lbl" id="boss-name-lbl">SENTINEL-7</div>
+    <div class="boss-hp-bg"><div class="boss-hp-fill" id="boss-hp-fill" style="width:100%"></div></div>
+  </div>
+
+  <!-- 인게임 퀘스트 트래커 -->
+  <div id="quest-tracker"></div>
+
+  <!-- 보상 팝업 -->
+  <div id="reward-popup">
+    <div class="rp-title">퀘스트 완료!</div>
+    <div class="rp-icon" id="rp-icon">🎁</div>
+    <div class="rp-text" id="rp-text">보상 지급됨</div>
+  </div>
+
   <!-- STAGE CLEAR -->
   <div id="stage-clear">
     <div class="sc-title" id="sc-title">STAGE CLEAR!</div>
@@ -579,6 +889,7 @@ canvas{display:block;width:100%;height:100%}
     <button class="sbtn" onclick="showScr('char-select')">[ 게임 시작 ]</button>
     <button class="sbtn" style="border-color:var(--cp);color:var(--cp)" onclick="showScr('ranking')">[ 🏆 랭킹 ]</button>
     <button class="sbtn" style="border-color:#5dcaa5;color:#5dcaa5" onclick="showScr('board')">[ 📋 게시판 ]</button>
+    <button class="sbtn" style="border-color:var(--ca);color:var(--ca)" onclick="showQuest()">[ 📜 퀘스트 ]</button>
     <button class="sbtn gray" onclick="showScr('settings')">[ 설 정 ]</button>
     <button class="sbtn red" style="margin-top:10px;font-size:10px;padding:5px 18px" onclick="logout()">로그아웃</button>
   </div>
@@ -813,6 +1124,21 @@ canvas{display:block;width:100%;height:100%}
     </div>
     <!-- 아이템 상세 (선택 시) -->
     <div class="item-detail" id="item-detail" style="display:none;flex-shrink:0;margin-top:5px"></div>
+  </div>
+
+  <!-- 퀘스트 / 도전과제 화면 -->
+  <div id="quest-screen" class="hidden">
+    <div class="qs-header">
+      <div class="qs-title">📋 퀘스트</div>
+      <button class="sbtn gray" style="padding:3px 10px;font-size:10px" onclick="hideQuest()">닫기</button>
+    </div>
+    <div class="qs-tabs">
+      <button class="qs-tab active" id="qs-tab-daily"   onclick="setQuestTab('daily')">일일</button>
+      <button class="qs-tab"        id="qs-tab-weekly"  onclick="setQuestTab('weekly')">주간</button>
+      <button class="qs-tab"        id="qs-tab-achieve" onclick="setQuestTab('achieve')">도전과제</button>
+      <button class="qs-tab"        id="qs-tab-story"   onclick="setQuestTab('story')">스토리</button>
+    </div>
+    <div class="qs-list" id="qs-list"></div>
   </div>
 
   <!-- GAME OVER -->
@@ -1109,6 +1435,7 @@ function hideAllOverlays(){
   const fm=document.getElementById('floor-map-screen');if(fm)fm.classList.add('hidden');
   const inv=document.getElementById('inv-screen');if(inv)inv.classList.add('hidden');
   const sc=document.getElementById('stage-clear');if(sc)sc.style.display='none';
+  const qs=document.getElementById('quest-screen');if(qs)qs.classList.add('hidden');
 }
 function showShop(){nextFloor();}
 function hideShop(){}
@@ -1337,6 +1664,10 @@ function addItem(itemId,qty=1){
   if(!base)return;
   for(let i=0;i<qty;i++) inventory.push({item:{...base},enhLevel:0});
   showToast(`${base.name} 획득!`);
+  // 퀘스트 연동
+  questState.sessionLoot = (questState.sessionLoot||0) + qty;
+  questProgress('loot', qty);
+  if(base.grade === 'S') questProgress('s_grade', 1, {grade:'S'});
 }
 let selInvIdx=-1;
 let selEnhIdx=-1;
@@ -1572,6 +1903,7 @@ function doEnhance(method){
     showToast(`✨ 강화 성공! +${inventory[selEnhIdx].enhLevel}`);
     addLog(`${e.item.name} +${inventory[selEnhIdx].enhLevel} 강화 성공!`,'lsys');
     sparks(player?.x||0,player?.y||0,'#ef9f27',15);
+    questProgress('enhance', 1, {level: inventory[selEnhIdx].enhLevel});
   } else {
     showToast('❌ 강화 실패...');
     addLog(`${e.item.name} 강화 실패`,'lhit');
@@ -1864,6 +2196,8 @@ function startGame(){
   }
   resize();buildMap(currentFloor);
   player=makePlayer(save||null);
+  loadQuestState();
+  updateQuestBadge();
   enemies=[];drops_arr=[];particles=[];floats=[];
   waveKills=0;waveNum=1;cdT=[0,0,0,0];
   startTime=Date.now();running=true;
@@ -2004,6 +2338,7 @@ function loop(ts=0){
   update();
   draw();
   if(loopTick%4===0) updateHUD();
+  if(loopTick%8===0){ updateBossHPBar(); updateQuestTracker(); }
   requestAnimationFrame(loop);
 }
 
@@ -2143,6 +2478,9 @@ function update(){
     else
       player.invincible--;
   }
+  // 생존시간 퀘스트 — 매 초마다
+  if(loopTick % 60 === 0) questProgress('survive', 1);
+
   // 힐러 자동
   if(selChar===3&&player.hp<player.maxHp*.5&&cdT[1]===0){
     const eq2=getEquipStats();const h=Math.floor((30+player.lv*5)*(1+eq2.healBonus));
@@ -2210,6 +2548,8 @@ function stageComplete(){
     }
   }
   const goldBonus=(isBoss?rand(100,300):rand(20,80))+currentFloor*10;gold+=goldBonus;
+  questProgress('gold', gold);  // 현재 골드 업데이트
+  questProgress('floor_clear', 1, {floor: currentFloor});  // 층 클리어
   document.getElementById('sc-drops').innerHTML=[...bonusDrops.map(it=>`<span class="sc-drop" style="border-color:${GRADES[it.grade].color};color:${GRADES[it.grade].color}">${it.icon} [${it.grade}] ${it.name}</span>`),`<span class="sc-drop" style="border-color:var(--ca);color:var(--ca)">💰 ${goldBonus}G</span>`].join('');
   const nb=document.getElementById('sc-next');
   nb.textContent=currentFloor<TOTAL_FLOORS-1?'다음 층으로 →':'🏆 게임 클리어!';
@@ -2226,6 +2566,9 @@ function nextFloor(){
     return;
   }
   currentFloor++;
+  questState.sessionFloors = (questState.sessionFloors||0) + 1;
+  questProgress('floors', 1);
+  questProgress('floor_reach', currentFloor);
   running=false;
   resetFloor();
   startBGM(currentFloor);
@@ -2240,6 +2583,9 @@ function useSkill(i){
   if(cdT[i]>0)return;
   const sk=SKDATA[selChar][i];if(!sk)return;
   cdT[i]=sk.cd;
+  // 퀘스트 연동
+  questState.sessionSkills = (questState.sessionSkills||0) + 1;
+  questProgress('skills', 1);
   document.getElementById('sk'+i).classList.add('act');
   setTimeout(()=>document.getElementById('sk'+i).classList.remove('act'),200);
 
@@ -2330,6 +2676,17 @@ function useSkill(i){
 
 function killEnemy(e){
   kills++;waveKills++;
+  // 퀘스트 연동
+  questState.sessionKills++;
+  questProgress('kills', 1);
+  if(e.boss){
+    questState.sessionBoss++;
+    questState.totalBossKills = (questState.totalBossKills||0) + 1;
+    questProgress('boss', 1);
+    questProgress('boss_noheal', 1);
+    questProgress('boss_floor', 1, {floor: currentFloor});
+    questHealedThisBoss = false; // 다음 보스전 리셋
+  }
   const eq=getEquipStats();
   const eb=selChar===2?.2:0,dr=eq.dropBonus+(selChar===1?.15:0);
   const ex=Math.floor(e.exp*(1+eb));
@@ -2363,6 +2720,7 @@ function killEnemy(e){
     const cd=CHARS[selChar];
     player.maxHp=Math.floor(cd.stats.HP*(1+(player.lv-1)*.12));player.hp=player.maxHp;
     player.atk=Math.floor(cd.stats.ATK*(1+(player.lv-1)*.1));player.def=Math.floor(cd.stats.DEF*(1+(player.lv-1)*.08));
+    questProgress('level', player.lv);
     SFX.levelup();
     spawnSkillFX('levelup',player.x,player.y,0,'#7f77dd');
     const pp=document.getElementById('lvup-popup');
@@ -3907,6 +4265,8 @@ function afterLogin(){
   if(wsEl) wsEl.value=getWsUrl();
   showScr('title');
   startBGM(0);
+  loadQuestState();
+  updateQuestBadge();
 }
 
 function logout(){
@@ -4367,6 +4727,350 @@ function sendChat(){
 }
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ═══════ QUEST / ACHIEVEMENT SYSTEM ═══════ */
+
+// ── 퀘스트 정의 ──
+const QUEST_DEFS = {
+  // 일일 퀘스트 (매일 리셋)
+  daily: [
+    {id:'d_kills_10',    name:'처치 10마리',          icon:'⚔',  desc:'적 10마리를 처치하세요',              type:'kills',   target:10,  reward:{gold:150, exp:50},   badge:'daily'},
+    {id:'d_kills_30',    name:'처치 30마리',          icon:'💀',  desc:'적 30마리를 처치하세요',              type:'kills',   target:30,  reward:{gold:350, exp:120},  badge:'daily'},
+    {id:'d_floor_3',     name:'3층 탐험',             icon:'🏢',  desc:'3개 층을 클리어하세요',               type:'floors',  target:3,   reward:{gold:200, exp:80},   badge:'daily'},
+    {id:'d_gold_500',    name:'골드 500 획득',        icon:'💰',  desc:'골드 500을 모으세요',                 type:'gold',    target:500, reward:{gold:100, item:'potion_m'}, badge:'daily'},
+    {id:'d_use_skill',   name:'스킬 20회 사용',       icon:'⚡',  desc:'스킬을 20회 사용하세요',              type:'skills',  target:20,  reward:{gold:120, exp:60},   badge:'daily'},
+    {id:'d_boss_kill',   name:'보스 처치',            icon:'👹',  desc:'보스 몬스터를 처치하세요',            type:'boss',    target:1,   reward:{gold:500, exp:200},  badge:'daily'},
+    {id:'d_loot_5',      name:'아이템 5개 수집',     icon:'🎁',  desc:'드롭 아이템을 5개 줍세요',            type:'loot',    target:5,   reward:{gold:180, exp:70},   badge:'daily'},
+    {id:'d_survive_10',  name:'10분 생존',            icon:'⏱',  desc:'10분 이상 생존하세요',               type:'survive', target:600, reward:{gold:250, exp:100},  badge:'daily'},
+  ],
+  // 주간 퀘스트
+  weekly: [
+    {id:'w_kills_200',   name:'처치 200마리',         icon:'⚔',  desc:'주간 200마리를 처치하세요',           type:'kills',   target:200, reward:{gold:1500, exp:500, item:'potion_l'}, badge:'weekly'},
+    {id:'w_floor_15',    name:'15층 돌파',            icon:'🗼',  desc:'15층 이상 도달하세요',                type:'floor_reach', target:15, reward:{gold:2000, exp:600}, badge:'weekly'},
+    {id:'w_boss_5',      name:'보스 5회 처치',        icon:'👑',  desc:'보스를 5회 처치하세요',               type:'boss',    target:5,   reward:{gold:3000, exp:1000, item:'elixir'}, badge:'weekly'},
+    {id:'w_gold_5000',   name:'골드 5000 획득',       icon:'💎',  desc:'골드 5000을 모으세요',               type:'gold',    target:5000,reward:{gold:1000, exp:400}, badge:'weekly'},
+    {id:'w_multi',       name:'멀티플레이 3회',       icon:'👥',  desc:'멀티플레이로 3회 클리어',            type:'multi',   target:3,   reward:{gold:2500, exp:800, item:'ai_core'}, badge:'weekly'},
+  ],
+  // 도전과제 (영구 — 한 번만 달성)
+  achieve: [
+    {id:'a_first_kill',  name:'첫 번째 처치',         icon:'🩸',  desc:'첫 적을 처치하세요',                  type:'kills',   target:1,   reward:{gold:100, title:'새내기 생존자'}, badge:'achiev'},
+    {id:'a_kills_100',   name:'백 처치자',            icon:'⚔',  desc:'100마리를 처치하세요',               type:'kills',   target:100, reward:{gold:500, title:'백전용사'},     badge:'achiev'},
+    {id:'a_kills_1000',  name:'학살자',               icon:'💀',  desc:'1000마리를 처치하세요',              type:'kills',   target:1000,reward:{gold:3000,title:'학살자'},      badge:'achiev'},
+    {id:'a_floor_10',    name:'중층 탐험가',          icon:'🏢',  desc:'10층에 도달하세요',                  type:'floor_reach', target:10, reward:{gold:800, exp:500},      badge:'achiev'},
+    {id:'a_floor_27',    name:'APT 정복자',           icon:'🏆',  desc:'최고층(25F)에 도달하세요',           type:'floor_reach', target:27, reward:{gold:9999, title:'APT 정복자'}, badge:'achiev'},
+    {id:'a_boss_all',    name:'보스 헌터',            icon:'👑',  desc:'모든 보스를 처치하세요',              type:'boss',    target:6,   reward:{gold:5000, title:'보스 헌터'},   badge:'achiev'},
+    {id:'a_lv20',        name:'강화된 생존자',        icon:'💪',  desc:'레벨 20에 달성하세요',               type:'level',   target:20,  reward:{gold:1200, exp:800},              badge:'achiev'},
+    {id:'a_lv50',        name:'전설의 생존자',        icon:'🌟',  desc:'레벨 50에 달성하세요',               type:'level',   target:50,  reward:{gold:5000, title:'전설'},         badge:'achiev'},
+    {id:'a_gold_10000',  name:'부자',                 icon:'💰',  desc:'골드 10000을 모으세요',              type:'gold',    target:10000,reward:{gold:2000, exp:600},            badge:'achiev'},
+    {id:'a_enh_5',       name:'강화 마스터',          icon:'🔨',  desc:'아이템 +5 강화에 성공하세요',        type:'enhance', target:5,   reward:{gold:1500, item:'nano_bot'},      badge:'achiev'},
+    {id:'a_s_item',      name:'S등급 보유자',         icon:'🗡️',  desc:'S등급 아이템을 획득하세요',          type:'s_grade', target:1,   reward:{gold:2000, title:'S급 전사'},     badge:'achiev'},
+    {id:'a_no_heal',     name:'철의 의지',            icon:'🔩',  desc:'회복 없이 보스를 처치하세요',        type:'boss_noheal', target:1, reward:{gold:3000, title:'철인'},        badge:'achiev'},
+    {id:'a_multi_win',   name:'파티의 영웅',          icon:'👥',  desc:'멀티플레이로 보스를 처치하세요',     type:'multi_boss',target:1,  reward:{gold:2000, title:'파티 리더'},    badge:'achiev'},
+  ],
+  // 스토리 퀘스트
+  story: [
+    {id:'s_intro',       name:'[1] 탈출의 시작',      icon:'🚪',  desc:'B3F를 클리어하세요',                 type:'floor_clear', target:0, reward:{gold:200, exp:100}, badge:'story', sequence:0},
+    {id:'s_basement',    name:'[2] 지하를 벗어나',    icon:'🕳',  desc:'B1F(2층)를 클리어하세요',            type:'floor_clear', target:2, reward:{gold:400, exp:200}, badge:'story', sequence:1},
+    {id:'s_first_boss',  name:'[3] 최초의 적대',      icon:'🤖',  desc:'첫 번째 보스를 처치하세요',          type:'boss',    target:1,   reward:{gold:600, exp:300, item:'mod_gun'}, badge:'story', sequence:2},
+    {id:'s_mid',         name:'[4] 아파트 중층',      icon:'🏢',  desc:'10F(12층)에 도달하세요',             type:'floor_reach', target:12, reward:{gold:1000, exp:500, item:'nano_suit'}, badge:'story', sequence:3},
+    {id:'s_apex',        name:'[5] APEX와의 전쟁',    icon:'⚡',  desc:'APEX-α를 처치하세요 (22층)',        type:'boss_floor', target:22, reward:{gold:3000, exp:1500, item:'plasma_rod'}, badge:'story', sequence:4},
+    {id:'s_final',       name:'[6] APT 정복',         icon:'🏆',  desc:'최종 보스 APEX CORE를 처치하세요', type:'boss_floor', target:27, reward:{gold:9999, exp:5000, item:'apex_slayer'}, badge:'story', sequence:5},
+  ],
+};
+
+// 퀘스트 상태 저장
+let questState = {
+  daily:   {},  // questId → {prog, claimed, resetDate}
+  weekly:  {},  // questId → {prog, claimed, resetDate}
+  achieve: {},  // questId → {prog, claimed}
+  story:   {},  // questId → {prog, claimed}
+  // 세션 카운터 (이번 플레이)
+  sessionKills: 0,
+  sessionFloors: 0,
+  sessionSkills: 0,
+  sessionLoot:   0,
+  sessionBoss:   0,
+  sessionBossNoHeal: false,
+  sessionMulti:  0,
+  sessionMultiBoss: 0,
+  bossDamageThisFloor: false,  // 보스전 중 피격 여부 추적
+  totalBossKills: 0,
+};
+let currentQuestTab = 'daily';
+let questHealedThisBoss = false; // 보스전 힐 여부 추적
+
+function loadQuestState(){
+  try{
+    const raw = localStorage.getItem('apt_quest_'+(currentUser?.nick||'guest'));
+    if(raw){
+      const parsed = JSON.parse(raw);
+      Object.assign(questState, parsed);
+    }
+  }catch(e){}
+  // 일일 리셋
+  const today = new Date().toDateString();
+  Object.keys(QUEST_DEFS.daily).forEach((_,i)=>{
+    const q = QUEST_DEFS.daily[i];
+    const s = questState.daily[q.id];
+    if(!s || s.resetDate !== today){
+      questState.daily[q.id] = {prog:0, claimed:false, resetDate:today};
+    }
+  });
+  // 주간 리셋
+  const weekKey = getWeekKey();
+  QUEST_DEFS.weekly.forEach(q=>{
+    const s = questState.weekly[q.id];
+    if(!s || s.resetDate !== weekKey){
+      questState.weekly[q.id] = {prog:0, claimed:false, resetDate:weekKey};
+    }
+  });
+  // 도전과제 / 스토리 초기화
+  [...QUEST_DEFS.achieve, ...QUEST_DEFS.story].forEach(q=>{
+    const cat = q.badge === 'story' ? 'story' : 'achieve';
+    if(!questState[cat][q.id]){
+      questState[cat][q.id] = {prog:0, claimed:false};
+    }
+  });
+}
+
+function saveQuestState(){
+  try{
+    const key = 'apt_quest_'+(currentUser?.nick||'guest');
+    localStorage.setItem(key, JSON.stringify(questState));
+  }catch(e){}
+}
+
+function getWeekKey(){
+  const d = new Date();
+  const day = d.getDay(); // 0=일
+  const diff = d.getDate() - day + (day===0?-6:1);
+  const monday = new Date(d.setDate(diff));
+  return monday.toDateString();
+}
+
+// ── 퀘스트 진행도 업데이트 ──
+function questProgress(type, amount=1, extra={}){
+  let changed = false;
+  const allQuests = [
+    ...QUEST_DEFS.daily.map(q=>({q,cat:'daily'})),
+    ...QUEST_DEFS.weekly.map(q=>({q,cat:'weekly'})),
+    ...QUEST_DEFS.achieve.map(q=>({q,cat:'achieve'})),
+    ...QUEST_DEFS.story.map(q=>({q,cat:'story'})),
+  ];
+  allQuests.forEach(({q, cat})=>{
+    if(q.type !== type) return;
+    const s = questState[cat][q.id];
+    if(!s || s.claimed) return;
+    if(s.prog >= q.target) return;
+    // 특수 타입 처리
+    if(type === 'floor_reach' || type === 'level'){
+      if(amount >= q.target && s.prog < q.target){
+        s.prog = q.target;
+        changed = true;
+      }
+    } else if(type === 'gold'){
+      s.prog = Math.min(q.target, amount); // 현재 골드
+      changed = true;
+    } else if(type === 'floor_clear'){
+      if(extra.floor === q.target && s.prog < q.target + 1){
+        s.prog = q.target + 1;
+        changed = true;
+      }
+    } else if(type === 'boss_floor'){
+      if(extra.floor === q.target && s.prog < 1){
+        s.prog = 1;
+        changed = true;
+      }
+    } else if(type === 'boss_noheal'){
+      if(!questHealedThisBoss) { s.prog = Math.min(q.target, s.prog + 1); changed = true; }
+    } else if(type === 'enhance'){
+      if(extra.level >= q.target) { s.prog = Math.min(q.target, extra.level); changed = true; }
+    } else if(type === 's_grade'){
+      if(extra.grade === 'S') { s.prog = 1; changed = true; }
+    } else {
+      s.prog = Math.min(q.target, s.prog + amount);
+      changed = true;
+    }
+  });
+  if(changed){
+    saveQuestState();
+    updateQuestBadge();
+    updateQuestTracker();
+  }
+}
+
+// ── 클리임 가능한 퀘스트 수 ──
+function countClaimable(){
+  let n = 0;
+  ['daily','weekly','achieve','story'].forEach(cat=>{
+    QUEST_DEFS[cat].forEach(q=>{
+      const s = questState[cat]?.[q.id];
+      if(s && s.prog >= q.target && !s.claimed) n++;
+    });
+  });
+  return n;
+}
+
+function updateQuestBadge(){
+  const badge = document.getElementById('quest-badge');
+  if(!badge) return;
+  const n = countClaimable();
+  if(n > 0){
+    badge.textContent = n;
+    badge.className = 'show';
+    badge.style.cssText = 'display:flex;width:14px;height:14px;border-radius:50%;background:var(--cr);color:#fff;font-size:7px;font-weight:700;align-items:center;justify-content:center;margin-left:3px;animation:pulseBadge .8s infinite alternate';
+  } else {
+    badge.style.display = 'none';
+    badge.textContent = '';
+  }
+}
+
+// ── 퀘스트 UI ──
+let questOpen = false;
+
+function showQuest(){
+  questOpen = true;
+  if(player) player.invincible = 9999;
+  loadQuestState();
+  document.getElementById('quest-screen').classList.remove('hidden');
+  renderQuestList();
+}
+
+function hideQuest(){
+  questOpen = false;
+  if(player) player.invincible = Math.min(player.invincible, 30);
+  document.getElementById('quest-screen').classList.add('hidden');
+}
+
+function setQuestTab(tab){
+  currentQuestTab = tab;
+  ['daily','weekly','achieve','story'].forEach(t=>{
+    document.getElementById('qs-tab-'+t)?.classList.toggle('active', t===tab);
+  });
+  renderQuestList();
+}
+
+function renderQuestList(){
+  const list = document.getElementById('qs-list');
+  if(!list) return;
+  const defs = QUEST_DEFS[currentQuestTab];
+  if(!defs?.length){ list.innerHTML='<div style="font-family:var(--tf);font-size:10px;color:#5a7a94;text-align:center;padding:24px">퀘스트 없음</div>'; return; }
+
+  list.innerHTML = defs.map(q=>{
+    const s = questState[currentQuestTab]?.[q.id] || {prog:0, claimed:false};
+    const pct = Math.min(100, Math.round(s.prog / q.target * 100));
+    const done = s.prog >= q.target;
+    const claimed = s.claimed;
+
+    // 보상 텍스트
+    const rw = q.reward;
+    const rwParts = [];
+    if(rw.gold) rwParts.push(`💰 ${rw.gold}G`);
+    if(rw.exp)  rwParts.push(`✨ EXP +${rw.exp}`);
+    if(rw.item){ const it = ITEM_POOL.find(x=>x.id===rw.item); if(it) rwParts.push(`${it.icon} ${it.name}`); }
+    if(rw.title) rwParts.push(`🏅 칭호: ${rw.title}`);
+
+    const cardCls = claimed ? 'qcard complete' : done ? 'qcard claimable' : 'qcard';
+    const progTxt = claimed ? '완료 ✓' : `${s.prog} / ${q.target}`;
+
+    return `<div class="${cardCls}">
+      <span class="qcard-badge qbadge-${q.badge}">${q.badge==='daily'?'일일':q.badge==='weekly'?'주간':q.badge==='story'?'스토리':'도전'}</span>
+      <div class="qcard-top">
+        <div class="qcard-icon">${q.icon}</div>
+        <div class="qcard-info">
+          <div class="qcard-name">${q.name}</div>
+          <div class="qcard-desc">${q.desc}</div>
+          <div class="qcard-reward">보상: ${rwParts.join('  ')}</div>
+        </div>
+        ${done&&!claimed ? `<button class="qclaim-btn" onclick="claimQuest('${currentQuestTab}','${q.id}')">수령</button>` : ''}
+        ${claimed ? `<div style="font-family:var(--tf);font-size:10px;color:#1D9E75;flex-shrink:0">✓</div>` : ''}
+      </div>
+      <div class="qcard-prog">
+        <div class="qpbar"><div class="qpfill" style="width:${pct}%"></div></div>
+        <div class="qpct">${progTxt}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function claimQuest(cat, qid){
+  const q = QUEST_DEFS[cat]?.find(x=>x.id===qid);
+  const s = questState[cat]?.[qid];
+  if(!q || !s || s.prog < q.target || s.claimed) return;
+
+  s.claimed = true;
+  const rw = q.reward;
+
+  // 보상 지급
+  if(rw.gold) gold += rw.gold;
+  if(rw.exp && player) { player.exp = (player.exp||0) + rw.exp; }
+  if(rw.item) addItem(rw.item);
+  if(rw.title) showToast(`🏅 칭호 획득: ${rw.title}`);
+
+  saveQuestState();
+  updateQuestBadge();
+  renderQuestList();
+
+  // 보상 팝업
+  const rwParts = [];
+  if(rw.gold) rwParts.push(`💰 골드 +${rw.gold}`);
+  if(rw.exp)  rwParts.push(`✨ EXP +${rw.exp}`);
+  if(rw.item){ const it = ITEM_POOL.find(x=>x.id===rw.item); if(it) rwParts.push(`${it.icon} ${it.name}`); }
+  if(rw.title) rwParts.push(`🏅 ${rw.title}`);
+
+  showRewardPopup(q.icon, q.name, rwParts.join('\n'));
+  SFX.levelup && SFX.levelup();
+}
+
+function showRewardPopup(icon, title, text){
+  const popup = document.getElementById('reward-popup');
+  if(!popup) return;
+  document.getElementById('rp-icon').textContent = icon;
+  document.getElementById('rp-text').textContent = text;
+  popup.style.display = 'block';
+  requestAnimationFrame(()=>popup.classList.add('show'));
+  clearTimeout(popup._timer);
+  popup._timer = setTimeout(()=>{
+    popup.classList.remove('show');
+    setTimeout(()=>popup.style.display='none', 250);
+  }, 2500);
+}
+
+// ── 인게임 트래커 (진행 중인 일일 퀘스트 최대 3개) ──
+function updateQuestTracker(){
+  const tracker = document.getElementById('quest-tracker');
+  if(!tracker || !running) return;
+
+  const active = QUEST_DEFS.daily.filter(q=>{
+    const s = questState.daily?.[q.id];
+    return s && !s.claimed && s.prog < q.target;
+  }).slice(0, 3);
+
+  tracker.innerHTML = active.map(q=>{
+    const s = questState.daily[q.id];
+    const pct = Math.min(100, Math.round(s.prog / q.target * 100));
+    return `<div class="qtk">
+      <div class="qtk-name">${q.icon} ${q.name} (${s.prog}/${q.target})</div>
+      <div class="qtk-bar"><div class="qtk-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── 보스 HP바 ──
+function updateBossHPBar(){
+  const wrap = document.getElementById('boss-hp-bar-wrap');
+  if(!wrap) return;
+  const boss = enemies.find(e=>e.boss);
+  if(boss && running){
+    wrap.classList.add('show');
+    document.getElementById('boss-name-lbl').textContent = boss.name;
+    const pct = Math.max(0, Math.min(100, boss.hp / boss.maxHp * 100));
+    const fill = document.getElementById('boss-hp-fill');
+    if(fill) fill.style.width = pct + '%';
+  } else {
+    wrap.classList.remove('show');
+  }
+}
 
 /* ═══════ INIT ═══════ */
 loadKB();updateKeyLabels();
