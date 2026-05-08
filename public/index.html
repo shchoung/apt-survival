@@ -3975,7 +3975,7 @@ function wsAutoMatch(){
     type:'auto_match',
     token:currentUser?.token||null,
     nick:currentUser?.nick||'생존자',
-    charIdx:selChar,
+    charIdx:selChar,  // 반드시 클라이언트가 선택한 캐릭터 전달
   });
 }
 
@@ -4007,6 +4007,20 @@ function onWsMsg(msg){
       isHost=msg.isHost;
       wsRoomPlayers={};
       msg.room.players.forEach(p=>{wsRoomPlayers[p.id]=p;});
+
+      // ── takenChars 동기화 (다른 플레이어가 선택한 캐릭터) ──
+      takenChars=new Set();
+      msg.room.players.forEach(p=>{
+        if(p.id===myPlayerId){
+          // 서버가 저장 데이터로 charIdx를 다르게 복원했을 경우 보정
+          if(p.charIdx>=0 && p.charIdx!==selChar){
+            selChar=p.charIdx;
+          }
+        } else {
+          if(p.charIdx>=0) takenChars.add(p.charIdx);
+        }
+      });
+
       // ── 맵 시드 동기화 ──
       if(msg.mapSeed!==undefined){
         sharedMapSeed=msg.mapSeed;
@@ -4028,9 +4042,12 @@ function onWsMsg(msg){
 
     case 'room_state':{
       wsRoomPlayers={};
+      // takenChars도 동기화
+      takenChars=new Set();
       msg.room.players.forEach(p=>{
         if(p.id===myPlayerId) return; // 내 자신 제외
         wsRoomPlayers[p.id]=p;
+        if(p.charIdx>=0) takenChars.add(p.charIdx);
       });
       // 퇴장 기록 정리 (방 상태 갱신 후 오래된 항목 삭제)
       if(window._leftPlayers){
