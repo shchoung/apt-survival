@@ -484,7 +484,6 @@ canvas{display:block;width:100%;height:100%}
 
 <!-- BGM Audio -->
 <audio id="bgm-audio" loop preload="auto" style="display:none">
-  <source src="Neon_Distant_Rain.mp3" type="audio/mpeg">
 </audio>
 
 <div id="game-wrap">
@@ -4411,6 +4410,23 @@ setTimeout(()=>{
   const serverEl=document.getElementById('inp-server');
   if(serverEl) wsConnect();
 },300);
+
+// BGM 랜덤플레이
+const bgmList = [
+  "Neon_Distant_Rain.mp3",
+  "Neon_Distant_Rain_1.mp3"
+];
+
+const audio = document.getElementById("bgm-audio");
+
+// 랜덤 선택
+const randomIndex = Math.floor(Math.random() * bgmList.length);
+audio.src = bgmList[randomIndex];
+
+// 재생
+audio.play().catch(err => {
+  console.log("자동재생 차단:", err);
+});
 </script>
 </body>
 </html>
