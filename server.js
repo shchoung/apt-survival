@@ -705,6 +705,7 @@ async function handleMessage(ws, raw) {
       ws.send(JSON.stringify({ type: 'error', msg: '방이 가득 찼습니다' })); return;
     }
     const taken = [...room.players.values()].map(p => p.charIdx);
+    // 클라이언트가 요청한 charIdx가 이미 사용 중이면 오류 반환
     if (charIdx >= 0 && taken.includes(charIdx)) {
       ws.send(JSON.stringify({ type: 'error', msg: '이미 선택된 캐릭터입니다' })); return;
     }
@@ -727,8 +728,12 @@ async function handleMessage(ws, raw) {
         player.clearedFloors = save.cleared_floors || [];
         player.inventory = save.inventory || [];
         player.equipped  = save.equipped  || {};
-        if (save.char_idx >= 0 && charIdx < 0)
-          player.charIdx = save.char_idx;
+        if (save.char_idx >= 0 && charIdx < 0) {
+          // 저장된 캐릭터가 이미 같은 방에서 사용 중이면 복원하지 않음
+          const alreadyTaken = [...room.players.values()]
+            .some(p => p.id !== playerId && p.charIdx === save.char_idx);
+          if (!alreadyTaken) player.charIdx = save.char_idx;
+        }
       }
     }
 
