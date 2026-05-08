@@ -1207,11 +1207,11 @@ function floorName(idx){
 
 /* ═══════ ENEMY TYPES ═══════ */
 const ETYPES_BASE=[
-  {name:"순찰 드론",   hp:50,  atk:10, spd:1.4,size:9, color:"#888780",exp:15,gold:5},
-  {name:"전투 로봇",   hp:120, atk:25, spd:1.1,size:12,color:"#1D9E75",exp:45,gold:15},
-  {name:"해커봇",      hp:180, atk:35, spd:1.6,size:10,color:"#534AB7",exp:80,gold:25},
-  {name:"엘리트 센티넬",hp:300,atk:50, spd:1.0,size:15,color:"#BA7517",exp:160,gold:50},
-  {name:"사이버 헌터", hp:220, atk:60, spd:1.8,size:11,color:"#993556",exp:120,gold:40},
+  {name:"순찰 드론",   hp:70,  atk:14, spd:1.4,size:9, color:"#888780",exp:15,gold:5},
+  {name:"전투 로봇",   hp:165, atk:35, spd:1.1,size:12,color:"#1D9E75",exp:45,gold:15},
+  {name:"해커봇",      hp:250, atk:50, spd:1.6,size:10,color:"#534AB7",exp:80,gold:25},
+  {name:"엘리트 센티넬",hp:420,atk:70, spd:1.0,size:15,color:"#BA7517",exp:160,gold:50},
+  {name:"사이버 헌터", hp:300, atk:85, spd:1.8,size:11,color:"#993556",exp:120,gold:40},
 ];
 
 const BOSS_TYPES=[
@@ -2257,7 +2257,7 @@ function spawnWave(){
     for(let i=0;i<count;i++) setTimeout(()=>{
       const ti=Math.floor(seededRandom()*(Math.min(3,Math.floor(currentFloor/3)+1)));
       const et={...ETYPES_BASE[ti],typeIdx:ti};
-      const lb=currentFloor*.05;et.hp=Math.floor(et.hp*(1+lb));et.atk=Math.floor(et.atk*(1+lb*.4));
+      const lb=currentFloor*.08;et.hp=Math.floor(et.hp*(1+lb));et.atk=Math.floor(et.atk*(1+lb*.6));
       spawnEnemy(et);
     },i*500);
     addLog(`WAVE ${waveNum} — ${count}마리 출현`,'lsys');
