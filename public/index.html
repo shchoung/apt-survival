@@ -4079,6 +4079,12 @@ function drawProjectiles(){
       ctx.lineWidth=2;ctx.setLineDash([3,4]);ctx.stroke();ctx.setLineDash([]);
       ctx.restore();
     }
+
+    ctx.restore();
+  });
+}
+
+/* ═══════ 말풍선 시스템 ═══════ */
 let tooltipTimers=[null,null,null,null];
 
 function initSkillTooltips(){
