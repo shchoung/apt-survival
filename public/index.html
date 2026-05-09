@@ -720,13 +720,14 @@ canvas{display:block;width:100%;height:100%}
   z-index:200;display:none;white-space:nowrap;pointer-events:none;
 }
 
-/* CHAT — 우측 상단 (미니맵 아래) */
+/* CHAT — 우측 상단 (미니맵 왼쪽) */
 #chat-panel{
   position:absolute;
-  top:90px;
+  top:30px;
   right:8px;
   left:auto;
   width:160px;
+  max-height:140px;
   display:flex;flex-direction:column;gap:0;z-index:30;pointer-events:auto;
 }
 #chat-log{
@@ -751,12 +752,11 @@ canvas{display:block;width:100%;height:100%}
 }
 #chat-send:active{background:var(--c3)}
 
-/* 채팅 토글 버튼 — 우측 미니맵 아래 */
+/* 채팅 토글 버튼 — 미니맵 왼쪽 상단 고정 */
 #chat-toggle{
   position:absolute;
-  top:90px;
-  right:8px;
-  left:auto;
+  top:6px;
+  right:120px;
   font-family:var(--tf);font-size:13px;padding:3px 5px;border-radius:4px;
   background:var(--c2)cc;border:1px solid var(--c3);color:#5a7a94;
   cursor:pointer;z-index:31;display:none;line-height:1;
