@@ -1406,9 +1406,7 @@ function saveGameData(){
       gold,kills,
       savedAt:Date.now(),
     };
-    // 캐릭터별 로컬 저장
-    localStorage.setItem(getSaveKey(selChar),JSON.stringify(sd));
-    // 서버 저장 (캐릭터 슬롯 지정)
+    // 서버 저장만 (localStorage에는 아이템 정보 저장 안 함)
     if(currentUser?.token){
       fetch(getApiBase()+'/api/save',{
         method:'POST',
@@ -1425,12 +1423,12 @@ function saveGameData(){
   }catch(e){console.warn('[SAVE] 실패',e);}
 }
 
-// charIdx 슬롯의 저장 데이터 로드
+// charIdx 슬롯의 저장 데이터 로드 (서버 데이터만 사용)
 function loadGameData(charIdx){
   const ci=(charIdx>=0?charIdx:selChar);
   try{
-    // 1순위: currentUser.saves[ci] (서버), 2순위: localStorage
-    const raw=currentUser?.saves?.[ci]||JSON.parse(localStorage.getItem(getSaveKey(ci))||'null');
+    // 서버에서 받아온 인메모리 데이터만 사용 (localStorage 폴백 없음)
+    const raw=currentUser?.saves?.[ci];
     if(!raw||raw.isNew) return null;
     // inventory 복원 (itemId → 실제 아이템 객체)
     const inv=[];
@@ -1443,7 +1441,6 @@ function loadGameData(charIdx){
     ['weapon','armor','acc'].forEach(slot=>{
       const id=raw.equipped?.[slot];
       if(!id) return;
-      // 같은 id 아이템이 여러 개일 때 이미 쓴 인덱스 제외하고 탐색
       const idx=inv.findIndex((e,i)=>e.item.id===id&&!usedIdx.has(i));
       if(idx>=0){ eq[slot]=idx; usedIdx.add(idx); }
     });
@@ -5245,25 +5242,8 @@ async function tryAutoLogin(){
       return true;
     }
   } catch(e){
-    // 오프라인 — localStorage에서 캐릭터별 슬롯 복원
-    try{
-      const s=JSON.parse(localStorage.getItem('apt_session')||'null');
-      if(s?.nick){
-        const saves=Array(4).fill(null).map((_,ci)=>{
-          try{return JSON.parse(localStorage.getItem('apt_save_'+s.nick+'_char'+ci)||'null');}
-          catch(e){return null;}
-        });
-        // 구버전 단일 세이브 마이그레이션
-        if(saves.every(v=>v===null)){
-          const oldSave=JSON.parse(localStorage.getItem('apt_save_'+s.nick)||'null');
-          if(oldSave){const ci=oldSave.charIdx??0;saves[ci]=oldSave;}
-        }
-        currentUser={nick:s.nick,token:null,saves};
-        isGuest=false;
-        afterLogin();
-        return true;
-      }
-    }catch(e2){}
+    // 오프라인 — 서버 연결 필요, 로그인 화면으로
+    console.warn('[AUTO-LOGIN] 서버 연결 실패, 로그인 필요');
   }
   return false;
 }
