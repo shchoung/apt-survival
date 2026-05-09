@@ -1474,6 +1474,12 @@ function loadGameData(charIdx){
 }
 
 function goTitle(){
+  // 매칭 타이머 및 WS 세션 정리
+  clearTimeout(matchTimer); matchTimer=null;
+  isMultiGame=false; myPlayerId=null; myRoomCode=null;
+  wsRoomPlayers={}; isHost=false;
+  if(ws){ try{ws.close();}catch(e){} ws=null; }
+
   if(running||player){
     stopBGM();running=false;
     saveGameData();
@@ -2292,10 +2298,18 @@ function startGame(){
   requestAnimationFrame(loop);
 
   // ── 자동 매칭: 백그라운드로 WS 연결 & 입장 ──
-  showChatPanel(true);
+  // 이전 매칭 타이머/세션 완전 초기화
+  clearTimeout(matchTimer); matchTimer=null;
+  if(ws){ try{ws.close();}catch(e){} ws=null; }
+  isMultiGame=false; myPlayerId=null; myRoomCode=null;
+  wsRoomPlayers={}; isHost=false;
+
   const ms=document.getElementById('match-status');if(ms)ms.style.display='block';
+  // 채팅 토글 버튼만 표시 (패널은 닫힌 상태 유지)
+  const ctog=document.getElementById('chat-toggle');
+  if(ctog) ctog.style.display='block';
   wsConnect();
-  setTimeout(()=>{
+  matchTimer=setTimeout(()=>{
     wsAutoMatch();
     setTimeout(()=>{const ms=document.getElementById('match-status');if(ms)ms.style.display='none';},3000);
   },800);
@@ -5020,6 +5034,7 @@ let isHost=false;
 let isMultiGame=false;
 let chatOpen=false;
 let pingInterval=null;
+let matchTimer=null;   // wsAutoMatch 타이머 핸들
 
 const WS_CHAR_COLORS=['#378ADD','#1D9E75','#BA7517','#993556'];
 
@@ -5039,10 +5054,9 @@ function wsConnect(){
       console.log('[WS] 연결 끊김');
       clearInterval(pingInterval);
       ws=null;
-      // 접속 해제 시 다른 플레이어 목록 초기화
       wsRoomPlayers={};
       updateMultiPartyHUD();
-      if(isMultiGame) setTimeout(wsConnect,3000);
+      if(isMultiGame) matchTimer=setTimeout(wsConnect,3000);
     };
     ws.onerror=e=>console.warn('[WS] 오류',e);
     ws.onmessage=e=>{try{onWsMsg(JSON.parse(e.data));}catch(err){}};
@@ -5059,11 +5073,10 @@ function wsAutoMatch(){
   if(!ws||ws.readyState!==WebSocket.OPEN){
     // WS 미연결이면 연결 후 재시도
     wsConnect();
-    setTimeout(wsAutoMatch,1000);
+    matchTimer=setTimeout(wsAutoMatch,1000);
     return;
   }
   // auto_match 타입으로 서버에 매칭 요청
-  // 서버는 빈 방 있으면 자동 입장, 없으면 새 방 생성
   wsSend({
     type:'auto_match',
     token:currentUser?.token||null,
@@ -5115,7 +5128,6 @@ function onWsMsg(msg){
       isMultiGame=true;
       addChatSys(`${msg.room.players.length}명과 함께 입장!`);
       if(msg.recentChat) msg.recentChat.forEach(c=>appendChat(c));
-      showChatPanel(true);
       showToast(`👥 ${msg.room.players.length}명 파티로 시작!`);
       break;
     }
@@ -5371,17 +5383,6 @@ function sendWsSkill(idx,x,y,angle){
 
 /* ═══════ CHAT ═══════ */
 function showChatPanel(show){
-  // 모바일(터치) 환경에서는 기본 닫힘 — 토글 버튼으로만 열기
-  const isMobile = ('ontouchstart' in window);
-  if(isMobile && show && !chatOpen){
-    // 모바일에서 자동 열기 요청은 무시 — 토글 버튼만 표시
-    chatOpen=false;
-    const panel=document.getElementById('chat-panel');
-    const tog=document.getElementById('chat-toggle');
-    if(panel) panel.style.display='none';
-    if(tog){ tog.style.display='block'; tog.textContent='💬'; }
-    return;
-  }
   chatOpen=show;
   const panel=document.getElementById('chat-panel');
   const tog=document.getElementById('chat-toggle');
@@ -5423,8 +5424,7 @@ function sendChat(){
   const inp=document.getElementById('chat-inp');if(!inp)return;
   const text=inp.value.trim();if(!text)return;
 
-  // 채팅창이 닫혀 있으면 열기
-  if(!chatOpen) showChatPanel(true);
+  // 채팅창이 닫혀 있어도 전송은 허용 (강제 열기 제거)
 
   if(!ws||ws.readyState!==WebSocket.OPEN){
     // 오프라인: 로컬 표시만
