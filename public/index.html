@@ -142,7 +142,7 @@ canvas{display:block;width:100%;height:100%}
 }
 #opening-screen.hidden{display:none}
 #opening-video{
-  width:100%;height:100%;object-fit:cover;
+  width:100%;height:100%;object-fit:contain;background:#000;
 }
 #opening-skip{
   position:absolute;bottom:calc(24px + env(safe-area-inset-bottom,0px));
@@ -726,27 +726,27 @@ canvas{display:block;width:100%;height:100%}
   top:90px;
   right:8px;
   left:auto;
-  width:175px;
+  width:160px;
   display:flex;flex-direction:column;gap:0;z-index:30;pointer-events:auto;
 }
 #chat-log{
-  background:#07090ddd;border:1px solid var(--c3);border-radius:6px 6px 0 0;
-  padding:5px;height:75px;overflow-y:auto;
+  background:#07090dcc;border:1px solid var(--c3)88;border-radius:6px 6px 0 0;
+  padding:4px 5px;height:60px;overflow-y:auto;
   display:flex;flex-direction:column;gap:1px;
 }
-.chat-line{font-size:9px;line-height:1.5;font-family:var(--tf);word-break:break-all}
+.chat-line{font-size:8px;line-height:1.5;font-family:var(--tf);word-break:break-all}
 .chat-nick{font-weight:700}
 .chat-sys{color:#5a7a94;font-style:italic}
 #chat-input-row{display:flex;gap:0}
 #chat-inp{
   flex:1;font-family:var(--tf);font-size:10px;
-  background:#0d1117;border:1px solid var(--c3);border-top:none;
-  border-radius:0 0 0 5px;padding:3px 6px;color:#e0e8f0;outline:none;
+  background:#0d1117cc;border:1px solid var(--c3)88;border-top:none;
+  border-radius:0 0 0 5px;padding:3px 5px;color:#e0e8f0;outline:none;
 }
 #chat-inp:focus{border-color:var(--ct)}
 #chat-send{
-  font-family:var(--tf);font-size:9px;padding:0 8px;
-  background:var(--c2);border:1px solid var(--c3);border-top:none;border-left:none;
+  font-family:var(--tf);font-size:9px;padding:0 6px;
+  background:var(--c2);border:1px solid var(--c3)88;border-top:none;border-left:none;
   border-radius:0 0 5px 0;color:var(--ct);cursor:pointer;
 }
 #chat-send:active{background:var(--c3)}
@@ -5371,6 +5371,17 @@ function sendWsSkill(idx,x,y,angle){
 
 /* ═══════ CHAT ═══════ */
 function showChatPanel(show){
+  // 모바일(터치) 환경에서는 기본 닫힘 — 토글 버튼으로만 열기
+  const isMobile = ('ontouchstart' in window);
+  if(isMobile && show && !chatOpen){
+    // 모바일에서 자동 열기 요청은 무시 — 토글 버튼만 표시
+    chatOpen=false;
+    const panel=document.getElementById('chat-panel');
+    const tog=document.getElementById('chat-toggle');
+    if(panel) panel.style.display='none';
+    if(tog){ tog.style.display='block'; tog.textContent='💬'; }
+    return;
+  }
   chatOpen=show;
   const panel=document.getElementById('chat-panel');
   const tog=document.getElementById('chat-toggle');
@@ -5380,7 +5391,15 @@ function showChatPanel(show){
 
 function toggleChat(){
   chatOpen=!chatOpen;
-  showChatPanel(chatOpen);
+  const panel=document.getElementById('chat-panel');
+  const tog=document.getElementById('chat-toggle');
+  if(panel) panel.style.display=chatOpen?'flex':'none';
+  if(tog){tog.style.display=chatOpen?'none':'block';tog.textContent='💬';}
+  // 닫힐 때 키보드 내리기
+  if(!chatOpen){
+    const inp=document.getElementById('chat-inp');
+    if(inp) inp.blur();
+  }
 }
 
 function appendChat(msg){
