@@ -1384,7 +1384,7 @@ function getSaveKey(charIdx){
   return 'apt_save_'+(currentUser?.nick||'guest')+'_char'+ci;
 }
 
-function saveGameData(){
+function saveGameData(clearMemory=false){
   if(!player||selChar<0) return;
   try{
     const sd={
@@ -1406,7 +1406,7 @@ function saveGameData(){
       gold,kills,
       savedAt:Date.now(),
     };
-    // 서버 저장만 (localStorage에는 아이템 정보 저장 안 함)
+    // 서버 저장
     if(currentUser?.token){
       fetch(getApiBase()+'/api/save',{
         method:'POST',
@@ -1414,13 +1414,17 @@ function saveGameData(){
         body:JSON.stringify(sd),
       }).catch(()=>{});
     }
-    // currentUser.saves 인메모리 갱신 (raw 형태만 — inventoryObj/equippedObj 제외)
-    if(currentUser){
-      if(!currentUser.saves) currentUser.saves=Array(4).fill(null);
-      const {inventoryObj,equippedObj,...rawSd}=sd;
-      currentUser.saves[selChar]={...rawSd,isNew:false};
+    if(clearMemory){
+      // 게임 종료 시 — 인메모리 슬롯 초기화해서 다음 startGame이 서버에서 새로 받도록
+      if(currentUser?.saves) currentUser.saves[selChar]=null;
+    } else {
+      // 인게임 자동저장 — 인메모리 갱신 (raw 형태만)
+      if(currentUser){
+        if(!currentUser.saves) currentUser.saves=Array(4).fill(null);
+        currentUser.saves[selChar]={...sd,isNew:false};
+      }
     }
-    console.log(`[SAVE] char:${selChar} Lv${player.lv} floor:${currentFloor}`);
+    console.log(`[SAVE] char:${selChar} Lv${player.lv} floor:${currentFloor} clearMemory:${clearMemory}`);
   }catch(e){console.warn('[SAVE] 실패',e);}
 }
 
@@ -1458,7 +1462,7 @@ function goTitle(){
 
   if(running||player){
     stopBGM();running=false;
-    saveGameData();
+    saveGameData(true); // 종료 시 인메모리 초기화
     showToast('💾 저장 완료');
   }
   hideAllOverlays();
@@ -1468,7 +1472,7 @@ function goTitle(){
 function quitGame(){
   if(!confirm('게임을 종료하시겠습니까?\n진행 상황이 저장됩니다.')) return;
   stopBGM();running=false;
-  saveGameData();
+  saveGameData(true); // 종료 시 인메모리 초기화
   showToast('💾 저장 완료! 종료합니다.');
   setTimeout(()=>{try{window.close();}catch(e){}location.reload();},1200);
 }
@@ -2258,47 +2262,56 @@ function startGame(){
   floorProgress=new Array(TOTAL_FLOORS).fill(false);
   selInvIdx=-1;selEnhIdx=-1;selMatIdx=-1;
 
-  // 해당 캐릭터 슬롯의 저장 데이터 불러옴
-  const save=loadGameData(selChar);
-  if(save){
-    currentFloor=save.floor||0;
-    inventory=save.inventoryObj||[];
-    equipped=save.equippedObj||{weapon:null,armor:null,acc:null};
-    gold=save.gold||0;kills=save.kills||0;
-    clearedFloors=save.clearedFloors||[];
-    clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
-    showToast(`💾 ${CHARS[selChar]?.name} 데이터 복원 Lv${save.lv} / ${floorName(currentFloor)}`);
-  }
-  resize();buildMap(currentFloor);
-  sharedMapSeed=null; // 솔로 시작 — WS 합류 시 시드가 달라야만 재생성
-  player=makePlayer(save||null);
-  loadQuestState();
-  updateQuestBadge();
-  enemies=[];drops_arr=[];particles=[];floats=[];projectiles=[];
-  waveKills=0;waveNum=1;cdT=[0,0,0,0];
-  startTime=Date.now();running=true;
-  updateSkillIcons();
-  startBGM(currentFloor);
-  document.getElementById('floor-info').textContent=floorName(currentFloor)+(BOSS_FLOORS.has(currentFloor)?' [BOSS]':'');
-  setWaveTarget();spawnWave();
-  requestAnimationFrame(loop);
-
-  // ── 자동 매칭: 백그라운드로 WS 연결 & 입장 ──
   // 이전 매칭 타이머/세션 완전 초기화
   clearTimeout(matchTimer); matchTimer=null;
   if(ws){ try{ws.close();}catch(e){} ws=null; }
   isMultiGame=false; myPlayerId=null; myRoomCode=null;
   wsRoomPlayers={}; isHost=false;
 
-  const ms=document.getElementById('match-status');if(ms)ms.style.display='block';
-  // 채팅 토글 버튼만 표시 (패널은 닫힌 상태 유지)
-  const ctog=document.getElementById('chat-toggle');
-  if(ctog) ctog.style.display='block';
-  wsConnect();
-  matchTimer=setTimeout(()=>{
-    wsAutoMatch();
-    setTimeout(()=>{const ms=document.getElementById('match-status');if(ms)ms.style.display='none';},3000);
-  },800);
+  (async()=>{
+    // inMemory가 null이면(종료 후) 서버에서 최신 데이터 재요청
+    if(currentUser?.token && !currentUser.saves?.[selChar]){
+      try{
+        const res=await fetch(getApiBase()+'/api/save',{headers:{'Authorization':currentUser.token}});
+        const data=await res.json();
+        if(data.ok&&data.saves) currentUser.saves=data.saves;
+      }catch(e){}
+    }
+
+    const save=loadGameData(selChar);
+    if(save){
+      currentFloor=save.floor||0;
+      inventory=save.inventoryObj||[];
+      equipped=save.equippedObj||{weapon:null,armor:null,acc:null};
+      gold=save.gold||0;kills=save.kills||0;
+      clearedFloors=save.clearedFloors||[];
+      clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
+      showToast(`💾 ${CHARS[selChar]?.name} 데이터 복원 Lv${save.lv} / ${floorName(currentFloor)}`);
+    }
+
+    resize();buildMap(currentFloor);
+    sharedMapSeed=null;
+    player=makePlayer(save||null);
+    loadQuestState();
+    updateQuestBadge();
+    enemies=[];drops_arr=[];particles=[];floats=[];projectiles=[];
+    waveKills=0;waveNum=1;cdT=[0,0,0,0];
+    startTime=Date.now();running=true;
+    updateSkillIcons();
+    startBGM(currentFloor);
+    document.getElementById('floor-info').textContent=floorName(currentFloor)+(BOSS_FLOORS.has(currentFloor)?' [BOSS]':'');
+    setWaveTarget();spawnWave();
+    requestAnimationFrame(loop);
+
+    const ms=document.getElementById('match-status');if(ms)ms.style.display='block';
+    const ctog=document.getElementById('chat-toggle');
+    if(ctog) ctog.style.display='block';
+    wsConnect();
+    matchTimer=setTimeout(()=>{
+      wsAutoMatch();
+      setTimeout(()=>{const ms=document.getElementById('match-status');if(ms)ms.style.display='none';},3000);
+    },800);
+  })();
 }
 
 function resetFloor(){
@@ -6045,12 +6058,12 @@ setInterval(()=>{
 
 // ── 탭 닫기 / 새로고침 시 저장 ──
 window.addEventListener('beforeunload',()=>{
-  if(running&&player) saveGameData();
+  if(running&&player) saveGameData(true);
 });
 
 // ── 백그라운드 전환 시 저장 (모바일 홈 버튼 등) ──
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden&&running&&player) saveGameData();
+  if(document.hidden&&running&&player) saveGameData(true);
 });
 
 // WebSocket 자동 연결 시도
