@@ -135,7 +135,44 @@ canvas{display:block;width:100%;height:100%}
 .sbtn.amb{border-color:var(--ca);color:var(--ca)}.sbtn.amb:hover{background:var(--ca);color:var(--c0)}
 .sbtn.gray{border-color:#5a7a94;color:#5a7a94}.sbtn.gray:hover{background:#5a7a94;color:var(--c0)}
 
-/* CHAR SELECT */
+/* ── 오프닝 화면 ── */
+#opening-screen{
+  position:fixed;inset:0;background:#000;z-index:999;
+  display:flex;align-items:center;justify-content:center;
+}
+#opening-screen.hidden{display:none}
+#opening-video{
+  width:100%;height:100%;object-fit:cover;
+}
+#opening-skip{
+  position:absolute;bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  right:20px;
+  font-family:var(--tf);font-size:11px;letter-spacing:1px;
+  padding:6px 16px;border-radius:4px;
+  background:rgba(7,9,13,0.7);border:1px solid rgba(93,202,165,0.5);
+  color:rgba(93,202,165,0.8);cursor:pointer;
+  transition:border-color .2s,color .2s;
+  user-select:none;
+}
+#opening-skip:hover,#opening-skip:active{
+  border-color:var(--ct);color:var(--ct);
+}
+#opening-skip-hint{
+  position:absolute;bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  left:20px;
+  font-family:var(--tf);font-size:9px;color:rgba(93,202,165,0.35);
+  pointer-events:none;
+}
+/* 페이드 아웃 */
+@keyframes openingFade{
+  0%{opacity:1} 100%{opacity:0}
+}
+#opening-screen.fading{
+  animation:openingFade .6s ease-out forwards;
+  pointer-events:none;
+}
+
+
 #csg{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:16px;max-width:480px;width:100%}
 .ccard{background:var(--c2);border:2px solid var(--c3);border-radius:9px;padding:11px;cursor:pointer;transition:.2s;position:relative}
 .ccard:hover{border-color:#4a6a94}
@@ -795,6 +832,17 @@ canvas{display:block;width:100%;height:100%}
 <audio id="bgm-audio" loop preload="auto" style="display:none">
 </audio>
 
+<!-- 오프닝 영상 화면 -->
+<div id="opening-screen" class="hidden">
+  <video id="opening-video" src="opening.mp4"
+    playsinline webkit-playsinline
+    preload="auto"
+    muted>
+  </video>
+  <div id="opening-skip-hint">LONG PRESS TO SKIP</div>
+  <button id="opening-skip" onclick="skipOpening()">SKIP ▶</button>
+</div>
+
 <div id="game-wrap">
   <canvas id="gc"></canvas>
 
@@ -907,7 +955,8 @@ canvas{display:block;width:100%;height:100%}
     <button class="sbtn" style="border-color:#5dcaa5;color:#5dcaa5" onclick="showScr('board')">[ 📋 게시판 ]</button>
     <button class="sbtn" style="border-color:var(--ca);color:var(--ca)" onclick="showQuest()">[ 📜 퀘스트 ]</button>
     <button class="sbtn gray" onclick="showScr('settings')">[ 설 정 ]</button>
-    <button class="sbtn red" style="margin-top:10px;font-size:10px;padding:5px 18px" onclick="logout()">로그아웃</button>
+    <button class="sbtn gray" style="margin-top:10px;font-size:10px;padding:5px 18px" onclick="replayOpening()">🎬 오프닝 다시보기</button>
+    <button class="sbtn red" style="margin-top:4px;font-size:10px;padding:5px 18px" onclick="logout()">로그아웃</button>
   </div>
 
   <!-- 랭킹 화면 -->
@@ -2671,22 +2720,22 @@ function useSkill(i){
     if(i===0){
       // 기본 스킬: 단일 해킹 볼 (관통)
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55));
-      spawnProjectile('sea_basic',player.x,player.y,ang,dmg,{spd:7,maxLife:55,pierce:true});
+      spawnProjectile('sea_basic',player.x,player.y,ang,dmg,{spd:7,maxLife:18,pierce:true});
     } else if(i===1){
       // 드롭 해킹: 부채꼴 3발
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55));
       for(let s=-1;s<=1;s++){
-        spawnProjectile('sea_basic',player.x,player.y,ang+s*.25,dmg,{spd:6,maxLife:50,pierce:false});
+        spawnProjectile('sea_basic',player.x,player.y,ang+s*.25,dmg,{spd:6,maxLife:17,pierce:false});
       }
     } else if(i===2){
       // 코드 분석: 코드 볼 (큰 피해, 느리게)
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.7));
-      spawnProjectile('sea_skill2',player.x,player.y,ang,dmg,{spd:5,maxLife:60,pierce:true});
+      spawnProjectile('sea_skill2',player.x,player.y,ang,dmg,{spd:5,maxLife:20,pierce:true});
     } else if(i===3){
       // 역해킹 궁극기: 대형 바이러스 볼 3발 부채꼴
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.8));
       for(let s=-1;s<=1;s++){
-        spawnProjectile('sea_ult',player.x,player.y,ang+s*.2,dmg,{spd:5,maxLife:70,pierce:true});
+        spawnProjectile('sea_ult',player.x,player.y,ang+s*.2,dmg,{spd:5,maxLife:23,pierce:true});
       }
     }
     // 서아는 투사체로 피해 처리하므로 아래 근접 판정 건너뜀
@@ -4774,7 +4823,96 @@ function guestPlay(){
   afterLogin();
 }
 
-function afterLogin(){
+/* ═══════ 오프닝 영상 시스템 ═══════ */
+const OPENING_KEY = 'apt_opening_seen'; // 최초 1회 재생 체크용
+
+function playOpening(onEnd){
+  const screen = document.getElementById('opening-screen');
+  const video  = document.getElementById('opening-video');
+  if(!screen || !video) { onEnd(); return; }
+
+  screen.classList.remove('hidden','fading');
+
+  // 사운드 없이 시작 후 유저 인터랙션 시 음소거 해제 시도
+  video.muted = true;
+  video.currentTime = 0;
+
+  const finish = (()=>{
+    let done = false;
+    return ()=>{
+      if(done) return; done = true;
+      screen.classList.add('fading');
+      setTimeout(()=>{
+        screen.classList.add('hidden');
+        screen.classList.remove('fading');
+        video.pause();
+        onEnd();
+      }, 600);
+    };
+  })();
+
+  video.onended = finish;
+  video.onerror = finish; // 파일 없으면 그냥 넘어감
+
+  video.play().then(()=>{
+    // 재생 시작 후 음소거 해제 시도 (자동재생 정책 대응)
+    video.muted = false;
+  }).catch(()=>{
+    // 자동재생 차단 → 무음으로라도 재생
+    video.muted = true;
+    video.play().catch(finish); // 그래도 안 되면 스킵
+  });
+}
+
+function skipOpening(){
+  const screen = document.getElementById('opening-screen');
+  const video  = document.getElementById('opening-video');
+  if(!screen || !video) return;
+  video.onended = null; // 이벤트 중복 방지
+  screen.classList.add('fading');
+  setTimeout(()=>{
+    screen.classList.add('hidden');
+    screen.classList.remove('fading');
+    video.pause();
+    _openingCallback && _openingCallback();
+    _openingCallback = null;
+  }, 600);
+}
+
+let _openingCallback = null;
+
+function showOpeningThenTitle(){
+  const seen = localStorage.getItem(OPENING_KEY);
+  // 최초 1회만 재생 (매번 보려면 아래 조건 제거)
+  if(seen){
+    _doAfterOpening();
+    return;
+  }
+  try{ localStorage.setItem(OPENING_KEY,'1'); }catch(e){}
+  _openingCallback = _doAfterOpening;
+  playOpening(()=>{
+    _openingCallback && _openingCallback();
+    _openingCallback = null;
+  });
+}
+
+function replayOpening(){
+  stopBGM();
+  _openingCallback = ()=>{ showScr('title'); startBGM(0); };
+  playOpening(()=>{
+    _openingCallback && _openingCallback();
+    _openingCallback = null;
+  });
+}
+
+
+  showScr('title');
+  startBGM(0);
+  loadQuestState();
+  updateQuestBadge();
+}
+
+
   const u=currentUser;
   // save → saves[] 정규화 (구버전 호환)
   if(u.save&&!u.saves){
@@ -4805,10 +4943,7 @@ function afterLogin(){
   // WS 서버 주소 자동 설정
   const wsEl=document.getElementById('inp-server');
   if(wsEl) wsEl.value=getWsUrl();
-  showScr('title');
-  startBGM(0);
-  loadQuestState();
-  updateQuestBadge();
+  showOpeningThenTitle();
 }
 
 function logout(){
