@@ -1461,9 +1461,13 @@ function loadGameData(charIdx){
       if(base) inv.push({item:{...base},enhLevel:e.enhLevel||0});
     });
     const eq={weapon:null,armor:null,acc:null};
+    const usedIdx=new Set();
     ['weapon','armor','acc'].forEach(slot=>{
       const id=raw.equipped?.[slot];
-      if(id){const idx=inv.findIndex(e=>e.item.id===id);if(idx>=0)eq[slot]=idx;}
+      if(!id) return;
+      // 같은 id 아이템이 여러 개일 때 이미 쓴 인덱스 제외하고 탐색
+      const idx=inv.findIndex((e,i)=>e.item.id===id&&!usedIdx.has(i));
+      if(idx>=0){ eq[slot]=idx; usedIdx.add(idx); }
     });
     return{...raw,charIdx:ci,inventoryObj:inv,equippedObj:eq};
   }catch(e){return null;}
@@ -1993,12 +1997,22 @@ function useConsumable(idx){
   const {item}=inventory[idx];
   if(item.healAmt){player.hp=Math.min(player.maxHp,player.hp+item.healAmt);addLog(`${item.name} HP+${item.healAmt}`,'lheal');}
   inventory.splice(idx,1);
+  // splice 후 equipped 인덱스 보정
+  Object.keys(equipped).forEach(k=>{
+    if(equipped[k]===idx) equipped[k]=null;          // 제거된 아이템 해제
+    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--; // 뒤 인덱스 당기기
+  });
   if(selInvIdx>=idx)selInvIdx=-1;
   if(selEnhIdx>=idx)selEnhIdx=-1;
   renderInv();showToast(`${item.name} 사용!`);
 }
 function dropItem(idx){
   inventory.splice(idx,1);
+  // splice 후 equipped 인덱스 보정
+  Object.keys(equipped).forEach(k=>{
+    if(equipped[k]===idx) equipped[k]=null;          // 버린 아이템 장착 해제
+    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--; // 뒤 인덱스 당기기
+  });
   if(selInvIdx>=idx)selInvIdx=-1;
   if(selEnhIdx>=idx)selEnhIdx=-1;
   renderInv();
@@ -2264,6 +2278,7 @@ function startGame(){
     gold=0;kills=0;clearedFloors=[];floorProgress=new Array(TOTAL_FLOORS).fill(false);
   }
   resize();buildMap(currentFloor);
+  sharedMapSeed=null; // 솔로 시작 — WS 합류 시 시드가 달라야만 재생성
   player=makePlayer(save||null);
   loadQuestState();
   updateQuestBadge();
@@ -2288,7 +2303,7 @@ function startGame(){
 
 function resetFloor(){
   enemies=[];drops_arr=[];particles=[];floats=[];skillFX=[];projectiles=[];
-  kills=0;waveKills=0;waveNum=1;cdT=[0,0,0,0];
+  waveKills=0;waveNum=1;cdT=[0,0,0,0];  // kills는 누적값 — 리셋 안 함
   minimapCache=null;minimapDirty=true;  // 미니맵 캐시 초기화
   buildMap(currentFloor);
   if(player){
@@ -5080,9 +5095,10 @@ function onWsMsg(msg){
       msg.room.players.forEach(p=>{wsRoomPlayers[p.id]=p;});
       // ── 맵 시드 동기화 ──
       if(msg.mapSeed!==undefined){
+        const prevSeed=sharedMapSeed;
         sharedMapSeed=msg.mapSeed;
-        // 게임 중이면 현재 맵을 시드로 재생성
-        if(running&&player){
+        // 게임 중이고 시드가 실제로 달라진 경우에만 재생성
+        if(running&&player&&prevSeed!==null&&prevSeed!==sharedMapSeed){
           buildMap(currentFloor);
           const safe=findSafeSpawn(player.x,player.y);
           player.x=safe.x;player.y=safe.y;
