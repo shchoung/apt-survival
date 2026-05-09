@@ -4896,6 +4896,13 @@ function skipOpening(){
 
 let _openingCallback = null;
 
+function _doAfterOpening(){
+  showScr('title');
+  startBGM(0);
+  loadQuestState();
+  updateQuestBadge();
+}
+
 function showOpeningThenTitle(){
   const seen = localStorage.getItem(OPENING_KEY);
   // 최초 1회만 재생 (매번 보려면 아래 조건 제거)
