@@ -607,29 +607,6 @@ canvas{display:block;width:100%;height:100%}
   background:radial-gradient(ellipse at 50% 100%, rgba(29,58,95,0.06) 0%, transparent 70%);
 }
 
-/* 채팅 패널 */
-#chat-panel{
-  position:absolute;bottom:calc(70px + var(--safe-bot));left:8px;
-  width:min(240px,55vw);
-  background:#07090dcc;border:1px solid var(--c3)66;border-radius:6px;
-  display:flex;flex-direction:column;gap:0;overflow:hidden;z-index:22;
-  box-shadow:0 2px 10px rgba(0,0,0,0.4);
-}
-#chat-log{
-  flex:1;overflow-y:auto;max-height:100px;padding:4px 6px;
-}
-.chat-line{font-family:var(--tf);font-size:9px;line-height:1.6;padding:1px 0}
-.chat-sys{color:#5a7a94;font-style:italic}
-#chat-input-row{display:flex;gap:4px;padding:4px 6px;border-top:1px solid var(--c3)44}
-#chat-inp{flex:1;font-family:var(--tf);font-size:10px;background:transparent;border:none;outline:none;color:#e0e8f0}
-#chat-send{font-family:var(--tf);font-size:9px;padding:2px 7px;border:1px solid var(--c3);border-radius:3px;background:transparent;color:#5a7a94;cursor:pointer}
-#chat-send:active{color:var(--ct);border-color:var(--ct)}
-#chat-toggle{
-  position:absolute;bottom:calc(70px + var(--safe-bot));left:8px;
-  font-family:var(--tf);font-size:9px;padding:3px 8px;border-radius:4px;
-  background:var(--c2)cc;border:1px solid var(--c3);color:#7a9ab8;cursor:pointer;z-index:22;
-}
-
 /* ── 스킬 버튼 말풍선 ── */
 .sk-tooltip{
   position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
@@ -720,44 +697,45 @@ canvas{display:block;width:100%;height:100%}
   z-index:200;display:none;white-space:nowrap;pointer-events:none;
 }
 
-/* CHAT — 우측 상단 (미니맵 왼쪽) */
+/* CHAT — 하단 스킬바 위 */
 #chat-panel{
   position:absolute;
-  top:30px;
-  right:8px;
-  left:auto;
-  width:160px;
-  max-height:140px;
+  bottom:calc(70px + var(--safe-bot) + 4px);
+  left:0; right:0;
+  width:100%;
+  max-height:120px;
   display:flex;flex-direction:column;gap:0;z-index:30;pointer-events:auto;
+  box-sizing:border-box;
 }
 #chat-log{
-  background:#07090dcc;border:1px solid var(--c3)88;border-radius:6px 6px 0 0;
-  padding:4px 5px;height:60px;overflow-y:auto;
+  background:#07090dcc;border-top:1px solid var(--c3)66;
+  padding:4px 10px;height:80px;overflow-y:auto;
   display:flex;flex-direction:column;gap:1px;
 }
-.chat-line{font-size:8px;line-height:1.5;font-family:var(--tf);word-break:break-all}
+.chat-line{font-size:9px;line-height:1.5;font-family:var(--tf);word-break:break-all}
 .chat-nick{font-weight:700}
 .chat-sys{color:#5a7a94;font-style:italic}
 #chat-input-row{display:flex;gap:0}
 #chat-inp{
-  flex:1;font-family:var(--tf);font-size:10px;
-  background:#0d1117cc;border:1px solid var(--c3)88;border-top:none;
-  border-radius:0 0 0 5px;padding:3px 5px;color:#e0e8f0;outline:none;
+  flex:1;font-family:var(--tf);font-size:11px;
+  background:#0d1117ee;border:none;border-top:1px solid var(--c3)88;
+  padding:5px 10px;color:#e0e8f0;outline:none;
 }
-#chat-inp:focus{border-color:var(--ct)}
+#chat-inp:focus{background:#0d1117}
 #chat-send{
-  font-family:var(--tf);font-size:9px;padding:0 6px;
-  background:var(--c2);border:1px solid var(--c3)88;border-top:none;border-left:none;
-  border-radius:0 0 5px 0;color:var(--ct);cursor:pointer;
+  font-family:var(--tf);font-size:10px;padding:0 12px;
+  background:var(--c2);border:none;border-top:1px solid var(--c3)88;border-left:1px solid var(--c3)44;
+  color:var(--ct);cursor:pointer;
 }
 #chat-send:active{background:var(--c3)}
 
-/* 채팅 토글 버튼 — 미니맵 왼쪽 상단 고정 */
+/* 채팅 토글 버튼 — 하단 좌측 스킬바 위 */
 #chat-toggle{
   position:absolute;
-  top:6px;
-  right:120px;
-  font-family:var(--tf);font-size:13px;padding:3px 5px;border-radius:4px;
+  bottom:calc(70px + var(--safe-bot) + 4px);
+  left:8px;
+  right:auto; top:auto;
+  font-family:var(--tf);font-size:11px;padding:3px 8px;border-radius:4px;
   background:var(--c2)cc;border:1px solid var(--c3);color:#5a7a94;
   cursor:pointer;z-index:31;display:none;line-height:1;
 }
