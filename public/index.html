@@ -1414,10 +1414,11 @@ function saveGameData(){
         body:JSON.stringify(sd),
       }).catch(()=>{});
     }
-    // currentUser.saves 인메모리 갱신
+    // currentUser.saves 인메모리 갱신 (raw 형태만 — inventoryObj/equippedObj 제외)
     if(currentUser){
       if(!currentUser.saves) currentUser.saves=Array(4).fill(null);
-      currentUser.saves[selChar]={...sd,isNew:false};
+      const {inventoryObj,equippedObj,...rawSd}=sd;
+      currentUser.saves[selChar]={...rawSd,isNew:false};
     }
     console.log(`[SAVE] char:${selChar} Lv${player.lv} floor:${currentFloor}`);
   }catch(e){console.warn('[SAVE] 실패',e);}
@@ -2247,7 +2248,17 @@ function makePlayer(save){
 function startGame(){
   if(selChar<0){alert('캐릭터를 선택하세요');return;}
   hideAllOverlays();
-  // 해당 캐릭터 슬롯의 저장 데이터만 불러옴
+
+  // 전역 상태 완전 초기화 (이전 세션 잔존 데이터 제거)
+  inventory=[];
+  equipped={weapon:null,armor:null,acc:null};
+  gold=0;kills=0;
+  currentFloor=0;
+  clearedFloors=[];
+  floorProgress=new Array(TOTAL_FLOORS).fill(false);
+  selInvIdx=-1;selEnhIdx=-1;selMatIdx=-1;
+
+  // 해당 캐릭터 슬롯의 저장 데이터 불러옴
   const save=loadGameData(selChar);
   if(save){
     currentFloor=save.floor||0;
@@ -2257,9 +2268,6 @@ function startGame(){
     clearedFloors=save.clearedFloors||[];
     clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
     showToast(`💾 ${CHARS[selChar]?.name} 데이터 복원 Lv${save.lv} / ${floorName(currentFloor)}`);
-  } else {
-    currentFloor=0;inventory=[];equipped={weapon:null,armor:null,acc:null};
-    gold=0;kills=0;clearedFloors=[];floorProgress=new Array(TOTAL_FLOORS).fill(false);
   }
   resize();buildMap(currentFloor);
   sharedMapSeed=null; // 솔로 시작 — WS 합류 시 시드가 달라야만 재생성
