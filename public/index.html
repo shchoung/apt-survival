@@ -593,8 +593,24 @@ canvas{display:block;width:100%;height:100%}
   background:var(--c2)cc;border:1px solid var(--c3);color:#7a9ab8;cursor:pointer;z-index:22;
 }
 
-/* 화면 스캔라인 효과 (경미) */
-@keyframes scanline{0%{background-position:0 0}100%{background-position:0 100%}}
+/* ── 스킬 버튼 말풍선 ── */
+.sk-tooltip{
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:#0d1117ee;border:1px solid var(--ct)88;border-radius:7px;
+  padding:6px 10px;white-space:nowrap;pointer-events:none;
+  z-index:200;opacity:0;transition:opacity .15s;
+  box-shadow:0 4px 16px rgba(0,0,0,0.6), 0 0 8px var(--ct)22;
+}
+.sk-tooltip::after{
+  content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:6px solid transparent;border-top-color:#0d1117ee;
+}
+.sk-tooltip.vis{opacity:1}
+.skt-name{font-family:var(--tf);font-size:11px;color:var(--ct);font-weight:700;margin-bottom:2px}
+.skt-desc{font-family:var(--tf);font-size:9px;color:#a0bcd0;line-height:1.5}
+.skt-cd{font-family:var(--tf);font-size:9px;color:var(--ca);margin-top:2px}
+
+/* ── 서아 투사체 (캔버스에서 그리지만 CSS glow 참고용) ── */
 
 /* 수치 플로팅 텍스트 강화 */
 .float-crit{font-size:16px!important;color:#ef9f27!important}
@@ -1152,10 +1168,10 @@ canvas{display:block;width:100%;height:100%}
 
 <div id="skill-bar">
   <div style="font-family:var(--tf);font-size:9px;color:#5a7a94">SKILL</div>
-  <div class="skbtn" id="sk0"><div class="skicon" id="ski0">⚔</div><div class="skkey" id="kl0">Q</div><div class="skcd" id="cd0"></div></div>
-  <div class="skbtn" id="sk1"><div class="skicon" id="ski1">💫</div><div class="skkey" id="kl1">E</div><div class="skcd" id="cd1"></div></div>
-  <div class="skbtn" id="sk2"><div class="skicon" id="ski2">🛡</div><div class="skkey" id="kl2">F</div><div class="skcd" id="cd2"></div></div>
-  <div class="skbtn" id="sk3"><div class="skicon" id="ski3">⚡</div><div class="skkey" id="kl3">R</div><div class="skcd" id="cd3"></div></div>
+  <div class="skbtn" id="sk0"><div class="skicon" id="ski0">⚔</div><div class="skkey" id="kl0">Q</div><div class="skcd" id="cd0"></div><div class="sk-tooltip" id="skt0"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
+  <div class="skbtn" id="sk1"><div class="skicon" id="ski1">💫</div><div class="skkey" id="kl1">E</div><div class="skcd" id="cd1"></div><div class="sk-tooltip" id="skt1"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
+  <div class="skbtn" id="sk2"><div class="skicon" id="ski2">🛡</div><div class="skkey" id="kl2">F</div><div class="skcd" id="cd2"></div><div class="sk-tooltip" id="skt2"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
+  <div class="skbtn" id="sk3"><div class="skicon" id="ski3">⚡</div><div class="skkey" id="kl3">R</div><div class="skcd" id="cd3"></div><div class="sk-tooltip" id="skt3"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
   <div style="width:1px;height:32px;background:var(--c3);margin:0 4px"></div>
   <div style="font-family:var(--tf);font-size:9px;color:#5a7a94;text-align:center;line-height:1.5">이동<br><span id="mlbl" style="color:#a0bcd0">WASD</span></div>
 </div>
@@ -1167,21 +1183,25 @@ const CHARS=[
    desc:"높은 방어로 피해 흡수. 파티 보호 특화.",
    stats:{HP:320,ATK:52,DEF:88,SPD:2.2},
    skills:["제압 타격","도발","인간 방패","철벽 방어"],icons:["⚔","🔊","🛡","🏰"],
+   skillDescs:["강력한 근접 제압 타격.","주변 적을 도발해 어그로 집중.","광역 방패 타격, 짧은 쿨타임.","궁극기: 철벽 방어로 일시 무적."],
    exclusive:["방탄 조끼","경찰 방패"]},
   {id:"sea",name:"김서아",role:"서포터",init:"서",color:"#1D9E75",bg:"#E1F5EE33",
    desc:"AI 해킹 전문. 드롭률 상승 및 원거리 지원.",
    stats:{HP:180,ATK:44,DEF:42,SPD:2.8},
    skills:["시스템 침투","드롭 해킹","코드 분석","역해킹"],icons:["💻","🎁","🔍","⚙"],
+   skillDescs:["원거리 해킹 볼 발사. 관통 공격.","적 처치 시 드롭률 대폭 상승.","전방 광역 코드 분석 충격파.","궁극기: 초대형 역해킹 바이러스 발사."],
    exclusive:["해킹 디바이스","AI 크래커"]},
   {id:"min",name:"박민재",role:"딜러",init:"민",color:"#BA7517",bg:"#FAEEDA33",
    desc:"최고 화력과 속도. 경험치 보너스 보유.",
    stats:{HP:190,ATK:95,DEF:36,SPD:3.4},
    skills:["생존 본능","각성","폭발 연격","경험치 증폭"],icons:["💨","⚡","💥","🌟"],
+   skillDescs:["순간 회피 대시, 짧은 무적.","공격력 일시 폭발적으로 증가.","전방 3연속 폭발 연격.","궁극기: EXP 흡수 폭발."],
    exclusive:["학생 배낭","각성 밴드"]},
   {id:"hana",name:"오하나",role:"힐러",init:"하",color:"#993556",bg:"#FBEAF033",
    desc:"파티 회복 전문. 장기전·보스전 필수.",
    stats:{HP:200,ATK:36,DEF:56,SPD:2.6},
    skills:["응급처치","강화 주사","생명의 장막","부활"],icons:["💉","💪","🌿","✨"],
+   skillDescs:["자신 HP를 즉시 회복.","공격력+방어력 일시 강화.","주변 전체 회복 장막 전개.","궁극기: 자신을 완전 부활."],
    exclusive:["의료 키트","나노 주사기"]},
 ];
 
@@ -2198,7 +2218,7 @@ function startGame(){
   player=makePlayer(save||null);
   loadQuestState();
   updateQuestBadge();
-  enemies=[];drops_arr=[];particles=[];floats=[];
+  enemies=[];drops_arr=[];particles=[];floats=[];projectiles=[];
   waveKills=0;waveNum=1;cdT=[0,0,0,0];
   startTime=Date.now();running=true;
   updateSkillIcons();
@@ -2218,7 +2238,7 @@ function startGame(){
 }
 
 function resetFloor(){
-  enemies=[];drops_arr=[];particles=[];floats=[];skillFX=[];
+  enemies=[];drops_arr=[];particles=[];floats=[];skillFX=[];projectiles=[];
   kills=0;waveKills=0;waveNum=1;cdT=[0,0,0,0];
   minimapCache=null;minimapDirty=true;  // 미니맵 캐시 초기화
   buildMap(currentFloor);
@@ -2473,6 +2493,7 @@ function update(){
   floats=floats.filter(f=>{f.y-=1.2;f.life--;f.a=f.life/40;return f.life>0;});
   cdT=cdT.map(t=>Math.max(0,t-1));
   updateSkillFX();
+  updateProjectiles();
   if(player.invincible>0){
     // 인벤토리 열려있으면 무적 유지
     if(!document.getElementById('inv-screen')?.classList.contains('hidden'))
@@ -2642,6 +2663,41 @@ function useSkill(i){
   else if(selChar===2) fxType='dash';
   else if(sk.aoe>0) fxType='aoe';
   spawnSkillFX(fxType,player.x,player.y,ang,CHARS[selChar].color);
+
+  // ── 서아(sea) 원거리 투사체 발사 ──
+  if(selChar===1){
+    const eq=getEquipStats();
+    const atkTotal=(player.atk+eq.atk)*eq.atkMult;
+    if(i===0){
+      // 기본 스킬: 단일 해킹 볼 (관통)
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55));
+      spawnProjectile('sea_basic',player.x,player.y,ang,dmg,{spd:7,maxLife:55,pierce:true});
+    } else if(i===1){
+      // 드롭 해킹: 부채꼴 3발
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55));
+      for(let s=-1;s<=1;s++){
+        spawnProjectile('sea_basic',player.x,player.y,ang+s*.25,dmg,{spd:6,maxLife:50,pierce:false});
+      }
+    } else if(i===2){
+      // 코드 분석: 코드 볼 (큰 피해, 느리게)
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.7));
+      spawnProjectile('sea_skill2',player.x,player.y,ang,dmg,{spd:5,maxLife:60,pierce:true});
+    } else if(i===3){
+      // 역해킹 궁극기: 대형 바이러스 볼 3발 부채꼴
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.8));
+      for(let s=-1;s<=1;s++){
+        spawnProjectile('sea_ult',player.x,player.y,ang+s*.2,dmg,{spd:5,maxLife:70,pierce:true});
+      }
+    }
+    // 서아는 투사체로 피해 처리하므로 아래 근접 판정 건너뜀
+    if(i===0||i===2||i===3){
+      addLog(`${CHARS[selChar].skills[i]}`,'lsk');
+      return;
+    }
+    // i===1 드롭 해킹: 투사체 + 드롭률 버프 (아래 계속 진행 안 함)
+    addLog(`${CHARS[selChar].skills[i]} — 드롭 해킹 활성!`,'lsk');
+    return;
+  }
 
   let hit=0;
   enemies.forEach(e=>{
@@ -2964,6 +3020,7 @@ function draw(){
   });
   // 스킬 이펙트 (적 아래)
   drawSkillFX();
+  drawProjectiles();
   // 멀티 다른 플레이어
   drawMultiPlayers();
   // 플레이어
@@ -3598,6 +3655,214 @@ function drawHana(ctx,ang){
 /* ═══════ 스킬 이펙트 시스템 ═══════ */
 let skillFX=[];  // 활성 스킬 이펙트 목록
 
+/* ═══════ 서아 원거리 투사체 시스템 ═══════ */
+let projectiles=[];  // {x,y,vx,vy,life,maxLife,dmg,type,angle,pierce,hit}
+
+function spawnProjectile(type,wx,wy,angle,dmg,opts={}){
+  const spd = opts.spd||6;
+  const maxLife = opts.maxLife||50;
+  const pierce = opts.pierce||false;
+  projectiles.push({
+    x:wx, y:wy,
+    vx:Math.cos(angle)*spd,
+    vy:Math.sin(angle)*spd,
+    life:0, maxLife,
+    dmg, type, angle,
+    pierce, hit:new Set(),
+    trail:[], // 잔상 포인트
+  });
+}
+
+function updateProjectiles(){
+  const toRemove=[];
+  projectiles.forEach((p,idx)=>{
+    // 잔상 저장
+    p.trail.push({x:p.x,y:p.y});
+    if(p.trail.length>8) p.trail.shift();
+
+    p.x+=p.vx; p.y+=p.vy;
+    p.life++;
+
+    // 벽 충돌
+    const tc=Math.floor(p.x/TILE), tr=Math.floor(p.y/TILE);
+    if(tr>=0&&tr<ROWS&&tc>=0&&tc<COLS&&MAP[tr]&&MAP[tr][tc]===1){
+      toRemove.push(idx);
+      // 충돌 파티클
+      for(let i=0;i<5;i++) sparks(p.x,p.y,'#1D9E75',5);
+      return;
+    }
+
+    // 적 충돌
+    let hitAny=false;
+    enemies.forEach(e=>{
+      if(p.hit.has(e)) return;
+      const d=Math.sqrt((e.x-p.x)**2+(e.y-p.y)**2);
+      if(d<(e.size||12)+6){
+        p.hit.add(e);
+        hitAny=true;
+        const actualDmg=Math.max(1,p.dmg+Math.floor(Math.random()*8-4));
+        addFloat(e.x,e.y,`-${actualDmg}`,'#5dcaa5');
+        sparks(e.x,e.y,'#1D9E75',6);
+        spawnSkillFX('proj_hit',e.x,e.y,0,'#1D9E75');
+        const isBossEnemy=e.boss||false;
+        if(isMultiGame&&isBossEnemy&&!isBossHost()){
+          e.flick=5;
+          wsSend({type:'boss_attack',floor:currentFloor,dmg:actualDmg,x:Math.round(e.x),y:Math.round(e.y)});
+        } else {
+          e.hp-=actualDmg; e.flick=5; e.hitAnim=8;
+          if(e.hp<=0) killEnemy(e);
+        }
+        if(!p.pierce){ toRemove.push(idx); }
+      }
+    });
+    enemies=enemies.filter(e=>e.hp>0);
+
+    if(p.life>=p.maxLife) toRemove.push(idx);
+  });
+  // 중복 제거 후 역순 제거
+  [...new Set(toRemove)].sort((a,b)=>b-a).forEach(i=>projectiles.splice(i,1));
+}
+
+function drawProjectiles(){
+  projectiles.forEach(p=>{
+    const s=w2s(p.x,p.y);
+    const t=p.life/p.maxLife;
+
+    // 잔상
+    p.trail.forEach((pt,i)=>{
+      const ts=w2s(pt.x,pt.y);
+      const alpha=(i/p.trail.length)*0.5*(1-t);
+      ctx.save();
+      if(p.type==='sea_basic'){
+        ctx.beginPath();ctx.arc(ts.x,ts.y,3*(i/p.trail.length),0,Math.PI*2);
+        ctx.fillStyle=`rgba(93,202,165,${alpha})`;ctx.fill();
+      } else if(p.type==='sea_ult'){
+        ctx.beginPath();ctx.arc(ts.x,ts.y,6*(i/p.trail.length),0,Math.PI*2);
+        ctx.fillStyle=`rgba(29,158,117,${alpha})`;ctx.fill();
+      }
+      ctx.restore();
+    });
+
+    ctx.save();
+    ctx.translate(s.x,s.y);
+
+    if(p.type==='sea_basic'){
+      // 해킹 볼 — 작은 디지털 구체
+      const pulse=Math.sin(p.life*.4)*2;
+      // 외부 링
+      ctx.beginPath();ctx.arc(0,0,7+pulse,0,Math.PI*2);
+      ctx.strokeStyle='#1D9E75';ctx.lineWidth=1.5;
+      ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+      // 내부 코어
+      const grad=ctx.createRadialGradient(0,0,0,0,0,6);
+      grad.addColorStop(0,'rgba(93,202,165,0.9)');
+      grad.addColorStop(1,'rgba(29,158,117,0.3)');
+      ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);
+      ctx.fillStyle=grad;ctx.fill();
+      // 중심 점
+      ctx.beginPath();ctx.arc(0,0,2,0,Math.PI*2);
+      ctx.fillStyle='#ffffff';ctx.fill();
+      // 회전하는 작은 파편들
+      const rot=p.life*.15;
+      for(let i=0;i<3;i++){
+        const a=rot+i*Math.PI*2/3;
+        ctx.beginPath();ctx.arc(Math.cos(a)*8,Math.sin(a)*8,1.5,0,Math.PI*2);
+        ctx.fillStyle='#5dcaa5';ctx.fill();
+      }
+    } else if(p.type==='sea_skill2'){
+      // 코드 분석 — 중형 에너지 볼
+      const pulse=Math.sin(p.life*.3)*2;
+      ctx.beginPath();ctx.arc(0,0,9+pulse,0,Math.PI*2);
+      ctx.strokeStyle='#534AB7';ctx.lineWidth=2;
+      ctx.setLineDash([4,2]);ctx.stroke();ctx.setLineDash([]);
+      const grad2=ctx.createRadialGradient(0,0,0,0,0,8);
+      grad2.addColorStop(0,'rgba(163,158,245,0.9)');
+      grad2.addColorStop(1,'rgba(83,74,183,0.2)');
+      ctx.beginPath();ctx.arc(0,0,7,0,Math.PI*2);
+      ctx.fillStyle=grad2;ctx.fill();
+      ctx.font='7px Share Tech Mono';ctx.fillStyle='rgba(163,158,245,0.8)';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(p.life%2===0?'10':'01',0,0);
+    } else if(p.type==='sea_ult'){
+      // 역해킹 궁극기 — 대형 바이러스 볼
+      const pulse=Math.sin(p.life*.25)*3;
+      // 외부 3중 링
+      for(let i=0;i<3;i++){
+        const rot=p.life*(.08+i*.03);
+        ctx.save();ctx.rotate(rot);
+        ctx.beginPath();ctx.arc(0,0,14+i*4+pulse,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(29,158,117,${0.8-i*.2})`;
+        ctx.lineWidth=2-i*.4;ctx.setLineDash([5,3]);ctx.stroke();ctx.setLineDash([]);
+        ctx.restore();
+      }
+      // 코어
+      const gUlt=ctx.createRadialGradient(0,0,0,0,0,12);
+      gUlt.addColorStop(0,'rgba(93,202,165,1)');
+      gUlt.addColorStop(0.5,'rgba(29,158,117,0.7)');
+      gUlt.addColorStop(1,'rgba(29,158,117,0)');
+      ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);
+      ctx.fillStyle=gUlt;ctx.fill();
+      // 중심
+      ctx.beginPath();ctx.arc(0,0,4,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,255,255,0.9)';ctx.fill();
+      // 궤도 파편 6개
+      const rotF=p.life*.12;
+      for(let i=0;i<6;i++){
+        const a=rotF+i*Math.PI/3;const r=16+pulse;
+        ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,2.5,0,Math.PI*2);
+        ctx.fillStyle=i%2===0?'#5dcaa5':'#1D9E75';ctx.fill();
+      }
+    }
+
+    ctx.restore();
+  });
+}
+
+/* ═══════ 말풍선 시스템 ═══════ */
+let tooltipTimers=[null,null,null,null];
+
+function initSkillTooltips(){
+  for(let i=0;i<4;i++){
+    const btn=document.getElementById('sk'+i);
+    const tip=document.getElementById('skt'+i);
+    if(!btn||!tip) continue;
+
+    const showTip=()=>{
+      if(!running||selChar<0) return;
+      const ch=CHARS[selChar];
+      const sk=SKDATA[selChar][i];
+      const nm=tip.querySelector('.skt-name');
+      const ds=tip.querySelector('.skt-desc');
+      const cd=tip.querySelector('.skt-cd');
+      nm.textContent=`${ch.icons[i]} ${ch.skills[i]}`;
+      ds.textContent=ch.skillDescs?.[i]||'';
+      cd.textContent=sk.cd>0?`쿨타임: ${(sk.cd/60).toFixed(1)}s`:'쿨타임 없음';
+      tip.classList.add('vis');
+    };
+    const hideTip=()=>tip.classList.remove('vis');
+
+    // 데스크탑: hover
+    btn.addEventListener('mouseenter',showTip);
+    btn.addEventListener('mouseleave',hideTip);
+
+    // 모바일: 롱프레스 (400ms)
+    btn.addEventListener('touchstart',(e)=>{
+      tooltipTimers[i]=setTimeout(()=>{
+        showTip();
+        e.preventDefault();
+      },400);
+    },{passive:false});
+    btn.addEventListener('touchend',()=>{
+      clearTimeout(tooltipTimers[i]);
+      setTimeout(hideTip,1200);
+    });
+    btn.addEventListener('touchmove',()=>{
+      clearTimeout(tooltipTimers[i]);
+      hideTip();
+    });
+  }
+}
+
 function spawnSkillFX(type,wx,wy,angle,color){
   skillFX.push({type,wx,wy,angle,color,life:0,maxLife:30,t:0});
 }
@@ -3697,6 +3962,21 @@ function drawSkillFX(){
         ctx.strokeStyle=`rgba(226,75,75,${1-t})`;ctx.lineWidth=5*(1-t);ctx.stroke();
         ctx.beginPath();ctx.arc(0,0,20*t,0,Math.PI*2);
         ctx.fillStyle=`rgba(226,75,75,${0.3*(1-t)})`;ctx.fill();
+        break;
+      }
+      case 'proj_hit': {
+        // 투사체 명중 — 해킹 파열
+        ctx.beginPath();ctx.arc(0,0,18*t,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(93,202,165,${1-t})`;ctx.lineWidth=3*(1-t);ctx.stroke();
+        for(let i=0;i<6;i++){
+          const a=i/6*Math.PI*2;const r=12*t;
+          ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,2*(1-t),0,Math.PI*2);
+          ctx.fillStyle=`rgba(29,158,117,${1-t})`;ctx.fill();
+        }
+        ctx.font=`${8*(1-t*.5)}px Share Tech Mono`;
+        ctx.fillStyle=`rgba(93,202,165,${1-t})`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('HACK',0,-14*t);
         break;
       }
       case 'levelup': {
@@ -5336,6 +5616,7 @@ function updateBossHPBar(){
 
 /* ═══════ INIT ═══════ */
 loadKB();updateKeyLabels();
+initSkillTooltips();
 document.documentElement.style.setProperty('--vh',`${window.innerHeight*0.01}px`);
 initCtrlMode();
 try{
