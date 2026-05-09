@@ -757,9 +757,9 @@ canvas{display:block;width:100%;height:100%}
   top:90px;
   right:8px;
   left:auto;
-  font-family:var(--tf);font-size:9px;padding:2px 8px;border-radius:4px;
+  font-family:var(--tf);font-size:13px;padding:3px 5px;border-radius:4px;
   background:var(--c2)cc;border:1px solid var(--c3);color:#5a7a94;
-  cursor:pointer;z-index:31;display:none;
+  cursor:pointer;z-index:31;display:none;line-height:1;
 }
 #chat-toggle:active{color:var(--ct);border-color:var(--ct)}
 
@@ -908,7 +908,7 @@ canvas{display:block;width:100%;height:100%}
       <button id="chat-send" onclick="sendChat()">전송</button>
     </div>
   </div>
-  <button id="chat-toggle" style="display:none" onclick="toggleChat()">💬 채팅</button>
+  <button id="chat-toggle" style="display:none" onclick="toggleChat()">💬</button>
 
   <!-- 멀티 파티 HUD -->
   <div id="multi-party-hud"></div>
@@ -2747,33 +2747,103 @@ function useSkill(i){
     const eq=getEquipStats();
     const atkTotal=(player.atk+eq.atk)*eq.atkMult;
     if(i===0){
-      // 기본 스킬: 단일 해킹 볼 (관통)
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55));
       spawnProjectile('sea_basic',player.x,player.y,ang,dmg,{spd:7,maxLife:18,pierce:true});
     } else if(i===1){
-      // 드롭 해킹: 부채꼴 3발
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55));
       for(let s=-1;s<=1;s++){
         spawnProjectile('sea_basic',player.x,player.y,ang+s*.25,dmg,{spd:6,maxLife:17,pierce:false});
       }
     } else if(i===2){
-      // 코드 분석: 코드 볼 (큰 피해, 느리게)
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.7));
       spawnProjectile('sea_skill2',player.x,player.y,ang,dmg,{spd:5,maxLife:20,pierce:true});
     } else if(i===3){
-      // 역해킹 궁극기: 대형 바이러스 볼 3발 부채꼴
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.8));
       for(let s=-1;s<=1;s++){
         spawnProjectile('sea_ult',player.x,player.y,ang+s*.2,dmg,{spd:5,maxLife:23,pierce:true});
       }
     }
-    // 서아는 투사체로 피해 처리하므로 아래 근접 판정 건너뜀
-    if(i===0||i===2||i===3){
-      addLog(`${CHARS[selChar].skills[i]}`,'lsk');
-      return;
-    }
-    // i===1 드롭 해킹: 투사체 + 드롭률 버프 (아래 계속 진행 안 함)
+    if(i===0||i===2||i===3){ addLog(`${CHARS[selChar].skills[i]}`,'lsk'); return; }
     addLog(`${CHARS[selChar].skills[i]} — 드롭 해킹 활성!`,'lsk');
+    return;
+  }
+
+  // ── 박민재(min) 폭발 투사체 발사 ──
+  if(selChar===2){
+    const eq=getEquipStats();
+    const atkTotal=(player.atk+eq.atk)*eq.atkMult;
+    if(i===0){
+      // 생존 본능: 단발 폭발탄 (빠름)
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.6));
+      spawnProjectile('min_bomb',player.x,player.y,ang,dmg,{spd:9,maxLife:16,pierce:false});
+    } else if(i===1){
+      // 각성: 빠른 3연발
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55));
+      for(let s=0;s<3;s++){
+        setTimeout(()=>{
+          if(running) spawnProjectile('min_bomb',player.x,player.y,ang+rand(-10,10)*.01,dmg,{spd:10,maxLife:15,pierce:false});
+        },s*80);
+      }
+    } else if(i===2){
+      // 폭발 연격: 부채꼴 5발
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.5));
+      for(let s=-2;s<=2;s++){
+        spawnProjectile('min_bomb',player.x,player.y,ang+s*.2,dmg,{spd:8,maxLife:14,pierce:false});
+      }
+    } else if(i===3){
+      // 경험치 증폭 궁극기: 대형 폭발탄 + 부채꼴 3발
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.7));
+      spawnProjectile('min_ult',player.x,player.y,ang,dmg,{spd:6,maxLife:22,pierce:true});
+      for(let s=-1;s<=1;s+=2){
+        spawnProjectile('min_bomb',player.x,player.y,ang+s*.3,Math.floor(dmg*.6),{spd:8,maxLife:15,pierce:false});
+      }
+    }
+    addLog(`${CHARS[selChar].skills[i]}`,'lsk');
+    return;
+  }
+
+  // ── 오하나(hana) 의료 드론 투사체 ──
+  if(selChar===3){
+    const eq=getEquipStats();
+    const atkTotal=(player.atk+eq.atk)*eq.atkMult;
+    if(i===0){
+      // 응급처치: 힐 효과 + 드론 1기 발사 (가장 가까운 적 추적)
+      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.4));
+      spawnProjectile('hana_drone',player.x,player.y,ang,dmg,{spd:5,maxLife:22,pierce:false});
+      // 힐은 별도로
+      const h=Math.floor(Math.abs(sk.dmg)*atkTotal*(1+eq.healBonus));
+      player.hp=Math.min(player.maxHp,player.hp+h);
+      addFloat(player.x,player.y,`+${h}`,'#5dcaa5');
+      sparks(player.x,player.y,'#5dcaa5',8);
+    } else if(i===1){
+      // 강화 주사: 드론 2기 부채꼴
+      const dmg=Math.max(1,Math.floor(Math.abs(sk.dmg)*atkTotal*.35));
+      for(let s=-1;s<=1;s+=2){
+        spawnProjectile('hana_drone',player.x,player.y,ang+s*.2,dmg,{spd:5,maxLife:20,pierce:false});
+      }
+    } else if(i===2){
+      // 생명의 장막: 힐 + 드론 3기 방사형
+      const dmg=Math.max(1,Math.floor(Math.abs(sk.dmg)*atkTotal*.3));
+      for(let s=0;s<3;s++){
+        spawnProjectile('hana_drone',player.x,player.y,ang+s*Math.PI*2/3,dmg,{spd:4,maxLife:24,pierce:false});
+      }
+      const h=Math.floor(Math.abs(sk.dmg)*atkTotal*.5*(1+eq.healBonus));
+      player.hp=Math.min(player.maxHp,player.hp+h);
+      addFloat(player.x,player.y,`+${h}`,'#5dcaa5');
+      sparks(player.x,player.y,'#993556',10);
+    } else if(i===3){
+      // 부활 궁극기: 대형 드론 전방향 5기
+      const dmg=Math.max(1,Math.floor(Math.abs(sk.dmg)*atkTotal*.5));
+      for(let s=0;s<5;s++){
+        spawnProjectile('hana_ult',player.x,player.y,ang+s*Math.PI*2/5,dmg,{spd:4,maxLife:30,pierce:true});
+      }
+      const h=Math.floor(player.maxHp*0.4);
+      player.hp=Math.min(player.maxHp,player.hp+h);
+      addFloat(player.x,player.y,`+${h} 부활!`,'#5dcaa5');
+      sparks(player.x,player.y,'#993556',15);
+      SFX.heal&&SFX.heal();
+    }
+    addLog(`${CHARS[selChar].skills[i]}`,'lsk');
     return;
   }
 
@@ -3765,8 +3835,8 @@ function updateProjectiles(){
     const tc=Math.floor(p.x/TILE), tr=Math.floor(p.y/TILE);
     if(tr>=0&&tr<ROWS&&tc>=0&&tc<COLS&&MAP[tr]&&MAP[tr][tc]===1){
       toRemove.push(idx);
-      // 충돌 파티클
-      for(let i=0;i<5;i++) sparks(p.x,p.y,'#1D9E75',5);
+      const wc=p.type.startsWith('min')?'#ef9f27':p.type.startsWith('hana')?'#993556':'#1D9E75';
+      for(let i=0;i<5;i++) sparks(p.x,p.y,wc,5);
       return;
     }
 
@@ -3779,9 +3849,12 @@ function updateProjectiles(){
         p.hit.add(e);
         hitAny=true;
         const actualDmg=Math.max(1,p.dmg+Math.floor(Math.random()*8-4));
-        addFloat(e.x,e.y,`-${actualDmg}`,'#5dcaa5');
-        sparks(e.x,e.y,'#1D9E75',6);
-        spawnSkillFX('proj_hit',e.x,e.y,0,'#1D9E75');
+        // 캐릭터별 명중 색상
+        const hitColor=p.type.startsWith('min')?'#ef9f27':p.type.startsWith('hana')?'#993556':'#5dcaa5';
+        const sparkColor=p.type.startsWith('min')?'#BA7517':p.type.startsWith('hana')?'#993556':'#1D9E75';
+        addFloat(e.x,e.y,`-${actualDmg}`,p.type.startsWith('hana')?'#5dcaa5':'#ff7070');
+        sparks(e.x,e.y,sparkColor,6);
+        spawnSkillFX(p.type.startsWith('min')?'min_hit':p.type.startsWith('hana')?'hana_hit':'proj_hit',e.x,e.y,0,hitColor);
         const isBossEnemy=e.boss||false;
         if(isMultiGame&&isBossEnemy&&!isBossHost()){
           e.flick=5;
@@ -3817,6 +3890,15 @@ function drawProjectiles(){
       } else if(p.type==='sea_ult'){
         ctx.beginPath();ctx.arc(ts.x,ts.y,6*(i/p.trail.length),0,Math.PI*2);
         ctx.fillStyle=`rgba(29,158,117,${alpha})`;ctx.fill();
+      } else if(p.type==='min_bomb'){
+        ctx.beginPath();ctx.arc(ts.x,ts.y,4*(i/p.trail.length),0,Math.PI*2);
+        ctx.fillStyle=`rgba(239,159,39,${alpha})`;ctx.fill();
+      } else if(p.type==='min_ult'){
+        ctx.beginPath();ctx.arc(ts.x,ts.y,8*(i/p.trail.length),0,Math.PI*2);
+        ctx.fillStyle=`rgba(226,75,75,${alpha})`;ctx.fill();
+      } else if(p.type==='hana_drone'||p.type==='hana_ult'){
+        ctx.beginPath();ctx.arc(ts.x,ts.y,3*(i/p.trail.length),0,Math.PI*2);
+        ctx.fillStyle=`rgba(93,202,165,${alpha*0.6})`;ctx.fill();
       }
       ctx.restore();
     });
@@ -3890,13 +3972,113 @@ function drawProjectiles(){
         ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,2.5,0,Math.PI*2);
         ctx.fillStyle=i%2===0?'#5dcaa5':'#1D9E75';ctx.fill();
       }
+    } else if(p.type==='min_bomb'){
+      // 박민재 폭발 파편탄 — 타는 구체
+      const pulse=Math.sin(p.life*.5)*1.5;
+      // 불꽃 외곽
+      for(let i=0;i<6;i++){
+        const a=p.life*.2+i*Math.PI/3;
+        const fr=6+pulse+Math.random()*2;
+        ctx.beginPath();ctx.arc(Math.cos(a)*2,Math.sin(a)*2,fr,0,Math.PI*2);
+        ctx.fillStyle=`rgba(239,159,39,${0.15+Math.random()*.1})`;ctx.fill();
+      }
+      // 코어
+      const gMin=ctx.createRadialGradient(0,0,0,0,0,5);
+      gMin.addColorStop(0,'rgba(255,220,100,1)');
+      gMin.addColorStop(0.5,'rgba(239,159,39,0.9)');
+      gMin.addColorStop(1,'rgba(186,117,23,0.3)');
+      ctx.beginPath();ctx.arc(0,0,5+pulse,0,Math.PI*2);
+      ctx.fillStyle=gMin;ctx.fill();
+      // 중심 흰점
+      ctx.beginPath();ctx.arc(0,0,1.5,0,Math.PI*2);
+      ctx.fillStyle='#fff';ctx.fill();
+      // 불꽃 스파크
+      const rotM=p.life*.25;
+      for(let i=0;i<4;i++){
+        const a=rotM+i*Math.PI/2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a)*5,Math.sin(a)*5);
+        ctx.lineTo(Math.cos(a)*(8+pulse),Math.sin(a)*(8+pulse));
+        ctx.strokeStyle=`rgba(255,${150+Math.random()*80|0},0,0.8)`;
+        ctx.lineWidth=1.5;ctx.stroke();
+      }
+    } else if(p.type==='min_ult'){
+      // 박민재 궁극기 — 대형 폭발탄
+      const pulse=Math.sin(p.life*.3)*3;
+      // 외부 불꽃 링
+      for(let i=0;i<8;i++){
+        const a=p.life*.15+i*Math.PI/4;
+        ctx.beginPath();ctx.arc(Math.cos(a)*3,Math.sin(a)*3,10+pulse+Math.random()*3,0,Math.PI*2);
+        ctx.fillStyle=`rgba(226,75,75,${0.1+Math.random()*.08})`;ctx.fill();
+      }
+      // 중간 링
+      const gUltM=ctx.createRadialGradient(0,0,0,0,0,10);
+      gUltM.addColorStop(0,'rgba(255,230,50,1)');
+      gUltM.addColorStop(0.4,'rgba(239,159,39,0.9)');
+      gUltM.addColorStop(0.8,'rgba(226,75,75,0.6)');
+      gUltM.addColorStop(1,'rgba(186,117,23,0)');
+      ctx.beginPath();ctx.arc(0,0,10+pulse,0,Math.PI*2);
+      ctx.fillStyle=gUltM;ctx.fill();
+      // 중심
+      ctx.beginPath();ctx.arc(0,0,3,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,255,255,0.95)';ctx.fill();
+      // 궤도 파편
+      for(let i=0;i<6;i++){
+        const a=p.life*.18+i*Math.PI/3;
+        ctx.beginPath();ctx.arc(Math.cos(a)*13,Math.sin(a)*13,2.5,0,Math.PI*2);
+        ctx.fillStyle=i%2===0?'#ef9f27':'#E24B4A';ctx.fill();
+      }
+    } else if(p.type==='hana_drone'){
+      // 오하나 의료 드론 — 십자형 드론
+      const rot=p.life*.12;
+      ctx.save();ctx.rotate(rot);
+      // 드론 몸체
+      ctx.fillStyle='#c0d0e0';
+      ctx.beginPath();ctx.roundRect(-5,-5,10,10,[2]);ctx.fill();
+      // 십자 마크
+      ctx.fillStyle='#e24b4b';ctx.fillRect(-1,-4,2,8);ctx.fillRect(-4,-1,8,2);
+      // 4방향 프로펠러
+      for(let i=0;i<4;i++){
+        const a=i*Math.PI/2;
+        ctx.save();ctx.translate(Math.cos(a)*7,Math.sin(a)*7);
+        ctx.rotate(p.life*.3);
+        ctx.beginPath();ctx.ellipse(0,0,4,1.5,0,0,Math.PI*2);
+        ctx.fillStyle='rgba(153,53,86,0.7)';ctx.fill();
+        ctx.restore();
+      }
+      // 힐 빔
+      const beamAlpha=0.4+Math.sin(p.life*.3)*0.3;
+      ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(93,202,165,${beamAlpha})`;
+      ctx.lineWidth=1;ctx.setLineDash([2,3]);ctx.stroke();ctx.setLineDash([]);
+      ctx.restore();
+    } else if(p.type==='hana_ult'){
+      // 오하나 궁극기 드론 — 대형 의료 드론
+      const rot=p.life*.08;
+      ctx.save();ctx.rotate(rot);
+      // 큰 드론 몸체
+      ctx.fillStyle='#e0eaf4';
+      ctx.beginPath();ctx.roundRect(-9,-9,18,18,[3]);ctx.fill();
+      ctx.fillStyle='#c8d8e8';
+      ctx.beginPath();ctx.roundRect(-7,-7,14,14,[2]);ctx.fill();
+      // 큰 십자
+      ctx.fillStyle='#e24b4b';ctx.fillRect(-2,-7,4,14);ctx.fillRect(-7,-2,14,4);
+      // 6방향 프로펠러
+      for(let i=0;i<6;i++){
+        const a=i*Math.PI/3;
+        ctx.save();ctx.translate(Math.cos(a)*12,Math.sin(a)*12);
+        ctx.rotate(p.life*.4);
+        ctx.beginPath();ctx.ellipse(0,0,5,2,0,0,Math.PI*2);
+        ctx.fillStyle='rgba(153,53,86,0.8)';ctx.fill();
+        ctx.restore();
+      }
+      // 힐 오라
+      const oa=0.3+Math.sin(p.life*.2)*0.2;
+      ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(93,202,165,${oa})`;
+      ctx.lineWidth=2;ctx.setLineDash([3,4]);ctx.stroke();ctx.setLineDash([]);
+      ctx.restore();
     }
-
-    ctx.restore();
-  });
-}
-
-/* ═══════ 말풍선 시스템 ═══════ */
 let tooltipTimers=[null,null,null,null];
 
 function initSkillTooltips(){
@@ -4055,6 +4237,39 @@ function drawSkillFX(){
         ctx.fillStyle=`rgba(93,202,165,${1-t})`;
         ctx.textAlign='center';ctx.textBaseline='middle';
         ctx.fillText('HACK',0,-14*t);
+        break;
+      }
+      case 'min_hit': {
+        // 박민재 명중 — 폭발
+        ctx.beginPath();ctx.arc(0,0,22*t,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(239,159,39,${1-t})`;ctx.lineWidth=4*(1-t);ctx.stroke();
+        ctx.beginPath();ctx.arc(0,0,12*t,0,Math.PI*2);
+        ctx.fillStyle=`rgba(255,220,50,${0.4*(1-t)})`;ctx.fill();
+        for(let i=0;i<8;i++){
+          const a=i/8*Math.PI*2;const r=18*t;
+          ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+          ctx.strokeStyle=`rgba(226,75,75,${(1-t)*0.8})`;ctx.lineWidth=2*(1-t);ctx.stroke();
+        }
+        ctx.font=`${9*(1-t*.5)}px Share Tech Mono`;
+        ctx.fillStyle=`rgba(239,159,39,${1-t})`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('BOOM',0,-16*t);
+        break;
+      }
+      case 'hana_hit': {
+        // 오하나 명중 — 의료 힐+딜
+        ctx.beginPath();ctx.arc(0,0,20*t,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(93,202,165,${1-t})`;ctx.lineWidth=3*(1-t);ctx.stroke();
+        // 십자 이펙트
+        const cs=10*t*(1-t*.3);
+        ctx.fillStyle=`rgba(93,202,165,${(1-t)*0.7})`;
+        ctx.fillRect(-2,-cs,4,cs*2);ctx.fillRect(-cs,-2,cs*2,4);
+        // 힐 파티클
+        for(let i=0;i<5;i++){
+          const a=i/5*Math.PI*2;const r=14*t;
+          ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,2*(1-t),0,Math.PI*2);
+          ctx.fillStyle=`rgba(153,53,86,${1-t})`;ctx.fill();
+        }
         break;
       }
       case 'levelup': {
