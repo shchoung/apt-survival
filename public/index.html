@@ -1721,10 +1721,10 @@ function addItem(itemId,qty=1){
   if(!base)return;
   for(let i=0;i<qty;i++) inventory.push({item:{...base},enhLevel:0});
   showToast(`${base.name} 획득!`);
-  // 퀘스트 연동
   questState.sessionLoot = (questState.sessionLoot||0) + qty;
   questProgress('loot', qty);
   if(base.grade === 'S') questProgress('s_grade', 1, {grade:'S'});
+  if(running&&player) saveGameData();
 }
 let selInvIdx=-1;
 let selEnhIdx=-1;
@@ -1966,40 +1966,43 @@ function doEnhance(method){
     addLog(`${e.item.name} 강화 실패`,'lhit');
   }
   renderInv();
+  if(running&&player) saveGameData();
 }
 
 function equipItem(idx){
   const {item}=inventory[idx];if(!item.slot)return;
   Object.keys(equipped).forEach(k=>{if(equipped[k]===idx)equipped[k]=null;});
   equipped[item.slot]=idx;renderInv();showToast(`${item.name} 장착!`);
+  if(running&&player) saveGameData();
 }
 function unequipItem(idx){
   Object.keys(equipped).forEach(k=>{if(equipped[k]===idx)equipped[k]=null;});
   renderInv();
+  if(running&&player) saveGameData();
 }
 function useConsumable(idx){
   const {item}=inventory[idx];
   if(item.healAmt){player.hp=Math.min(player.maxHp,player.hp+item.healAmt);addLog(`${item.name} HP+${item.healAmt}`,'lheal');}
   inventory.splice(idx,1);
-  // splice 후 equipped 인덱스 보정
   Object.keys(equipped).forEach(k=>{
-    if(equipped[k]===idx) equipped[k]=null;          // 제거된 아이템 해제
-    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--; // 뒤 인덱스 당기기
+    if(equipped[k]===idx) equipped[k]=null;
+    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--;
   });
   if(selInvIdx>=idx)selInvIdx=-1;
   if(selEnhIdx>=idx)selEnhIdx=-1;
   renderInv();showToast(`${item.name} 사용!`);
+  if(running&&player) saveGameData();
 }
 function dropItem(idx){
   inventory.splice(idx,1);
-  // splice 후 equipped 인덱스 보정
   Object.keys(equipped).forEach(k=>{
-    if(equipped[k]===idx) equipped[k]=null;          // 버린 아이템 장착 해제
-    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--; // 뒤 인덱스 당기기
+    if(equipped[k]===idx) equipped[k]=null;
+    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--;
   });
   if(selInvIdx>=idx)selInvIdx=-1;
   if(selEnhIdx>=idx)selEnhIdx=-1;
   renderInv();
+  if(running&&player) saveGameData();
 }
 
 function getEquipStats(){
@@ -4612,20 +4615,26 @@ function buyShopItem(i){
   gold-=s.price;
   addItem(s.item.id);
   showToast(`✅ ${s.item.name} 구매!`);
-  // 구매한 아이템 재고에서 제거
   shopStock.splice(i,1);
   renderShopBuy();
+  if(running&&player) saveGameData();
 }
 
 function sellItem(idx){
   const entry=inventory[idx];
   if(!entry) return;
+  // 장착 중인 아이템 해제
+  Object.keys(equipped).forEach(k=>{
+    if(equipped[k]===idx) equipped[k]=null;
+    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--;
+  });
   const price=calcSellPrice(entry);
   gold+=price;
   inventory.splice(idx,1);
   showToast(`💸 ${entry.item.name} 판매 (+${price}G)`);
   renderShopSell();
   document.getElementById('shop-gold').textContent=gold;
+  if(running&&player) saveGameData();
 }
 
 /* ═══════ 게시판 시스템 ═══════ */
