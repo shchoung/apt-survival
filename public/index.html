@@ -4905,14 +4905,7 @@ function replayOpening(){
   });
 }
 
-
-  showScr('title');
-  startBGM(0);
-  loadQuestState();
-  updateQuestBadge();
-}
-
-
+function afterLogin(){
   const u=currentUser;
   // save → saves[] 정규화 (구버전 호환)
   if(u.save&&!u.saves){
