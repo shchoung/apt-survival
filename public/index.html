@@ -1338,15 +1338,15 @@ const ITEM_POOL=[...EQUIP_POOL,...CONSUME_POOL,...MATERIAL_POOL];
 /* 강화 시스템 */
 const ENH_LEVELS=[
   {level:0,label:"미강화",atkBonus:0,successRate:1,cost:0,mats:[]},
-  {level:1,label:"+1",atkBonus:0.08,successRate:0.95,cost:100,mats:["circuit"]},
-  {level:2,label:"+2",atkBonus:0.16,successRate:0.90,cost:200,mats:["circuit","circuit"]},
-  {level:3,label:"+3",atkBonus:0.25,successRate:0.85,cost:350,mats:["circuit","ai_core"]},
-  {level:4,label:"+4",atkBonus:0.35,successRate:0.75,cost:550,mats:["ai_core","ai_core"]},
-  {level:5,label:"+5",atkBonus:0.48,successRate:0.65,cost:800,mats:["ai_core","nano_bot"]},
-  {level:6,label:"+6",atkBonus:0.62,successRate:0.55,cost:1200,mats:["nano_bot","nano_bot"]},
-  {level:7,label:"+7",atkBonus:0.80,successRate:0.45,cost:1800,mats:["nano_bot","nano_bot","ai_core"]},
-  {level:8,label:"+8",atkBonus:1.00,successRate:0.35,cost:2500,mats:["nano_bot","nano_bot","nano_bot"]},
-  {level:9,label:"+9 MAX",atkBonus:1.30,successRate:0.25,cost:4000,mats:["nano_bot","nano_bot","nano_bot","ai_core"]},
+  {level:1,label:"+1",atkBonus:0.08,successRate:0.95,cost:300,mats:["circuit"]},
+  {level:2,label:"+2",atkBonus:0.16,successRate:0.90,cost:700,mats:["circuit","circuit"]},
+  {level:3,label:"+3",atkBonus:0.25,successRate:0.85,cost:1200,mats:["circuit","ai_core"]},
+  {level:4,label:"+4",atkBonus:0.35,successRate:0.75,cost:2000,mats:["ai_core","ai_core"]},
+  {level:5,label:"+5",atkBonus:0.48,successRate:0.65,cost:3200,mats:["ai_core","nano_bot"]},
+  {level:6,label:"+6",atkBonus:0.62,successRate:0.55,cost:5000,mats:["nano_bot","nano_bot"]},
+  {level:7,label:"+7",atkBonus:0.80,successRate:0.45,cost:8000,mats:["nano_bot","nano_bot","ai_core"]},
+  {level:8,label:"+8",atkBonus:1.00,successRate:0.35,cost:13000,mats:["nano_bot","nano_bot","nano_bot"]},
+  {level:9,label:"+9 MAX",atkBonus:1.30,successRate:0.25,cost:20000,mats:["nano_bot","nano_bot","nano_bot","ai_core"]},
 ];
 
 /* ═══════ KEY BINDINGS ═══════ */
@@ -2879,7 +2879,7 @@ function killEnemy(e){
   if(e.boss) SFX.death(); else SFX.hit();
   addLog(`${e.name} 처치 EXP+${ex}`,'lsys');
   const dropRoll=Math.random();
-  if(dropRoll<0.28+dr){
+  if(dropRoll<0.06+dr){
     const grRoll=Math.random();
     const grade=grRoll<0.03?'A':grRoll<0.25?'B':'C';
     const typeRoll=Math.random();
@@ -2898,7 +2898,7 @@ function killEnemy(e){
       drops_arr.push({x:e.x+rand(-18,18),y:e.y+rand(-18,18),type:'item',itemId:it.id,life:350});
     }
   }
-  if(Math.random()<0.45+dr) drops_arr.push({x:e.x+rand(-12,12),y:e.y+rand(-12,12),type:'gold',amount:e.gold||10,life:280});
+  if(Math.random()<0.25+dr) drops_arr.push({x:e.x+rand(-12,12),y:e.y+rand(-12,12),type:'gold',amount:e.gold||10,life:280});
   while(player.exp>=player.expNext){
     player.exp-=player.expNext;player.lv++;player.expNext=player.lv*80;
     const cd=CHARS[selChar];
@@ -4464,19 +4464,20 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 /* ═══════ 상점 시스템 ═══════ */
 
 // 등급별 기준 가격
-const SHOP_BASE_PRICE={C:50, B:200, A:600, S:2500};
-// 판매 시 구매가의 35%
-const SELL_RATE=0.35;
+const SHOP_BASE_PRICE={C:150, B:600, A:1800, S:7000};
+// 판매 시 구매가의 25%
+const SELL_RATE=0.25;
 
 // 상점 재고 — 층에 따라 변경, 진입마다 랜덤 8개
 let shopStock=[];
 let shopTab='buy';
 
 function calcBuyPrice(item){
-  const base=SHOP_BASE_PRICE[item.grade]||50;
+  const base=SHOP_BASE_PRICE[item.grade]||150;
   let price=base;
-  if(item.grade==='S') price=Math.floor(base*(1.5+Math.random()*0.5)); // S등급 변동
-  if(!item.shared)     price=Math.floor(price*1.8);  // 전용 아이템 80% 비쌈
+  if(item.type==='consumable') price=Math.floor(price*2.5); // 물약 2.5배
+  if(item.grade==='S') price=Math.floor(price*(1.5+Math.random()*0.5));
+  if(!item.shared)     price=Math.floor(price*1.8);
   return price;
 }
 function calcSellPrice(entry){
