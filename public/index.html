@@ -2775,27 +2775,27 @@ function useSkill(i){
     if(i===0){
       // 생존 본능: 단발 폭발탄 (빠름)
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.6));
-      spawnProjectile('min_bomb',player.x,player.y,ang,dmg,{spd:9,maxLife:16,pierce:false});
+      spawnProjectile('min_bomb',player.x,player.y,ang,dmg,{spd:9,maxLife:8,pierce:false});
     } else if(i===1){
       // 각성: 빠른 3연발
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55));
       for(let s=0;s<3;s++){
         setTimeout(()=>{
-          if(running) spawnProjectile('min_bomb',player.x,player.y,ang+rand(-10,10)*.01,dmg,{spd:10,maxLife:15,pierce:false});
+          if(running) spawnProjectile('min_bomb',player.x,player.y,ang+rand(-10,10)*.01,dmg,{spd:10,maxLife:8,pierce:false});
         },s*80);
       }
     } else if(i===2){
       // 폭발 연격: 부채꼴 5발
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.5));
       for(let s=-2;s<=2;s++){
-        spawnProjectile('min_bomb',player.x,player.y,ang+s*.2,dmg,{spd:8,maxLife:14,pierce:false});
+        spawnProjectile('min_bomb',player.x,player.y,ang+s*.2,dmg,{spd:8,maxLife:7,pierce:false});
       }
     } else if(i===3){
       // 경험치 증폭 궁극기: 대형 폭발탄 + 부채꼴 3발
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.7));
-      spawnProjectile('min_ult',player.x,player.y,ang,dmg,{spd:6,maxLife:22,pierce:true});
+      spawnProjectile('min_ult',player.x,player.y,ang,dmg,{spd:6,maxLife:11,pierce:true});
       for(let s=-1;s<=1;s+=2){
-        spawnProjectile('min_bomb',player.x,player.y,ang+s*.3,Math.floor(dmg*.6),{spd:8,maxLife:15,pierce:false});
+        spawnProjectile('min_bomb',player.x,player.y,ang+s*.3,Math.floor(dmg*.6),{spd:8,maxLife:8,pierce:false});
       }
     }
     addLog(`${CHARS[selChar].skills[i]}`,'lsk');
@@ -2809,7 +2809,7 @@ function useSkill(i){
     if(i===0){
       // 응급처치: 힐 효과 + 드론 1기 발사 (가장 가까운 적 추적)
       const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.4));
-      spawnProjectile('hana_drone',player.x,player.y,ang,dmg,{spd:5,maxLife:22,pierce:false});
+      spawnProjectile('hana_drone',player.x,player.y,ang,dmg,{spd:5,maxLife:11,pierce:false});
       // 힐은 별도로
       const h=Math.floor(Math.abs(sk.dmg)*atkTotal*(1+eq.healBonus));
       player.hp=Math.min(player.maxHp,player.hp+h);
@@ -2819,13 +2819,13 @@ function useSkill(i){
       // 강화 주사: 드론 2기 부채꼴
       const dmg=Math.max(1,Math.floor(Math.abs(sk.dmg)*atkTotal*.35));
       for(let s=-1;s<=1;s+=2){
-        spawnProjectile('hana_drone',player.x,player.y,ang+s*.2,dmg,{spd:5,maxLife:20,pierce:false});
+        spawnProjectile('hana_drone',player.x,player.y,ang+s*.2,dmg,{spd:5,maxLife:10,pierce:false});
       }
     } else if(i===2){
       // 생명의 장막: 힐 + 드론 3기 방사형
       const dmg=Math.max(1,Math.floor(Math.abs(sk.dmg)*atkTotal*.3));
       for(let s=0;s<3;s++){
-        spawnProjectile('hana_drone',player.x,player.y,ang+s*Math.PI*2/3,dmg,{spd:4,maxLife:24,pierce:false});
+        spawnProjectile('hana_drone',player.x,player.y,ang+s*Math.PI*2/3,dmg,{spd:4,maxLife:12,pierce:false});
       }
       const h=Math.floor(Math.abs(sk.dmg)*atkTotal*.5*(1+eq.healBonus));
       player.hp=Math.min(player.maxHp,player.hp+h);
@@ -2835,7 +2835,7 @@ function useSkill(i){
       // 부활 궁극기: 대형 드론 전방향 5기
       const dmg=Math.max(1,Math.floor(Math.abs(sk.dmg)*atkTotal*.5));
       for(let s=0;s<5;s++){
-        spawnProjectile('hana_ult',player.x,player.y,ang+s*Math.PI*2/5,dmg,{spd:4,maxLife:30,pierce:true});
+        spawnProjectile('hana_ult',player.x,player.y,ang+s*Math.PI*2/5,dmg,{spd:4,maxLife:15,pierce:true});
       }
       const h=Math.floor(player.maxHp*0.4);
       player.hp=Math.min(player.maxHp,player.hp+h);
