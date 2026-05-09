@@ -700,7 +700,7 @@ canvas{display:block;width:100%;height:100%}
 /* CHAT — 하단 스킬바 위 */
 #chat-panel{
   position:absolute;
-  bottom:calc(70px + var(--safe-bot) + 4px);
+  bottom:calc(64px + var(--safe-bot));
   left:0; right:0;
   width:100%;
   max-height:120px;
@@ -732,7 +732,7 @@ canvas{display:block;width:100%;height:100%}
 /* 채팅 토글 버튼 — 하단 좌측 스킬바 위 */
 #chat-toggle{
   position:absolute;
-  bottom:calc(70px + var(--safe-bot) + 4px);
+  bottom:calc(64px + var(--safe-bot));
   left:8px;
   right:auto; top:auto;
   font-family:var(--tf);font-size:11px;padding:3px 8px;border-radius:4px;
@@ -2682,9 +2682,17 @@ function useSkill(i){
   else if(i===2) SFX.skill2();
   else if(i===3) SFX.ultimate();
 
+  // 공격 이펙트 — 장착 무기 등급별 색상/효과
+  const wpIdx = equipped.weapon;
+  const wpGrade = (wpIdx!=null&&inventory[wpIdx]) ? inventory[wpIdx].item.grade : 'C';
+  const gradeColor = {C:'#ef9f27', B:'#378ADD', A:'#7f77dd', S:'#ef9f27'}[wpGrade]||'#ef9f27';
+  const gradeFlashColor = {C:'#ffffff', B:'#7bbfff', A:'#c0b8ff', S:'#ffe066'}[wpGrade]||'#ffffff';
+  const gradeFlashStr = wpGrade==='S'?16:wpGrade==='A'?12:wpGrade==='B'?10:8;
+
   // 어택 애니메이션 - 스킬마다 길이 다르게
-  atkAnim = i===0 ? 12 : 18; // 일반공격 12프레임, 스킬 18프레임
-  charAnimState.atkFlash=8;
+  atkAnim = i===0 ? 12 : 18;
+  charAnimState.atkFlash = gradeFlashStr;
+  charAnimState.atkFlashColor = gradeFlashColor;
   charAnimState.atkPush=10;
   if(i>=1) charAnimState.skillGlow=20;
 
@@ -2716,12 +2724,13 @@ function useSkill(i){
     return;
   }
 
-  // 공격 스킬
-  let fxType='slash';
-  if(selChar===1) fxType='hack';
-  else if(selChar===2) fxType='dash';
-  else if(sk.aoe>0) fxType='aoe';
-  spawnSkillFX(fxType,player.x,player.y,ang,CHARS[selChar].color);
+  // 공격 스킬 이펙트 — 투사체 캐릭터(min/hana)는 생략
+  if(selChar!==2&&selChar!==3){
+    let fxType='slash';
+    if(selChar===1) fxType='hack';
+    else if(sk.aoe>0) fxType='aoe';
+    spawnSkillFX(fxType,player.x,player.y,ang,gradeColor,wpGrade);
+  }
 
   // ── 서아(sea) 원거리 투사체 발사 ──
   if(selChar===1){
@@ -3626,10 +3635,10 @@ function drawCharSVG(ctx,x,y,charIdx,angle,invBlink){
       ctx.shadowColor=CHARS[charIdx]?.color||'#a0c0ff';
       ctx.shadowBlur=18*glowAlpha;
     }
-    // 어택 섬광
+    // 어택 섬광 — 등급별 색상
     if(isMe&&charAnimState.atkFlash>0){
-      ctx.shadowColor='#ffffff';
-      ctx.shadowBlur=12*(charAnimState.atkFlash/8);
+      ctx.shadowColor=charAnimState.atkFlashColor||'#ffffff';
+      ctx.shadowBlur=12*(charAnimState.atkFlash/16);
     }
 
     ctx.save();
@@ -4110,8 +4119,9 @@ function initSkillTooltips(){
   }
 }
 
-function spawnSkillFX(type,wx,wy,angle,color){
-  skillFX.push({type,wx,wy,angle,color,life:0,maxLife:30,t:0});
+function spawnSkillFX(type,wx,wy,angle,color,grade='C'){
+  const maxLife = (type==='slash'&&grade==='S') ? 40 : (type==='slash'&&grade==='A') ? 35 : 30;
+  skillFX.push({type,wx,wy,angle,color,grade,life:0,maxLife,t:0});
 }
 
 function updateSkillFX(){
@@ -4128,18 +4138,42 @@ function drawSkillFX(){
 
     switch(fx.type){
       case 'slash': {
-        // 베기 이펙트 — 호 형태
         ctx.rotate(fx.angle);
-        for(let i=0;i<3;i++){
+        const gc=fx.color||'#ef9f27';
+        const gr=fx.grade||'C';
+        const isS=gr==='S', isA=gr==='A', isB=gr==='B';
+        const arcCount=isS?5:isA?4:3;
+        for(let i=0;i<arcCount;i++){
           ctx.beginPath();
           ctx.arc(0,0,20+i*8+t*30,-.6+i*.15,.6-i*.15);
-          ctx.strokeStyle=`hsl(30,80%,${60+i*10}%)`;
-          ctx.lineWidth=4-i;ctx.stroke();
+          if(isS)      ctx.strokeStyle=`hsl(45,100%,${55+i*8}%)`;
+          else if(isA) ctx.strokeStyle=`hsl(250,70%,${55+i*10}%)`;
+          else if(isB) ctx.strokeStyle=`hsl(210,80%,${55+i*10}%)`;
+          else         ctx.strokeStyle=`hsl(30,80%,${60+i*10}%)`;
+          ctx.lineWidth=4-i*0.5;ctx.stroke();
         }
-        // 파편
-        for(let i=0;i<5;i++){
-          const a=-0.5+i*.25,r=25+t*40;
-          ctx.fillStyle='#ef9f27';ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,2-t*2,0,Math.PI*2);ctx.fill();
+        // 파편 — 등급별 개수/색상
+        const sparkN=isS?10:isA?8:isB?6:5;
+        for(let i=0;i<sparkN;i++){
+          const a=-0.6+i*(1.2/(sparkN-1)),r=25+t*40;
+          ctx.fillStyle=gc;
+          ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,2.5-t*2,0,Math.PI*2);ctx.fill();
+        }
+        // A·S등급: 글로우 링
+        if(isA||isS){
+          ctx.beginPath();ctx.arc(0,0,50*t,0,Math.PI*2);
+          ctx.strokeStyle=`${gc}44`;ctx.lineWidth=8*(1-t);ctx.stroke();
+        }
+        // S등급: 번개 방사
+        if(isS){
+          for(let i=0;i<5;i++){
+            const a=(-0.8+i*.4);
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a)*10,Math.sin(a)*10);
+            ctx.lineTo(Math.cos(a)*(10+60*t),Math.sin(a)*(10+60*t));
+            ctx.strokeStyle=`rgba(255,230,80,${(1-t)*0.85})`;
+            ctx.lineWidth=2;ctx.stroke();
+          }
         }
         break;
       }
