@@ -312,6 +312,13 @@ canvas{display:block;width:100%;height:100%}
 /* SHOP */
 #shop-screen.hidden{display:none!important}
 #pachinko-screen.hidden{display:none!important}
+.slot-bet-btn{
+  flex:1;font-family:var(--tf);font-size:11px;padding:10px 0;
+  background:linear-gradient(135deg,#1a1200,#2a1e00);
+  border:1px solid #f5c842aa;color:#f5c842;border-radius:6px;cursor:pointer;
+  transition:.1s;
+}
+.slot-bet-btn:active{background:#f5c84222;transform:scale(.97)}
 
 
 /* STAGE CLEAR */
@@ -844,23 +851,37 @@ canvas{display:block;width:100%;height:100%}
 <div id="game-wrap">
   <canvas id="gc"></canvas>
 
-  <!-- 파친코 미니게임 -->
-  <div id="pachinko-screen" class="hidden" style="position:absolute;inset:0;background:#07090dee;z-index:60;display:flex;flex-direction:column;align-items:center;padding:10px;overflow:hidden;box-sizing:border-box">
-    <div style="width:100%;max-width:360px;display:flex;flex-direction:column;height:100%">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-family:var(--tf);font-size:16px;color:#f088f0;letter-spacing:2px">🎰 파친코</div>
+  <!-- 슬롯머신 미니게임 -->
+  <div id="pachinko-screen" class="hidden" style="position:absolute;inset:0;background:#07090df0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;box-sizing:border-box">
+    <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:10px">
+      <!-- 헤더 -->
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:var(--tf);font-size:18px;color:#f5c842;letter-spacing:3px">🎰 SLOT</div>
         <div style="font-family:var(--tf);font-size:13px;color:#f5c842">💰 <span id="pach-gold">0</span>G</div>
-        <button onclick="closePachinko()" style="font-family:var(--tf);font-size:11px;padding:4px 12px;background:var(--c2);border:1px solid var(--c3);color:#a0bcd0;border-radius:4px;cursor:pointer">✕ 닫기</button>
+        <button onclick="closePachinko()" style="font-family:var(--tf);font-size:11px;padding:4px 12px;background:#1a1200;border:1px solid var(--c3);color:#a0bcd0;border-radius:4px;cursor:pointer">✕ 닫기</button>
       </div>
-      <canvas id="pach-canvas" width="340" height="360" style="width:100%;border-radius:8px;border:1px solid #f088f044;background:#0a0612;display:block"></canvas>
-      <div id="pach-result" style="font-family:var(--tf);font-size:14px;text-align:center;padding:6px;min-height:28px;color:#f5c842"></div>
-      <div style="display:flex;gap:6px;margin-top:4px">
-        <button onclick="pachDrop(100)"  style="flex:1;font-family:var(--tf);font-size:11px;padding:8px 0;background:#1a0a2a;border:1px solid #f088f0;color:#f088f0;border-radius:5px;cursor:pointer">100G</button>
-        <button onclick="pachDrop(500)"  style="flex:1;font-family:var(--tf);font-size:11px;padding:8px 0;background:#1a0a2a;border:1px solid #f088f0;color:#f088f0;border-radius:5px;cursor:pointer">500G</button>
-        <button onclick="pachDrop(1000)" style="flex:1;font-family:var(--tf);font-size:11px;padding:8px 0;background:#1a0a2a;border:1px solid #f088f0;color:#f088f0;border-radius:5px;cursor:pointer">1000G</button>
-        <button onclick="pachDrop(5000)" style="flex:1;font-family:var(--tf);font-size:11px;padding:8px 0;background:#1a0a2a;border:1px solid #f088f0;color:#f088f0;border-radius:5px;cursor:pointer">5000G</button>
+      <!-- 슬롯 캔버스 -->
+      <canvas id="pach-canvas" width="320" height="200" style="width:100%;border-radius:12px;border:2px solid #f5c84255;background:#0a0800;display:block;box-shadow:0 0 20px #f5c84222"></canvas>
+      <!-- 결과 -->
+      <div id="pach-result" style="font-family:var(--tf);font-size:15px;text-align:center;min-height:26px;color:#f5c842;letter-spacing:1px"></div>
+      <!-- 베팅 버튼 -->
+      <div style="display:flex;gap:6px">
+        <button onclick="slotSpin(100)"  class="slot-bet-btn">100G</button>
+        <button onclick="slotSpin(500)"  class="slot-bet-btn">500G</button>
+        <button onclick="slotSpin(1000)" class="slot-bet-btn">1000G</button>
+        <button onclick="slotSpin(5000)" class="slot-bet-btn">5000G</button>
       </div>
-      <div style="font-family:var(--tf);font-size:8px;color:#5a7a94;text-align:center;margin-top:5px">배율: 0.5× 1× 2× 5× 🎯10× 5× 2× 1× 0.5×</div>
+      <!-- 배당표 -->
+      <div style="background:#0d0a00;border:1px solid #f5c84233;border-radius:6px;padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:2px 16px">
+        <div style="font-family:var(--tf);font-size:8px;color:#f5c842;grid-column:1/-1;margin-bottom:4px;letter-spacing:1px">— 배당표 —</div>
+        <div style="font-family:var(--tf);font-size:9px;color:#f088f0">7️⃣7️⃣7️⃣</div><div style="font-family:var(--tf);font-size:9px;color:#f088f0">×50 JACKPOT</div>
+        <div style="font-family:var(--tf);font-size:9px;color:#ef9f27">⭐⭐⭐</div><div style="font-family:var(--tf);font-size:9px;color:#ef9f27">×20</div>
+        <div style="font-family:var(--tf);font-size:9px;color:#5dcaa5">💎💎💎</div><div style="font-family:var(--tf);font-size:9px;color:#5dcaa5">×10</div>
+        <div style="font-family:var(--tf);font-size:9px;color:#378ADD">🍒🍒🍒</div><div style="font-family:var(--tf);font-size:9px;color:#378ADD">×5</div>
+        <div style="font-family:var(--tf);font-size:9px;color:#a0bcd0">아무거나 3개</div><div style="font-family:var(--tf);font-size:9px;color:#a0bcd0">×3</div>
+        <div style="font-family:var(--tf);font-size:9px;color:#888">2개 일치</div><div style="font-family:var(--tf);font-size:9px;color:#888">×1.5</div>
+        <div style="font-family:var(--tf);font-size:9px;color:#e24b4b">꽝</div><div style="font-family:var(--tf);font-size:9px;color:#e24b4b">×0</div>
+      </div>
     </div>
   </div>
 
@@ -3767,249 +3788,210 @@ function updateQuickSlots(){
 }
 
 /* ═══════════════════════════════════════
-   파친코 미니게임 시스템
+   슬롯머신 미니게임
    ═══════════════════════════════════════ */
-const PACH_W=340, PACH_H=360;
-const PACH_SLOTS=[0.5,1,2,5,10,5,2,1,0.5]; // 9개 슬롯 배율
-const PACH_SLOT_COLORS=['#888','#5dcaa5','#378ADD','#ef9f27','#f088f0','#ef9f27','#378ADD','#5dcaa5','#888'];
-const PACH_SLOT_H=36; // 슬롯 영역 높이
-const PACH_PIN_ROWS=7;
+const SLOT_SYMBOLS=['7️⃣','⭐','💎','🍒','🔔','🍋','🍇'];
+const SLOT_WEIGHTS=[2,4,6,10,12,14,16]; // 낮을수록 희귀 (합=64)
+const SLOT_COLS=3;
+const SLOT_W=320, SLOT_H=200;
+const REEL_W=SLOT_W/SLOT_COLS;
+const CELL_H=70; // 보이는 칸 높이
+const VISIBLE=3; // 릴당 보이는 심볼 수
 
-let pachBet=0;
-let pachBall=null;    // {x,y,vx,vy,r,trail}
-let pachRunning=false;
-let pachRaf=null;
-let pachCtx=null;
-let pachPins=[];      // [{x,y,r}]
+let slotCtx=null;
+let slotBet=0;
+let slotSpinning=false;
+let slotRaf=null;
 
-function buildPachPins(){
-  pachPins=[];
-  const cols=8, startY=60, gapY=36, gapX=34;
-  for(let row=0;row<PACH_PIN_ROWS;row++){
-    const n = row%2===0 ? cols : cols-1;
-    const offsetX = row%2===0 ? (PACH_W - (n-1)*gapX)/2 : (PACH_W - (n-1)*gapX)/2 + gapX/2;
-    for(let col=0;col<n;col++){
-      pachPins.push({x:offsetX+col*gapX, y:startY+row*gapY, r:4});
-    }
-  }
+// 릴 상태: 각 릴의 심볼 배열, 현재 Y 오프셋, 목표 오프셋, 속도
+let reels=[null,null,null].map(()=>({
+  syms:Array.from({length:20},()=>weightedRandSym()),
+  y:0, targetY:0, speed:0, done:false
+}));
+
+function weightedRandSym(){
+  let r=Math.random()*SLOT_WEIGHTS.reduce((a,b)=>a+b,0);
+  for(let i=0;i<SLOT_WEIGHTS.length;i++){r-=SLOT_WEIGHTS[i];if(r<=0)return i;}
+  return SLOT_SYMBOLS.length-1;
 }
+
+function slotRandSym(){return weightedRandSym();}
 
 function openPachinko(){
   document.getElementById('pachinko-screen').classList.remove('hidden');
   document.getElementById('pach-gold').textContent=gold.toLocaleString();
   document.getElementById('pach-result').textContent='';
-  pachBall=null;pachRunning=false;
-  if(pachRaf){cancelAnimationFrame(pachRaf);pachRaf=null;}
+  slotSpinning=false;
+  if(slotRaf){cancelAnimationFrame(slotRaf);slotRaf=null;}
+  // 릴 초기화
+  reels.forEach(r=>{
+    r.syms=Array.from({length:20},()=>weightedRandSym());
+    r.y=0;r.targetY=0;r.speed=0;r.done=true;
+  });
   const cv=document.getElementById('pach-canvas');
-  pachCtx=cv.getContext('2d');
-  buildPachPins();
-  pachDraw();
+  slotCtx=cv.getContext('2d');
+  slotDraw();
 }
 
 function closePachinko(){
-  const scr=document.getElementById('pachinko-screen');
-  scr.classList.add('hidden');
-  pachRunning=false;
-  if(pachRaf){cancelAnimationFrame(pachRaf);pachRaf=null;}
+  document.getElementById('pachinko-screen').classList.add('hidden');
+  slotSpinning=false;
+  if(slotRaf){cancelAnimationFrame(slotRaf);slotRaf=null;}
 }
 
-function pachDrop(bet){
-  if(pachRunning){showToast('공이 굴러가는 중...');return;}
+function slotSpin(bet){
+  if(slotSpinning){showToast('릴이 돌아가는 중...');return;}
   if(gold<bet){showToast('💰 골드가 부족합니다!');return;}
-  gold-=bet; pachBet=bet;
+  gold-=bet;slotBet=bet;
   document.getElementById('pach-gold').textContent=gold.toLocaleString();
   document.getElementById('pach-result').textContent='';
-  if(running&&player) saveGameData();
 
-  // 공 생성 — 약간 랜덤한 X 위치에서 발사
-  const startX=PACH_W/2 + (Math.random()-0.5)*60;
-  pachBall={
-    x:startX, y:12, r:7,
-    vx:(Math.random()-0.5)*1.5,
-    vy:2,
-    trail:[],
-  };
-  pachRunning=true;
-  pachLoop();
+  // 각 릴에 새 목표 심볼 세팅
+  reels.forEach((r,i)=>{
+    r.syms=Array.from({length:20},()=>weightedRandSym());
+    r.y=0;
+    r.speed=30+Math.random()*10;
+    r.done=false;
+    // 각 릴마다 다른 시간에 멈춤
+    r.stopAfter=60+i*40+Math.random()*20; // 프레임
+    r.elapsed=0;
+  });
+  slotSpinning=true;
+  slotLoop();
 }
 
-function pachLoop(){
-  if(!pachRunning||!pachCtx) return;
-  pachUpdate();
-  pachDraw();
-  // 공이 슬롯 바닥에 완전히 도달했을 때만 종료
-  if(pachBall && pachBall.y >= PACH_H - 4){
-    pachRunning=false;
-    pachBall.y=PACH_H-4; // 바닥 고정
-    pachLand();
-    pachDraw();
-    return;
-  }
-  pachRaf=requestAnimationFrame(pachLoop);
-}
-
-function pachUpdate(){
-  const b=pachBall;
-  if(!b) return;
-
-  // 잔상
-  b.trail.push({x:b.x,y:b.y});
-  if(b.trail.length>8) b.trail.shift();
-
-  // 중력
-  b.vy+=0.25;
-  // 공기 저항
-  b.vx*=0.995;
-
-  b.x+=b.vx; b.y+=b.vy;
-
-  // 벽 반사
-  if(b.x-b.r<0){b.x=b.r;b.vx=Math.abs(b.vx)*0.7;}
-  if(b.x+b.r>PACH_W){b.x=PACH_W-b.r;b.vx=-Math.abs(b.vx)*0.7;}
-
-  // 핀 충돌
-  for(const pin of pachPins){
-    const dx=b.x-pin.x, dy=b.y-pin.y;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    const minD=b.r+pin.r+1;
-    if(dist<minD&&dist>0){
-      // 충돌 방향으로 튕김
-      const nx=dx/dist, ny=dy/dist;
-      const dot=b.vx*nx+b.vy*ny;
-      b.vx=(b.vx-2*dot*nx)*0.75 + (Math.random()-0.5)*0.8;
-      b.vy=(b.vy-2*dot*ny)*0.75;
-      b.x=pin.x+nx*minD;
-      b.y=pin.y+ny*minD;
-      // 최소 속도 보장
-      if(Math.abs(b.vy)<1.5) b.vy=1.5;
-    }
-  }
-
-  // 슬롯 구분선 충돌 — 슬롯 영역 진입 후
-  const slotY=PACH_H-PACH_SLOT_H;
-  if(b.y>slotY){
-    const slotW=PACH_W/PACH_SLOTS.length;
-    for(let i=1;i<PACH_SLOTS.length;i++){
-      const wallX=i*slotW;
-      if(Math.abs(b.x-wallX)<b.r+3){
-        b.vx= b.x<wallX ? -Math.abs(b.vx)*0.6 : Math.abs(b.vx)*0.6;
-        b.x= b.x<wallX ? wallX-b.r-3 : wallX+b.r+3;
-        break;
+function slotLoop(){
+  if(!slotSpinning||!slotCtx){return;}
+  let allDone=true;
+  reels.forEach((r,i)=>{
+    if(r.done) return;
+    r.elapsed++;
+    r.y=(r.y+r.speed)%(r.syms.length*CELL_H);
+    // 감속 구간
+    if(r.elapsed>r.stopAfter){
+      r.speed=Math.max(0,r.speed-1.8);
+      if(r.speed<=0){
+        r.speed=0;
+        // 가장 가까운 심볼 위치에 스냅
+        r.y=Math.round(r.y/CELL_H)*CELL_H%(r.syms.length*CELL_H);
+        r.done=true;
       }
     }
+    if(!r.done) allDone=false;
+  });
+  slotDraw();
+  if(allDone){
+    slotSpinning=false;
+    slotJudge();
+    return;
   }
-
-  // 바닥
-  if(b.y+b.r>PACH_H-2){
-    b.y=PACH_H-b.r-2;
-    b.vy=-b.vy*0.3;
-    if(Math.abs(b.vy)<0.5) b.vy=0;
-  }
+  slotRaf=requestAnimationFrame(slotLoop);
 }
 
-function pachLand(){
-  const b=pachBall;
-  if(!b) return;
-  const slotW=PACH_W/PACH_SLOTS.length;
-  const slotIdx=Math.max(0,Math.min(PACH_SLOTS.length-1,Math.floor(b.x/slotW)));
-  const mult=PACH_SLOTS[slotIdx];
-  const win=Math.floor(pachBet*mult);
+function slotJudge(){
+  // 중앙 줄(인덱스 1) 심볼 판정
+  const results=reels.map(r=>{
+    const idx=Math.floor(r.y/CELL_H+1)%r.syms.length;
+    return r.syms[idx];
+  });
+  const syms=results.map(i=>SLOT_SYMBOLS[i]);
+  const all3=results[0]===results[1]&&results[1]===results[2];
+  const two=results[0]===results[1]||results[1]===results[2]||results[0]===results[2];
+
+  let mult=0, msg='', color='#e24b4b';
+  if(all3&&results[0]===0){mult=50;msg='🎉 JACKPOT! 7️⃣7️⃣7️⃣';color='#f088f0';}
+  else if(all3&&results[0]===1){mult=20;msg='⭐ 대박! ⭐⭐⭐';color='#ef9f27';}
+  else if(all3&&results[0]===2){mult=10;msg='💎 보너스! 💎💎💎';color='#5dcaa5';}
+  else if(all3&&results[0]===3){mult=5;msg='🍒🍒🍒 체리 3개!';color='#378ADD';}
+  else if(all3){mult=3;msg=`${syms[0]}${syms[1]}${syms[2]} 3개 일치!`;color='#a0bcd0';}
+  else if(two){mult=1.5;msg='2개 일치!';color='#7a9ab8';}
+  else{mult=0;msg='꽝 😢';color='#e24b4b';}
+
+  const win=Math.floor(slotBet*mult);
   gold+=win;
   document.getElementById('pach-gold').textContent=gold.toLocaleString();
 
-  const resultEl=document.getElementById('pach-result');
-  if(mult>=10){
-    resultEl.style.color='#f088f0';
-    resultEl.textContent=`🎉 JACKPOT! ×${mult} → +${win.toLocaleString()}G!`;
-    sparks(player?.x||0,player?.y||0,'#f088f0',20);
-  } else if(mult>=5){
-    resultEl.style.color='#ef9f27';
-    resultEl.textContent=`✨ 대박! ×${mult} → +${win.toLocaleString()}G`;
-  } else if(mult>=2){
-    resultEl.style.color='#5dcaa5';
-    resultEl.textContent=`👍 ×${mult} → +${win.toLocaleString()}G`;
-  } else if(mult===1){
-    resultEl.style.color='#a0bcd0';
-    resultEl.textContent=`본전 ×${mult} → +${win.toLocaleString()}G`;
-  } else {
-    resultEl.style.color='#e24b4b';
-    resultEl.textContent=`😢 ×${mult} → +${win.toLocaleString()}G`;
-  }
+  const el=document.getElementById('pach-result');
+  el.style.color=color;
+  el.textContent=mult>0?`${msg}  +${win.toLocaleString()}G (×${mult})`:msg;
 
-  addLog(`파친코: ×${mult} (${win}G ${win>=pachBet?'획득':'손실'})`, win>=pachBet?'lsys':'lhit');
+  if(mult>=50){sparks(player?.x||0,player?.y||0,'#f088f0',30);sparks(player?.x||0,player?.y||0,'#f5c842',20);}
+  else if(mult>=10){sparks(player?.x||0,player?.y||0,'#ef9f27',15);}
+
+  addLog(`슬롯: ${syms.join('')} → ${mult>0?'+'+win+'G':'꽝'}`, mult>0?'lsys':'lhit');
   if(running&&player) saveGameData();
+  slotDraw();
 }
 
-function pachDraw(){
-  const c=pachCtx;
+function slotDraw(){
+  const c=slotCtx;
   if(!c) return;
-  const W=PACH_W, H=PACH_H;
+  const W=SLOT_W, H=SLOT_H;
 
-  c.fillStyle='#0a0612';
-  c.fillRect(0,0,W,H);
+  // 배경
+  const bg=c.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#100d00');bg.addColorStop(1,'#0a0800');
+  c.fillStyle=bg;c.fillRect(0,0,W,H);
 
-  // 격자 배경
-  c.strokeStyle='#1a0a2a';c.lineWidth=0.5;
-  for(let x=0;x<W;x+=20){c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
-  for(let y=0;y<H;y+=20){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}
+  // 각 릴 그리기
+  reels.forEach((r,ri)=>{
+    const rx=ri*REEL_W;
+    // 릴 클리핑
+    c.save();
+    c.beginPath();c.rect(rx+3,0,REEL_W-6,H);c.clip();
 
-  // 슬롯 영역
-  const slotY=H-PACH_SLOT_H;
-  const slotW=W/PACH_SLOTS.length;
-  PACH_SLOTS.forEach((mult,i)=>{
-    const sx=i*slotW;
-    c.fillStyle=PACH_SLOT_COLORS[i]+'22';
-    c.fillRect(sx+1,slotY+1,slotW-2,PACH_SLOT_H-2);
-    c.strokeStyle=PACH_SLOT_COLORS[i]+'88';
-    c.lineWidth=1;
-    c.strokeRect(sx+1,slotY+1,slotW-2,PACH_SLOT_H-2);
-    c.fillStyle=mult>=10?'#f088f0':mult>=5?'#ef9f27':mult>=2?'#5dcaa5':'#888';
-    c.font=`bold ${mult>=5?12:10}px Share Tech Mono`;
-    c.textAlign='center';c.textBaseline='middle';
-    c.fillText(mult>=1?`×${mult}`:`×.5`,sx+slotW/2,slotY+PACH_SLOT_H/2);
+    // 심볼 그리기 (위아래 여유 포함)
+    const total=r.syms.length*CELL_H;
+    const offset=r.y%total;
+    for(let s=-1;s<VISIBLE+2;s++){
+      const symIdx=(Math.floor(r.y/CELL_H)+s)%r.syms.length;
+      const si=((r.syms[symIdx]%SLOT_SYMBOLS.length)+SLOT_SYMBOLS.length)%SLOT_SYMBOLS.length;
+      const sy=s*CELL_H+(CELL_H-(r.y%CELL_H))-(CELL_H);
+      const centerY=H/2-CELL_H/2;
+      const isCenter=sy+CELL_H/2>centerY&&sy+CELL_H/2<centerY+CELL_H;
+      // 심볼 배경
+      if(isCenter&&r.done&&!slotSpinning){
+        c.fillStyle='#f5c84211';
+        c.fillRect(rx+4,sy+4,REEL_W-8,CELL_H-8);
+      }
+      c.font=`${isCenter?42:32}px serif`;
+      c.textAlign='center';c.textBaseline='middle';
+      c.globalAlpha=isCenter?1:0.4;
+      c.fillText(SLOT_SYMBOLS[si],rx+REEL_W/2,sy+CELL_H/2);
+      c.globalAlpha=1;
+    }
+    c.restore();
+
+    // 릴 구분선
+    if(ri>0){
+      c.strokeStyle='#f5c84233';c.lineWidth=2;
+      c.beginPath();c.moveTo(rx,0);c.lineTo(rx,H);c.stroke();
+    }
   });
 
-  // 슬롯 구분선
-  c.strokeStyle='#2a1a3a';c.lineWidth=2;
-  for(let i=1;i<PACH_SLOTS.length;i++){
-    c.beginPath();c.moveTo(i*slotW,slotY);c.lineTo(i*slotW,H);c.stroke();
+  // 중앙 라인 강조
+  const cy=H/2;
+  c.strokeStyle='#f5c842aa';c.lineWidth=2;
+  c.setLineDash([6,4]);
+  c.beginPath();c.moveTo(0,cy-CELL_H/2);c.lineTo(W,cy-CELL_H/2);c.stroke();
+  c.beginPath();c.moveTo(0,cy+CELL_H/2);c.lineTo(W,cy+CELL_H/2);c.stroke();
+  c.setLineDash([]);
+
+  // 중앙 라인 레이블
+  c.fillStyle='#f5c84266';c.font='8px Share Tech Mono';
+  c.textAlign='right';c.textBaseline='middle';
+  c.fillText('WIN LINE',W-4,cy);
+
+  // 스핀 중 스캔라인 효과
+  if(slotSpinning){
+    const scanY=(Date.now()/16)%H;
+    c.fillStyle='rgba(245,200,66,0.04)';
+    c.fillRect(0,scanY,W,4);
   }
 
-  // 핀
-  pachPins.forEach(pin=>{
-    c.beginPath();c.arc(pin.x,pin.y,pin.r+3,0,Math.PI*2);
-    c.fillStyle='#f088f022';c.fill();
-    c.beginPath();c.arc(pin.x,pin.y,pin.r,0,Math.PI*2);
-    c.fillStyle='#c0a0ff';c.fill();
-    c.strokeStyle='#f088f0';c.lineWidth=1;c.stroke();
-  });
-
-  // 공 잔상
-  if(pachBall){
-    pachBall.trail.forEach((pt,i)=>{
-      const a=(i/pachBall.trail.length)*0.4;
-      c.beginPath();c.arc(pt.x,pt.y,pachBall.r*(i/pachBall.trail.length),0,Math.PI*2);
-      c.fillStyle=`rgba(240,136,240,${a})`;c.fill();
-    });
-    // 공
-    const grad=c.createRadialGradient(pachBall.x-2,pachBall.y-2,1,pachBall.x,pachBall.y,pachBall.r);
-    grad.addColorStop(0,'#ffffff');
-    grad.addColorStop(0.4,'#f0a0ff');
-    grad.addColorStop(1,'#9030b0');
-    c.beginPath();c.arc(pachBall.x,pachBall.y,pachBall.r,0,Math.PI*2);
-    c.fillStyle=grad;c.fill();
-    c.strokeStyle='#f088f0';c.lineWidth=1.5;c.stroke();
-    c.beginPath();c.arc(pachBall.x,pachBall.y,pachBall.r+4,0,Math.PI*2);
-    c.strokeStyle='rgba(240,136,240,0.3)';c.lineWidth=3;c.stroke();
-  }
-
-  // 가이드
-  if(!pachBall&&!pachRunning){
-    c.fillStyle='#f088f055';
-    c.font='10px Share Tech Mono';
-    c.textAlign='center';c.textBaseline='middle';
-    c.fillText('▼ 베팅 버튼을 눌러 공을 발사하세요',W/2,30);
-  }
+  // 외곽 테두리
+  c.strokeStyle='#f5c84244';c.lineWidth=2;
+  c.strokeRect(1,1,W-2,H-2);
 }
 
 function initBgmAudio(){
