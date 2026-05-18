@@ -1235,6 +1235,13 @@ canvas{display:block;width:100%;height:100%}
   <div class="skbtn" id="sk1"><div class="skicon" id="ski1">💫</div><div class="skkey" id="kl1">E</div><div class="skcd" id="cd1"></div><div class="sk-tooltip" id="skt1"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
   <div class="skbtn" id="sk2"><div class="skicon" id="ski2">🛡</div><div class="skkey" id="kl2">F</div><div class="skcd" id="cd2"></div><div class="sk-tooltip" id="skt2"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
   <div class="skbtn" id="sk3"><div class="skicon" id="ski3">⚡</div><div class="skkey" id="kl3">R</div><div class="skcd" id="cd3"></div><div class="sk-tooltip" id="skt3"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
+  <!-- 만렙 특수스킬 -->
+  <div class="skbtn" id="sk4" style="display:none;border-color:#ef9f2799;background:linear-gradient(135deg,#241e0f,#1a1200)">
+    <div class="skicon" id="ski4">🌟</div>
+    <div class="skkey" id="kl4" style="color:#ef9f27">MAX</div>
+    <div class="skcd" id="cd4"></div>
+    <div class="sk-tooltip" id="skt4"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div>
+  </div>
   <div style="width:1px;height:32px;background:var(--c3);margin:0 4px"></div>
   <div style="font-family:var(--tf);font-size:9px;color:#5a7a94;text-align:center;line-height:1.5">이동<br><span id="mlbl" style="color:#a0bcd0">WASD</span></div>
 </div>
@@ -1245,35 +1252,37 @@ const CHARS=[
   {id:"jun",name:"이준호",role:"탱커",init:"준",color:"#378ADD",bg:"#E6F1FB33",
    desc:"높은 방어로 피해 흡수. 파티 보호 특화.",
    stats:{HP:320,ATK:52,DEF:88,SPD:2.2},
-   skills:["제압 타격","도발","인간 방패","철벽 방어"],icons:["⚔","🔊","🛡","🏰"],
-   skillDescs:["강력한 근접 제압 타격.","주변 적을 도발해 어그로 집중.","광역 방패 타격, 짧은 쿨타임.","궁극기: 철벽 방어로 일시 무적."],
+   skills:["제압 타격","도발","인간 방패","철벽 방어","⚡아이언 포트리스"],icons:["⚔","🔊","🛡","🏰","⚡"],
+   skillDescs:["강력한 근접 제압 타격.","주변 적을 도발해 어그로 집중.","광역 방패 타격, 짧은 쿨타임.","궁극기: 철벽 방어로 일시 무적.","【만렙】무적+전방위 반사 충격파."],
    exclusive:["방탄 조끼","경찰 방패"]},
   {id:"sea",name:"김서아",role:"서포터",init:"서",color:"#1D9E75",bg:"#E1F5EE33",
    desc:"AI 해킹 전문. 드롭률 상승 및 원거리 지원.",
    stats:{HP:180,ATK:44,DEF:42,SPD:2.8},
-   skills:["시스템 침투","드롭 해킹","코드 분석","역해킹"],icons:["💻","🎁","🔍","⚙"],
-   skillDescs:["원거리 해킹 볼 발사. 관통 공격.","적 처치 시 드롭률 대폭 상승.","전방 광역 코드 분석 충격파.","궁극기: 초대형 역해킹 바이러스 발사."],
+   skills:["시스템 침투","드롭 해킹","코드 분석","역해킹","💀시스템 붕괴"],icons:["💻","🎁","🔍","⚙","💀"],
+   skillDescs:["원거리 해킹 볼 발사. 관통 공격.","적 처치 시 드롭률 대폭 상승.","전방 광역 코드 분석 충격파.","궁극기: 초대형 역해킹 바이러스 발사.","【만렙】화면 전체 해킹 폭격."],
    exclusive:["해킹 디바이스","AI 크래커"]},
   {id:"min",name:"박민재",role:"딜러",init:"민",color:"#BA7517",bg:"#FAEEDA33",
    desc:"최고 화력과 속도. 경험치 보너스 보유.",
    stats:{HP:190,ATK:95,DEF:36,SPD:3.4},
-   skills:["생존 본능","각성","폭발 연격","경험치 증폭"],icons:["💨","⚡","💥","🌟"],
-   skillDescs:["순간 회피 대시, 짧은 무적.","공격력 일시 폭발적으로 증가.","전방 3연속 폭발 연격.","궁극기: EXP 흡수 폭발."],
+   skills:["생존 본능","각성","폭발 연격","경험치 증폭","💥엑스칼리버"],icons:["💨","⚡","💥","🌟","💥"],
+   skillDescs:["순간 회피 대시, 짧은 무적.","공격력 일시 폭발적으로 증가.","전방 3연속 폭발 연격.","궁극기: EXP 흡수 폭발.","【만렙】초대형 폭발탄 8방향 연발."],
    exclusive:["학생 배낭","각성 밴드"]},
   {id:"hana",name:"오하나",role:"힐러",init:"하",color:"#993556",bg:"#FBEAF033",
    desc:"파티 회복 전문. 장기전·보스전 필수.",
    stats:{HP:200,ATK:36,DEF:56,SPD:2.6},
-   skills:["응급처치","강화 주사","생명의 장막","부활"],icons:["💉","💪","🌿","✨"],
-   skillDescs:["자신 HP를 즉시 회복.","공격력+방어력 일시 강화.","주변 전체 회복 장막 전개.","궁극기: 자신을 완전 부활."],
+   skills:["응급처치","강화 주사","생명의 장막","부활","🌟부활의 빛"],icons:["💉","💪","🌿","✨","🌟"],
+   skillDescs:["자신 HP를 즉시 회복.","공격력+방어력 일시 강화.","주변 전체 회복 장막 전개.","궁극기: 자신을 완전 부활.","【만렙】HP 완전회복+드론 8기 전방위 폭격."],
    exclusive:["의료 키트","나노 주사기"]},
 ];
 
 const SKDATA=[
-  [{cd:0,range:80,dmg:1.0,aoe:0},{cd:180,range:100,dmg:1.8,aoe:0},{cd:300,range:120,dmg:.5,aoe:60},{cd:600,range:0,dmg:0,heal:true}],
-  [{cd:0,range:120,dmg:.8,aoe:0},{cd:200,range:150,dmg:1.2,aoe:40},{cd:400,range:100,dmg:.5,aoe:0},{cd:1200,range:180,dmg:2.0,aoe:80}],
-  [{cd:0,range:90,dmg:1.2,aoe:0},{cd:150,range:110,dmg:1.5,aoe:0},{cd:360,range:130,dmg:3.0,aoe:0},{cd:900,range:150,dmg:2.5,aoe:60}],
-  [{cd:0,range:70,dmg:.6,aoe:0},{cd:180,range:80,dmg:-1.0,aoe:0},{cd:300,range:0,dmg:-.5,aoe:0},{cd:600,range:0,dmg:-.3,aoe:120}],
+  [{cd:0,range:80,dmg:1.0,aoe:0},{cd:180,range:100,dmg:1.8,aoe:0},{cd:300,range:120,dmg:.5,aoe:60},{cd:600,range:0,dmg:0,heal:true},{cd:1800,range:200,dmg:5.0,aoe:120,maxLv:true}],
+  [{cd:0,range:120,dmg:.8,aoe:0},{cd:200,range:150,dmg:1.2,aoe:40},{cd:400,range:100,dmg:.5,aoe:0},{cd:1200,range:180,dmg:2.0,aoe:80},{cd:1800,range:250,dmg:6.0,aoe:200,maxLv:true}],
+  [{cd:0,range:90,dmg:1.2,aoe:0},{cd:150,range:110,dmg:1.5,aoe:0},{cd:360,range:130,dmg:3.0,aoe:0},{cd:900,range:150,dmg:2.5,aoe:60},{cd:1800,range:200,dmg:8.0,aoe:0,maxLv:true}],
+  [{cd:0,range:70,dmg:.6,aoe:0},{cd:180,range:80,dmg:-1.0,aoe:0},{cd:300,range:0,dmg:-.5,aoe:0},{cd:600,range:0,dmg:-.3,aoe:120},{cd:1800,range:0,dmg:-5.0,aoe:300,maxLv:true}],
 ];
+
+const MAX_LV=50; // 레벨 제한
 
 /* ═══════ FLOOR SYSTEM ═══════ */
 // B3=0, B2=1, B1=2, 1F=3 ... 25F=27  총28층
@@ -2107,7 +2116,7 @@ let logs=[],particles=[],drops_arr=[],floats=[];
 const TILE=40,COLS=28,ROWS=20;
 let MAP=[];
 let player,enemies=[],keys={},mouseX=0,mouseY=0;
-let cdT=[0,0,0,0],ntick=0;
+let cdT=[0,0,0,0,0],ntick=0;
 let camX=0,camY=0;
 
 /* ═══════ BSP MAP GENERATOR ═══════ */
@@ -2369,7 +2378,7 @@ function startGame(){
     updateQuestBadge();
     enemies=[];drops_arr=[];particles=[];floats=[];projectiles=[];
     quickSlots=[null,null];qsCooldown=[0,0];
-    waveKills=0;waveNum=1;cdT=[0,0,0,0];
+    waveKills=0;waveNum=1;cdT=[0,0,0,0,0];
     startTime=Date.now();running=true;
     updateSkillIcons();
     startBGM(currentFloor);
@@ -2388,7 +2397,7 @@ function startGame(){
 
 function resetFloor(){
   enemies=[];drops_arr=[];particles=[];floats=[];skillFX=[];projectiles=[];
-  waveKills=0;waveNum=1;cdT=[0,0,0,0];  // kills는 누적값 — 리셋 안 함
+  waveKills=0;waveNum=1;cdT=[0,0,0,0,0];  // kills는 누적값 — 리셋 안 함
   minimapCache=null;minimapDirty=true;  // 미니맵 캐시 초기화
   buildMap(currentFloor);
   if(player){
@@ -2755,15 +2764,64 @@ function nextFloor(){
 function useSkill(i){
   if(cdT[i]>0)return;
   const sk=SKDATA[selChar][i];if(!sk)return;
+  // 만렙 스킬 (인덱스 4) — 만렙이 아니면 사용 불가
+  if(i===4&&player.lv<MAX_LV){showToast(`🌟 Lv${MAX_LV} 달성 시 해금됩니다`);return;}
   cdT[i]=sk.cd;
-  // 퀘스트 연동
   questState.sessionSkills = (questState.sessionSkills||0) + 1;
   questProgress('skills', 1);
-  document.getElementById('sk'+i).classList.add('act');
-  setTimeout(()=>document.getElementById('sk'+i).classList.remove('act'),200);
+  const btn=document.getElementById('sk'+i);
+  if(btn){btn.classList.add('act');setTimeout(()=>btn.classList.remove('act'),200);}
 
   const eq=getEquipStats();
   const atkTotal=(player.atk+eq.atk)*eq.atkMult;
+
+  // ── 만렙 특수스킬 ──
+  if(i===4){
+    SFX.ultimate();
+    spawnSkillFX('levelup',player.x,player.y,0,CHARS[selChar].color);
+    spawnSkillFX('aoe',player.x,player.y,0,CHARS[selChar].color);
+    const dmg=Math.max(1,Math.floor(Math.abs(sk.dmg)*atkTotal));
+    if(selChar===0){
+      // 이준호: 아이언 포트리스 — 무적 5초 + 전방위 충격파
+      player.invincible=300;
+      showToast('⚡ 아이언 포트리스! 무적 5초!');
+      enemies.forEach(e=>{
+        const d=Math.sqrt((e.x-player.x)**2+(e.y-player.y)**2);
+        if(d<300){
+          const hit=Math.max(1,Math.floor(dmg*(1-d/300)));
+          e.hp-=hit;e.flick=10;e.hitAnim=12;
+          addFloat(e.x,e.y,`-${hit}`,'#378ADD');
+        }
+      });
+    } else if(selChar===1){
+      // 김서아: 시스템 붕괴 — 화면 전체 해킹 폭격 (랜덤 위치 투사체)
+      showToast('💀 시스템 붕괴! 전체 해킹 폭격!');
+      for(let b=0;b<12;b++){
+        const ang=b/12*Math.PI*2;
+        spawnProjectile('sea_ult',player.x,player.y,ang,Math.floor(dmg*.6),{spd:7,maxLife:30,pierce:true});
+      }
+    } else if(selChar===2){
+      // 박민재: 엑스칼리버 — 8방향 대형 폭발탄
+      showToast('💥 엑스칼리버! 8방향 대폭발!');
+      for(let b=0;b<8;b++){
+        const ang=b/8*Math.PI*2;
+        spawnProjectile('min_ult',player.x,player.y,ang,dmg,{spd:7,maxLife:20,pierce:true});
+      }
+    } else if(selChar===3){
+      // 오하나: 부활의 빛 — HP 완전 회복 + 드론 8기
+      player.hp=player.maxHp;
+      addFloat(player.x,player.y,'HP FULL!','#5dcaa5');
+      sparks(player.x,player.y,'#993556',20);
+      showToast('🌟 부활의 빛! HP 완전 회복!');
+      for(let b=0;b<8;b++){
+        const ang=b/8*Math.PI*2;
+        spawnProjectile('hana_ult',player.x,player.y,ang,Math.floor(dmg*.5),{spd:5,maxLife:20,pierce:true});
+      }
+    }
+    enemies=enemies.filter(e=>e.hp>0);
+    addLog(`🌟 ${CHARS[selChar].skills[4]} 발동!`,'lsk');
+    return;
+  }
   const mw=s2w(mouseX,mouseY);
   const ang=Math.atan2(mw.y-player.y,mw.x-player.x);
 
@@ -3002,8 +3060,8 @@ function killEnemy(e){
     }
   }
   if(Math.random()<0.25+dr) drops_arr.push({x:e.x+rand(-12,12),y:e.y+rand(-12,12),type:'gold',amount:e.gold||10,life:280});
-  while(player.exp>=player.expNext){
-    player.exp-=player.expNext;player.lv++;player.expNext=player.lv*80;
+  while(player.exp>=player.expNext&&player.lv<MAX_LV){
+    player.exp-=player.expNext;player.lv++;player.expNext=Math.floor(player.lv*80*Math.pow(1.08,player.lv));
     const cd=CHARS[selChar];
     player.maxHp=Math.floor(cd.stats.HP*(1+(player.lv-1)*.12));player.hp=player.maxHp;
     player.atk=Math.floor(cd.stats.ATK*(1+(player.lv-1)*.1));player.def=Math.floor(cd.stats.DEF*(1+(player.lv-1)*.08));
@@ -3013,13 +3071,22 @@ function killEnemy(e){
     const pp=document.getElementById('lvup-popup');
     pp.style.display='block';
     requestAnimationFrame(()=>pp.classList.add('show'));
-    document.getElementById('lvup-s').textContent=`Lv${player.lv}  ATK ${player.atk} DEF ${player.def}`;
+    if(player.lv===MAX_LV){
+      document.getElementById('lvup-s').textContent=`🌟 MAX LEVEL! 특수스킬 해금!`;
+      // 만렙 특수스킬 버튼 표시
+      updateMaxLvSkillBtn();
+      spawnSkillFX('levelup',player.x,player.y,0,'#ef9f27');
+      spawnSkillFX('aoe',player.x,player.y,0,'#ef9f27');
+    } else {
+      document.getElementById('lvup-s').textContent=`Lv${player.lv}  ATK ${player.atk} DEF ${player.def}`;
+    }
     clearTimeout(pp._lvTimer);
     pp._lvTimer=setTimeout(()=>{
       pp.classList.remove('show');
       setTimeout(()=>pp.style.display='none',260);
-    },1800);addLog(`LEVEL UP Lv${player.lv}!`,'lsys');
+    },1800);addLog(`LEVEL UP Lv${player.lv}!${player.lv===MAX_LV?' 🌟만렙 달성!':''}`, 'lsys');
   }
+  if(player.lv>=MAX_LV) player.exp=0; // 만렙 이후 경험치 초기화
   // 멀티: 호스트가 킬 이벤트 브로드캐스트
   if(isMultiGame&&isHost){
     wsSend({type:'kill_sync',floor:currentFloor,
@@ -3305,7 +3372,13 @@ function updateHUD(){
   document.getElementById('stat-kills').textContent=`처치 ${kills}`;
   document.getElementById('stat-gold').textContent=`💰 ${gold}G`;
   document.getElementById('stat-time').textContent=fmtTime(elapsed);
-  cdT.forEach((t,i)=>{const el=document.getElementById('cd'+i);if(t>0){el.textContent=Math.ceil(t/60)+'s';document.getElementById('sk'+i).classList.add('cd');}else{el.textContent='';document.getElementById('sk'+i).classList.remove('cd');}});
+  cdT.forEach((t,i)=>{
+    const el=document.getElementById('cd'+i);
+    const sk=document.getElementById('sk'+i);
+    if(!el||!sk) return;
+    if(t>0){el.textContent=Math.ceil(t/60)+'s';sk.classList.add('cd');}
+    else{el.textContent='';sk.classList.remove('cd');}
+  });
   document.getElementById('log-panel').innerHTML=logs.slice(-5).map(l=>`<div class="loge ${l.c}">${l.m}</div>`).join('');
 }
 
@@ -3313,6 +3386,23 @@ function updateSkillIcons(){
   if(selChar<0)return;
   const cd=CHARS[selChar];
   for(let i=0;i<4;i++){document.getElementById('ski'+i).textContent=cd.icons[i];}
+  updateMaxLvSkillBtn();
+}
+
+function updateMaxLvSkillBtn(){
+  const btn=document.getElementById('sk4');
+  const icon=document.getElementById('ski4');
+  const key=document.getElementById('kl4');
+  if(!btn||!icon) return;
+  const isMax=player&&player.lv>=MAX_LV;
+  btn.style.display=isMax?'flex':'none';
+  if(isMax&&selChar>=0){
+    const ch=CHARS[selChar];
+    icon.textContent=ch.icons[4]||'🌟';
+    if(key) key.textContent='MAX';
+    // 골드 글로우 애니메이션
+    btn.style.boxShadow=`0 0 8px #ef9f2755`;
+  }
 }
 
 /* ═══════ INPUT ═══════ */
@@ -3324,6 +3414,7 @@ window.addEventListener('keydown',e=>{
   if(!running)return;
   if(!e.repeat){
     if(lk===KB.sk0)useSkill(0);else if(lk===KB.sk1)useSkill(1);else if(lk===KB.sk2)useSkill(2);else if(lk===KB.sk3)useSkill(3);
+    if(lk==='t'&&player?.lv>=MAX_LV) useSkill(4); // 만렙 특수스킬
     if(lk==='i')showInv();
     if(lk==='m')showFloorMap();
   }
@@ -3337,6 +3428,7 @@ gc_el.addEventListener('mousemove',e=>{const r=gc_el.getBoundingClientRect();mou
 gc_el.addEventListener('click',()=>{if(running)useSkill(0);});
 window.addEventListener('resize',()=>{if(running)resize();});
 for(let i=0;i<4;i++) document.getElementById('sk'+i).addEventListener('click',((ii)=>()=>useSkill(ii))(i));
+document.getElementById('sk4').addEventListener('click',()=>useSkill(4));
 
 /* ═══════ TOUCH CONTROLS ═══════ */
 // 모바일 여부 감지 → 자동 JOY 모드
@@ -4275,7 +4367,7 @@ function drawProjectiles(){
 let tooltipTimers=[null,null,null,null];
 
 function initSkillTooltips(){
-  for(let i=0;i<4;i++){
+  for(let i=0;i<5;i++){
     const btn=document.getElementById('sk'+i);
     const tip=document.getElementById('skt'+i);
     if(!btn||!tip) continue;
