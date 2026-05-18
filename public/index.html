@@ -627,20 +627,20 @@ canvas{display:block;width:100%;height:100%}
 
 /* ── 스킬 버튼 말풍선 ── */
 .sk-tooltip{
-  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
-  background:#0d1117ee;border:1px solid var(--ct)88;border-radius:7px;
-  padding:6px 10px;white-space:nowrap;pointer-events:none;
+  position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);
+  background:#0d1117f0;border:1px solid var(--ct)99;border-radius:8px;
+  padding:8px 12px;white-space:normal;width:160px;pointer-events:none;
   z-index:200;opacity:0;transition:opacity .15s;
-  box-shadow:0 4px 16px rgba(0,0,0,0.6), 0 0 8px var(--ct)22;
+  box-shadow:0 4px 20px rgba(0,0,0,0.7),0 0 10px var(--ct)22;
 }
 .sk-tooltip::after{
   content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
-  border:6px solid transparent;border-top-color:#0d1117ee;
+  border:7px solid transparent;border-top-color:#0d1117f0;
 }
 .sk-tooltip.vis{opacity:1}
-.skt-name{font-family:var(--tf);font-size:11px;color:var(--ct);font-weight:700;margin-bottom:2px}
-.skt-desc{font-family:var(--tf);font-size:9px;color:#a0bcd0;line-height:1.5}
-.skt-cd{font-family:var(--tf);font-size:9px;color:var(--ca);margin-top:2px}
+.skt-name{font-family:var(--tf);font-size:11px;color:var(--ct);font-weight:700;margin-bottom:4px;border-bottom:1px solid var(--ct)33;padding-bottom:3px}
+.skt-desc{font-family:var(--tf);font-size:9px;color:#a0bcd0;line-height:1.6;margin-bottom:3px}
+.skt-cd{font-family:var(--tf);font-size:9px;color:var(--ca)}
 
 /* ── 서아 투사체 (캔버스에서 그리지만 CSS glow 참고용) ── */
 
@@ -4333,7 +4333,8 @@ function initSkillTooltips(){
     const showTip=()=>{
       if(!running||selChar<0) return;
       const ch=CHARS[selChar];
-      const sk=SKDATA[selChar][i];
+      const sk=SKDATA[selChar]?.[i];
+      if(!sk) return;
       const nm=tip.querySelector('.skt-name');
       const ds=tip.querySelector('.skt-desc');
       const cd=tip.querySelector('.skt-cd');
@@ -4343,27 +4344,32 @@ function initSkillTooltips(){
       tip.classList.add('vis');
     };
     const hideTip=()=>tip.classList.remove('vis');
+    const toggleTip=()=>tip.classList.contains('vis')?hideTip():showTip();
 
     // 데스크탑: hover
     btn.addEventListener('mouseenter',showTip);
     btn.addEventListener('mouseleave',hideTip);
 
-    // 모바일: 롱프레스 (400ms)
-    btn.addEventListener('touchstart',(e)=>{
-      tooltipTimers[i]=setTimeout(()=>{
-        showTip();
-        e.preventDefault();
-      },400);
-    },{passive:false});
-    btn.addEventListener('touchend',()=>{
-      clearTimeout(tooltipTimers[i]);
-      setTimeout(hideTip,1200);
-    });
-    btn.addEventListener('touchmove',()=>{
-      clearTimeout(tooltipTimers[i]);
-      hideTip();
-    });
+    // 모바일: 탭으로 즉시 토글 (롱프레스 대기 제거)
+    let touchMoved=false;
+    btn.addEventListener('touchstart',()=>{touchMoved=false;},{passive:true});
+    btn.addEventListener('touchmove',()=>{touchMoved=true;},{passive:true});
+    btn.addEventListener('touchend',(e)=>{
+      if(touchMoved) return;
+      // 스킬 사용과 구분: 말풍선 영역 탭 시 토글
+      toggleTip();
+      // 말풍선이 열리면 3초 후 자동 닫힘
+      if(tip.classList.contains('vis')){
+        clearTimeout(tooltipTimers[i]);
+        tooltipTimers[i]=setTimeout(hideTip,3000);
+      }
+    },{passive:true});
   }
+
+  // 스킬바 외부 탭 시 모든 말풍선 닫기
+  document.getElementById('game-wrap')?.addEventListener('touchstart',()=>{
+    document.querySelectorAll('.sk-tooltip.vis').forEach(t=>t.classList.remove('vis'));
+  },{passive:true});
 }
 
 function spawnSkillFX(type,wx,wy,angle,color,grade='C'){
