@@ -311,6 +311,7 @@ canvas{display:block;width:100%;height:100%}
 
 /* SHOP */
 #shop-screen.hidden{display:none!important}
+#pachinko-screen.hidden{display:none!important}
 
 
 /* STAGE CLEAR */
@@ -3799,12 +3800,15 @@ function openPachinko(){
   scr.classList.remove('hidden');
   document.getElementById('pach-gold').textContent=gold.toLocaleString();
   document.getElementById('pach-result').textContent='';
-  pachBall=null; pachRunning=false;
+  pachBall=null;pachRunning=false;
   if(pachRaf){cancelAnimationFrame(pachRaf);pachRaf=null;}
-  const cv=document.getElementById('pach-canvas');
-  pachCtx=cv.getContext('2d');
-  buildPachPins();
-  pachDraw();
+  // 화면이 렌더된 후 캔버스 초기화
+  requestAnimationFrame(()=>{
+    const cv=document.getElementById('pach-canvas');
+    pachCtx=cv.getContext('2d');
+    buildPachPins();
+    pachDraw();
+  });
 }
 
 function closePachinko(){
@@ -3835,12 +3839,13 @@ function pachDrop(bet){
 }
 
 function pachLoop(){
-  if(!pachRunning){return;}
+  if(!pachRunning||!pachCtx) return;
   pachUpdate();
   pachDraw();
-  // 공이 슬롯 하단에 도달했으면 종료
-  if(pachBall && pachBall.y > PACH_H - PACH_SLOT_H + 10){
+  // 공이 슬롯 바닥에 완전히 도달했을 때만 종료
+  if(pachBall && pachBall.y >= PACH_H - 4){
     pachRunning=false;
+    pachBall.y=PACH_H-4; // 바닥 고정
     pachLand();
     pachDraw();
     return;
@@ -3885,17 +3890,25 @@ function pachUpdate(){
     }
   }
 
-  // 슬롯 구분선(벽) 충돌 — 슬롯 영역 진입 후
+  // 슬롯 구분선 충돌 — 슬롯 영역 진입 후
   const slotY=PACH_H-PACH_SLOT_H;
-  if(b.y>slotY-b.r){
+  if(b.y>slotY){
     const slotW=PACH_W/PACH_SLOTS.length;
     for(let i=1;i<PACH_SLOTS.length;i++){
       const wallX=i*slotW;
-      if(Math.abs(b.x-wallX)<b.r+2&&b.y>slotY){
-        b.vx= b.x<wallX ? -Math.abs(b.vx)*0.8 : Math.abs(b.vx)*0.8;
-        b.x= b.x<wallX ? wallX-b.r-2 : wallX+b.r+2;
+      if(Math.abs(b.x-wallX)<b.r+3){
+        b.vx= b.x<wallX ? -Math.abs(b.vx)*0.6 : Math.abs(b.vx)*0.6;
+        b.x= b.x<wallX ? wallX-b.r-3 : wallX+b.r+3;
+        break;
       }
     }
+  }
+
+  // 바닥
+  if(b.y+b.r>PACH_H-2){
+    b.y=PACH_H-b.r-2;
+    b.vy=-b.vy*0.3;
+    if(Math.abs(b.vy)<0.5) b.vy=0;
   }
 }
 
