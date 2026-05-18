@@ -1562,6 +1562,7 @@ function hideAllOverlays(){
   const inv=document.getElementById('inv-screen');if(inv)inv.classList.add('hidden');
   const sc=document.getElementById('stage-clear');if(sc)sc.style.display='none';
   const qs=document.getElementById('quest-screen');if(qs)qs.classList.add('hidden');
+  const ps=document.getElementById('pachinko-screen');if(ps)ps.classList.add('hidden');
 }
 function showShop(){nextFloor();}
 function hideShop(){}
@@ -3794,21 +3795,15 @@ function buildPachPins(){
 }
 
 function openPachinko(){
-  if(!running){showToast('게임 중에만 이용 가능합니다');return;}
-  document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));
-  const scr=document.getElementById('pachinko-screen');
-  scr.classList.remove('hidden');
+  document.getElementById('pachinko-screen').classList.remove('hidden');
   document.getElementById('pach-gold').textContent=gold.toLocaleString();
   document.getElementById('pach-result').textContent='';
   pachBall=null;pachRunning=false;
   if(pachRaf){cancelAnimationFrame(pachRaf);pachRaf=null;}
-  // 화면이 렌더된 후 캔버스 초기화
-  requestAnimationFrame(()=>{
-    const cv=document.getElementById('pach-canvas');
-    pachCtx=cv.getContext('2d');
-    buildPachPins();
-    pachDraw();
-  });
+  const cv=document.getElementById('pach-canvas');
+  pachCtx=cv.getContext('2d');
+  buildPachPins();
+  pachDraw();
 }
 
 function closePachinko(){
@@ -3943,6 +3938,78 @@ function pachLand(){
 
   addLog(`파친코: ×${mult} (${win}G ${win>=pachBet?'획득':'손실'})`, win>=pachBet?'lsys':'lhit');
   if(running&&player) saveGameData();
+}
+
+function pachDraw(){
+  const c=pachCtx;
+  if(!c) return;
+  const W=PACH_W, H=PACH_H;
+
+  c.fillStyle='#0a0612';
+  c.fillRect(0,0,W,H);
+
+  // 격자 배경
+  c.strokeStyle='#1a0a2a';c.lineWidth=0.5;
+  for(let x=0;x<W;x+=20){c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
+  for(let y=0;y<H;y+=20){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}
+
+  // 슬롯 영역
+  const slotY=H-PACH_SLOT_H;
+  const slotW=W/PACH_SLOTS.length;
+  PACH_SLOTS.forEach((mult,i)=>{
+    const sx=i*slotW;
+    c.fillStyle=PACH_SLOT_COLORS[i]+'22';
+    c.fillRect(sx+1,slotY+1,slotW-2,PACH_SLOT_H-2);
+    c.strokeStyle=PACH_SLOT_COLORS[i]+'88';
+    c.lineWidth=1;
+    c.strokeRect(sx+1,slotY+1,slotW-2,PACH_SLOT_H-2);
+    c.fillStyle=mult>=10?'#f088f0':mult>=5?'#ef9f27':mult>=2?'#5dcaa5':'#888';
+    c.font=`bold ${mult>=5?12:10}px Share Tech Mono`;
+    c.textAlign='center';c.textBaseline='middle';
+    c.fillText(mult>=1?`×${mult}`:`×.5`,sx+slotW/2,slotY+PACH_SLOT_H/2);
+  });
+
+  // 슬롯 구분선
+  c.strokeStyle='#2a1a3a';c.lineWidth=2;
+  for(let i=1;i<PACH_SLOTS.length;i++){
+    c.beginPath();c.moveTo(i*slotW,slotY);c.lineTo(i*slotW,H);c.stroke();
+  }
+
+  // 핀
+  pachPins.forEach(pin=>{
+    c.beginPath();c.arc(pin.x,pin.y,pin.r+3,0,Math.PI*2);
+    c.fillStyle='#f088f022';c.fill();
+    c.beginPath();c.arc(pin.x,pin.y,pin.r,0,Math.PI*2);
+    c.fillStyle='#c0a0ff';c.fill();
+    c.strokeStyle='#f088f0';c.lineWidth=1;c.stroke();
+  });
+
+  // 공 잔상
+  if(pachBall){
+    pachBall.trail.forEach((pt,i)=>{
+      const a=(i/pachBall.trail.length)*0.4;
+      c.beginPath();c.arc(pt.x,pt.y,pachBall.r*(i/pachBall.trail.length),0,Math.PI*2);
+      c.fillStyle=`rgba(240,136,240,${a})`;c.fill();
+    });
+    // 공
+    const grad=c.createRadialGradient(pachBall.x-2,pachBall.y-2,1,pachBall.x,pachBall.y,pachBall.r);
+    grad.addColorStop(0,'#ffffff');
+    grad.addColorStop(0.4,'#f0a0ff');
+    grad.addColorStop(1,'#9030b0');
+    c.beginPath();c.arc(pachBall.x,pachBall.y,pachBall.r,0,Math.PI*2);
+    c.fillStyle=grad;c.fill();
+    c.strokeStyle='#f088f0';c.lineWidth=1.5;c.stroke();
+    c.beginPath();c.arc(pachBall.x,pachBall.y,pachBall.r+4,0,Math.PI*2);
+    c.strokeStyle='rgba(240,136,240,0.3)';c.lineWidth=3;c.stroke();
+  }
+
+  // 가이드
+  if(!pachBall&&!pachRunning){
+    c.fillStyle='#f088f055';
+    c.font='10px Share Tech Mono';
+    c.textAlign='center';c.textBaseline='middle';
+    c.fillText('▼ 베팅 버튼을 눌러 공을 발사하세요',W/2,30);
+  }
 }
 
 function initBgmAudio(){
