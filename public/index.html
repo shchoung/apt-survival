@@ -841,6 +841,11 @@ canvas{display:block;width:100%;height:100%}
       </div>
       <div id="shop-buy-panel"  style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px"></div>
       <div id="shop-sell-panel" style="flex:1;overflow-y:auto;display:none;flex-direction:column;gap:3px"></div>
+      <div id="shop-sell-footer" style="display:none;padding:8px 0 0;border-top:1px solid var(--c3)44">
+        <button id="shop-sell-btn" onclick="confirmSellSelected()" style="width:100%;font-family:var(--tf);font-size:12px;padding:8px;background:var(--c2);border:1px solid #5dcaa5;border-radius:5px;color:#5dcaa5;cursor:pointer">
+          선택 0개 판매 (+0G)
+        </button>
+      </div>
     </div>
   </div>
 
@@ -4529,6 +4534,7 @@ const SELL_RATE=0.25;
 // 상점 재고 — 층에 따라 변경, 진입마다 랜덤 8개
 let shopStock=[];
 let shopTab='buy';
+let sellSelected=new Set(); // 판매 선택된 인벤토리 인덱스
 
 function calcBuyPrice(item){
   const base=SHOP_BASE_PRICE[item.grade]||150;
@@ -4591,11 +4597,14 @@ function closeShop(){
 
 function setShopTab(tab){
   shopTab=tab;
+  sellSelected.clear();
   ['buy','sell'].forEach(t=>{
     document.getElementById(`shop-tab-${t}`)?.classList.toggle('active',t===tab);
     const panel=document.getElementById(`shop-${t}-panel`);
     if(panel) panel.style.display=t===tab?'flex':'none';
   });
+  const footer=document.getElementById('shop-sell-footer');
+  if(footer) footer.style.display=tab==='sell'?'block':'none';
   if(tab==='buy') renderShopBuy();
   else            renderShopSell();
 }
@@ -4629,16 +4638,12 @@ function renderShopBuy(){
 function renderShopSell(){
   const el=document.getElementById('shop-sell-panel');
   if(!el) return;
-  document.getElementById('shop-gold').textContent=gold;
+  document.getElementById('shop-gold').textContent=gold.toLocaleString();
   const gc=GRADES||{C:{color:'#888780'},B:{color:'#378ADD'},A:{color:'#5dcaa5'},S:{color:'#ef9f27'}};
 
-  // 인벤토리 전체 (장착 중 제외)
+  // 장착 중이 아닌 아이템만
   const sellable=inventory.map((entry,idx)=>({entry,idx}))
-    .filter(({entry})=>{
-      // 장착 중인 아이템 제외
-      const eq=equipped||{};
-      return !Object.values(eq).some(e=>e?.id===entry.item.id&&e?.enhLevel===entry.enhLevel);
-    })
+    .filter(({idx})=>!Object.values(equipped).includes(idx))
     .sort((a,b)=>{
       const go={S:0,A:1,B:2,C:3};
       return (go[a.entry.item.grade]??9)-(go[b.entry.item.grade]??9);
@@ -4649,7 +4654,9 @@ function renderShopSell(){
     const price=calcSellPrice(entry);
     const gradeColor=gc[item.grade]?.color||'#888';
     const enhTxt=enhLevel>0?` <span style="color:#f5c842">+${enhLevel}</span>`:'';
-    return `<div class="shop-item" onclick="sellItem(${idx})">
+    const sel=sellSelected.has(idx);
+    return `<div class="shop-item" onclick="toggleSellSelect(${idx})" style="cursor:pointer;${sel?'background:rgba(93,202,165,0.12);border-left:2px solid #5dcaa5;':''}">
+      <div style="width:18px;text-align:center;font-size:13px;flex-shrink:0">${sel?'☑':'☐'}</div>
       <div class="shop-icon">${item.icon}</div>
       <div class="shop-info">
         <div class="shop-name">
@@ -4661,6 +4668,72 @@ function renderShopSell(){
       <div class="shop-price" style="color:#5dcaa5">+${price.toLocaleString()}G</div>
     </div>`;
   }).join('')||'<div style="font-family:var(--tf);font-size:11px;color:#5a7a94;padding:20px;text-align:center">판매할 아이템이 없습니다</div>';
+
+  updateSellFooter();
+}
+
+function toggleSellSelect(idx){
+  if(sellSelected.has(idx)) sellSelected.delete(idx);
+  else sellSelected.add(idx);
+  renderShopSell();
+}
+
+function updateSellFooter(){
+  const btn=document.getElementById('shop-sell-btn');
+  if(!btn) return;
+  const count=sellSelected.size;
+  const total=[...sellSelected].reduce((s,idx)=>{
+    const e=inventory[idx];
+    return s+(e?calcSellPrice(e):0);
+  },0);
+  btn.textContent=count>0?`선택 ${count}개 판매 (+${total.toLocaleString()}G)`:`아이템을 선택하세요`;
+  btn.style.opacity=count>0?'1':'0.4';
+  btn.style.cursor=count>0?'pointer':'default';
+}
+
+function confirmSellSelected(){
+  if(sellSelected.size===0){showToast('판매할 아이템을 선택하세요');return;}
+  const count=sellSelected.size;
+  const total=[...sellSelected].reduce((s,idx)=>{
+    const e=inventory[idx];
+    return s+(e?calcSellPrice(e):0);
+  },0);
+  const names=[...sellSelected].slice(0,3).map(idx=>inventory[idx]?.item.name||'').filter(Boolean);
+  const nameStr=names.join(', ')+(count>3?` 외 ${count-3}개`:'');
+  if(!confirm(`${nameStr}\n총 ${count}개를 판매하시겠습니까?\n+${total.toLocaleString()}G`)) return;
+
+  // 인덱스 큰 순서로 splice (인덱스 밀림 방지)
+  const sorted=[...sellSelected].sort((a,b)=>b-a);
+  sorted.forEach(idx=>{
+    Object.keys(equipped).forEach(k=>{
+      if(equipped[k]===idx) equipped[k]=null;
+      else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--;
+    });
+    inventory.splice(idx,1);
+  });
+  gold+=total;
+  sellSelected.clear();
+  showToast(`💸 ${count}개 판매 완료 (+${total.toLocaleString()}G)`);
+  renderShopSell();
+  document.getElementById('shop-gold').textContent=gold.toLocaleString();
+  if(running&&player) saveGameData();
+}
+
+function sellItem(idx){
+  // 단일 판매 (하위호환)
+  const entry=inventory[idx];
+  if(!entry) return;
+  Object.keys(equipped).forEach(k=>{
+    if(equipped[k]===idx) equipped[k]=null;
+    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--;
+  });
+  const price=calcSellPrice(entry);
+  gold+=price;
+  inventory.splice(idx,1);
+  showToast(`💸 ${entry.item.name} 판매 (+${price.toLocaleString()}G)`);
+  renderShopSell();
+  document.getElementById('shop-gold').textContent=gold.toLocaleString();
+  if(running&&player) saveGameData();
 }
 
 function buyShopItem(i){
@@ -4675,22 +4748,6 @@ function buyShopItem(i){
   if(running&&player) saveGameData();
 }
 
-function sellItem(idx){
-  const entry=inventory[idx];
-  if(!entry) return;
-  // 장착 중인 아이템 해제
-  Object.keys(equipped).forEach(k=>{
-    if(equipped[k]===idx) equipped[k]=null;
-    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--;
-  });
-  const price=calcSellPrice(entry);
-  gold+=price;
-  inventory.splice(idx,1);
-  showToast(`💸 ${entry.item.name} 판매 (+${price}G)`);
-  renderShopSell();
-  document.getElementById('shop-gold').textContent=gold;
-  if(running&&player) saveGameData();
-}
 
 /* ═══════ 게시판 시스템 ═══════ */
 let boardPage=1;
