@@ -843,6 +843,26 @@ canvas{display:block;width:100%;height:100%}
 <div id="game-wrap">
   <canvas id="gc"></canvas>
 
+  <!-- 파친코 미니게임 -->
+  <div id="pachinko-screen" class="hidden" style="position:absolute;inset:0;background:#07090dee;z-index:60;display:flex;flex-direction:column;align-items:center;padding:10px;overflow:hidden;box-sizing:border-box">
+    <div style="width:100%;max-width:360px;display:flex;flex-direction:column;height:100%">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-family:var(--tf);font-size:16px;color:#f088f0;letter-spacing:2px">🎰 파친코</div>
+        <div style="font-family:var(--tf);font-size:13px;color:#f5c842">💰 <span id="pach-gold">0</span>G</div>
+        <button onclick="closePachinko()" style="font-family:var(--tf);font-size:11px;padding:4px 12px;background:var(--c2);border:1px solid var(--c3);color:#a0bcd0;border-radius:4px;cursor:pointer">✕ 닫기</button>
+      </div>
+      <canvas id="pach-canvas" width="340" height="360" style="width:100%;border-radius:8px;border:1px solid #f088f044;background:#0a0612;display:block"></canvas>
+      <div id="pach-result" style="font-family:var(--tf);font-size:14px;text-align:center;padding:6px;min-height:28px;color:#f5c842"></div>
+      <div style="display:flex;gap:6px;margin-top:4px">
+        <button onclick="pachDrop(100)"  style="flex:1;font-family:var(--tf);font-size:11px;padding:8px 0;background:#1a0a2a;border:1px solid #f088f0;color:#f088f0;border-radius:5px;cursor:pointer">100G</button>
+        <button onclick="pachDrop(500)"  style="flex:1;font-family:var(--tf);font-size:11px;padding:8px 0;background:#1a0a2a;border:1px solid #f088f0;color:#f088f0;border-radius:5px;cursor:pointer">500G</button>
+        <button onclick="pachDrop(1000)" style="flex:1;font-family:var(--tf);font-size:11px;padding:8px 0;background:#1a0a2a;border:1px solid #f088f0;color:#f088f0;border-radius:5px;cursor:pointer">1000G</button>
+        <button onclick="pachDrop(5000)" style="flex:1;font-family:var(--tf);font-size:11px;padding:8px 0;background:#1a0a2a;border:1px solid #f088f0;color:#f088f0;border-radius:5px;cursor:pointer">5000G</button>
+      </div>
+      <div style="font-family:var(--tf);font-size:8px;color:#5a7a94;text-align:center;margin-top:5px">배율: 0.5× 1× 2× 5× 🎯10× 5× 2× 1× 0.5×</div>
+    </div>
+  </div>
+
   <!-- 인게임 상점 -->
   <div id="shop-screen" class="hidden" style="position:absolute;inset:0;background:#07090dee;z-index:60;display:flex;flex-direction:column;align-items:center;padding:10px;overflow:hidden">
     <div style="width:100%;max-width:480px;display:flex;flex-direction:column;height:100%;gap:6px">
@@ -878,6 +898,7 @@ canvas{display:block;width:100%;height:100%}
       <div class="hchip" onclick="showFloorMap()">🗺 층</div>
       <div class="hchip" onclick="showInv()">🎒 인벤</div>
       <div class="hchip" style="color:#f5c842" onclick="openShop()">🏪 상점</div>
+      <div class="hchip" style="color:#f088f0" onclick="openPachinko()">🎰 파친코</div>
       <div class="hchip" onclick="openSettings()" style="color:var(--ca)">⚙ 설정</div>
     </div>
   </div>
@@ -3741,6 +3762,174 @@ function updateQuickSlots(){
     if(qsCooldown[i]>0){qsCooldown[i]--;changed=true;}
   }
   if(changed) updateQuickSlotUI();
+}
+
+/* ═══════════════════════════════════════
+   파친코 미니게임 시스템
+   ═══════════════════════════════════════ */
+const PACH_W=340, PACH_H=360;
+const PACH_SLOTS=[0.5,1,2,5,10,5,2,1,0.5]; // 9개 슬롯 배율
+const PACH_SLOT_COLORS=['#888','#5dcaa5','#378ADD','#ef9f27','#f088f0','#ef9f27','#378ADD','#5dcaa5','#888'];
+const PACH_SLOT_H=36; // 슬롯 영역 높이
+const PACH_PIN_ROWS=7;
+
+let pachBet=0;
+let pachBall=null;    // {x,y,vx,vy,r,trail}
+let pachRunning=false;
+let pachRaf=null;
+let pachCtx=null;
+let pachPins=[];      // [{x,y,r}]
+
+function buildPachPins(){
+  pachPins=[];
+  const cols=8, startY=60, gapY=36, gapX=34;
+  for(let row=0;row<PACH_PIN_ROWS;row++){
+    const n = row%2===0 ? cols : cols-1;
+    const offsetX = row%2===0 ? (PACH_W - (n-1)*gapX)/2 : (PACH_W - (n-1)*gapX)/2 + gapX/2;
+    for(let col=0;col<n;col++){
+      pachPins.push({x:offsetX+col*gapX, y:startY+row*gapY, r:4});
+    }
+  }
+}
+
+function openPachinko(){
+  if(!running){showToast('게임 중에만 이용 가능합니다');return;}
+  document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));
+  const scr=document.getElementById('pachinko-screen');
+  scr.classList.remove('hidden');
+  document.getElementById('pach-gold').textContent=gold.toLocaleString();
+  document.getElementById('pach-result').textContent='';
+  pachBall=null; pachRunning=false;
+  if(pachRaf){cancelAnimationFrame(pachRaf);pachRaf=null;}
+  const cv=document.getElementById('pach-canvas');
+  pachCtx=cv.getContext('2d');
+  buildPachPins();
+  pachDraw();
+}
+
+function closePachinko(){
+  const scr=document.getElementById('pachinko-screen');
+  scr.classList.add('hidden');
+  pachRunning=false;
+  if(pachRaf){cancelAnimationFrame(pachRaf);pachRaf=null;}
+}
+
+function pachDrop(bet){
+  if(pachRunning){showToast('공이 굴러가는 중...');return;}
+  if(gold<bet){showToast('💰 골드가 부족합니다!');return;}
+  gold-=bet; pachBet=bet;
+  document.getElementById('pach-gold').textContent=gold.toLocaleString();
+  document.getElementById('pach-result').textContent='';
+  if(running&&player) saveGameData();
+
+  // 공 생성 — 약간 랜덤한 X 위치에서 발사
+  const startX=PACH_W/2 + (Math.random()-0.5)*60;
+  pachBall={
+    x:startX, y:12, r:7,
+    vx:(Math.random()-0.5)*1.5,
+    vy:2,
+    trail:[],
+  };
+  pachRunning=true;
+  pachLoop();
+}
+
+function pachLoop(){
+  if(!pachRunning){return;}
+  pachUpdate();
+  pachDraw();
+  // 공이 슬롯 하단에 도달했으면 종료
+  if(pachBall && pachBall.y > PACH_H - PACH_SLOT_H + 10){
+    pachRunning=false;
+    pachLand();
+    pachDraw();
+    return;
+  }
+  pachRaf=requestAnimationFrame(pachLoop);
+}
+
+function pachUpdate(){
+  const b=pachBall;
+  if(!b) return;
+
+  // 잔상
+  b.trail.push({x:b.x,y:b.y});
+  if(b.trail.length>8) b.trail.shift();
+
+  // 중력
+  b.vy+=0.25;
+  // 공기 저항
+  b.vx*=0.995;
+
+  b.x+=b.vx; b.y+=b.vy;
+
+  // 벽 반사
+  if(b.x-b.r<0){b.x=b.r;b.vx=Math.abs(b.vx)*0.7;}
+  if(b.x+b.r>PACH_W){b.x=PACH_W-b.r;b.vx=-Math.abs(b.vx)*0.7;}
+
+  // 핀 충돌
+  for(const pin of pachPins){
+    const dx=b.x-pin.x, dy=b.y-pin.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    const minD=b.r+pin.r+1;
+    if(dist<minD&&dist>0){
+      // 충돌 방향으로 튕김
+      const nx=dx/dist, ny=dy/dist;
+      const dot=b.vx*nx+b.vy*ny;
+      b.vx=(b.vx-2*dot*nx)*0.75 + (Math.random()-0.5)*0.8;
+      b.vy=(b.vy-2*dot*ny)*0.75;
+      b.x=pin.x+nx*minD;
+      b.y=pin.y+ny*minD;
+      // 최소 속도 보장
+      if(Math.abs(b.vy)<1.5) b.vy=1.5;
+    }
+  }
+
+  // 슬롯 구분선(벽) 충돌 — 슬롯 영역 진입 후
+  const slotY=PACH_H-PACH_SLOT_H;
+  if(b.y>slotY-b.r){
+    const slotW=PACH_W/PACH_SLOTS.length;
+    for(let i=1;i<PACH_SLOTS.length;i++){
+      const wallX=i*slotW;
+      if(Math.abs(b.x-wallX)<b.r+2&&b.y>slotY){
+        b.vx= b.x<wallX ? -Math.abs(b.vx)*0.8 : Math.abs(b.vx)*0.8;
+        b.x= b.x<wallX ? wallX-b.r-2 : wallX+b.r+2;
+      }
+    }
+  }
+}
+
+function pachLand(){
+  const b=pachBall;
+  if(!b) return;
+  const slotW=PACH_W/PACH_SLOTS.length;
+  const slotIdx=Math.max(0,Math.min(PACH_SLOTS.length-1,Math.floor(b.x/slotW)));
+  const mult=PACH_SLOTS[slotIdx];
+  const win=Math.floor(pachBet*mult);
+  gold+=win;
+  document.getElementById('pach-gold').textContent=gold.toLocaleString();
+
+  const resultEl=document.getElementById('pach-result');
+  if(mult>=10){
+    resultEl.style.color='#f088f0';
+    resultEl.textContent=`🎉 JACKPOT! ×${mult} → +${win.toLocaleString()}G!`;
+    sparks(player?.x||0,player?.y||0,'#f088f0',20);
+  } else if(mult>=5){
+    resultEl.style.color='#ef9f27';
+    resultEl.textContent=`✨ 대박! ×${mult} → +${win.toLocaleString()}G`;
+  } else if(mult>=2){
+    resultEl.style.color='#5dcaa5';
+    resultEl.textContent=`👍 ×${mult} → +${win.toLocaleString()}G`;
+  } else if(mult===1){
+    resultEl.style.color='#a0bcd0';
+    resultEl.textContent=`본전 ×${mult} → +${win.toLocaleString()}G`;
+  } else {
+    resultEl.style.color='#e24b4b';
+    resultEl.textContent=`😢 ×${mult} → +${win.toLocaleString()}G`;
+  }
+
+  addLog(`파친코: ×${mult} (${win}G ${win>=pachBet?'획득':'손실'})`, win>=pachBet?'lsys':'lhit');
+  if(running&&player) saveGameData();
 }
 
 function initBgmAudio(){
