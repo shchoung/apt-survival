@@ -1643,91 +1643,10 @@ let charAnimState={
 
 function renderCharSelect(){
   const g=document.getElementById('csg');
-
-  // 캐릭터별 SVG 일러스트
-  const charSVG=[
-    // 이준호 — 탱커 (방패+경찰)
-    `<svg viewBox="0 0 70 80" xmlns="http://www.w3.org/2000/svg">
-      <rect width="70" height="80" fill="#0d1a2a"/>
-      <!-- 방패 -->
-      <path d="M35 12 L54 22 L54 44 Q54 60 35 68 Q16 60 16 44 L16 22 Z" fill="#1a3a5c" stroke="#378ADD" stroke-width="2"/>
-      <path d="M35 18 L48 26 L48 44 Q48 56 35 62 Q22 56 22 44 L22 26 Z" fill="#0d2035" stroke="#378ADD66" stroke-width="1"/>
-      <!-- 별 마크 -->
-      <polygon points="35,26 37,32 43,32 38,36 40,42 35,38 30,42 32,36 27,32 33,32" fill="#378ADD" opacity="0.9"/>
-      <!-- 헬멧 실루엣 -->
-      <ellipse cx="35" cy="10" rx="10" ry="8" fill="#1a3050" stroke="#378ADD" stroke-width="1.5"/>
-      <rect x="29" y="8" width="12" height="5" rx="2" fill="#378ADD" opacity="0.6"/>
-    </svg>`,
-    // 김서아 — 해커 (홀로그램 노트북)
-    `<svg viewBox="0 0 70 80" xmlns="http://www.w3.org/2000/svg">
-      <rect width="70" height="80" fill="#071a12"/>
-      <!-- 홀로그램 원 -->
-      <circle cx="35" cy="35" r="22" fill="none" stroke="#1D9E75" stroke-width="1" opacity="0.4"/>
-      <circle cx="35" cy="35" r="16" fill="none" stroke="#1D9E75" stroke-width="1.5" opacity="0.6"/>
-      <circle cx="35" cy="35" r="8" fill="#0d2a1a" stroke="#1D9E75" stroke-width="2"/>
-      <!-- 바이너리 -->
-      <text x="10" y="20" font-family="monospace" font-size="7" fill="#1D9E75" opacity="0.5">10110</text>
-      <text x="42" y="55" font-family="monospace" font-size="7" fill="#1D9E75" opacity="0.5">01001</text>
-      <text x="8" y="60" font-family="monospace" font-size="6" fill="#1D9E75" opacity="0.3">11010</text>
-      <!-- 해킹 아이콘 -->
-      <text x="28" y="39" font-family="monospace" font-size="12" fill="#5dcaa5">⌨</text>
-      <!-- 레이더 선 -->
-      <line x1="35" y1="35" x2="55" y2="18" stroke="#1D9E75" stroke-width="1" opacity="0.5"/>
-      <line x1="35" y1="35" x2="15" y2="52" stroke="#1D9E75" stroke-width="1" opacity="0.3"/>
-      <!-- 글로우 -->
-      <circle cx="35" cy="35" r="5" fill="#1D9E75" opacity="0.3"/>
-    </svg>`,
-    // 박민재 — 딜러 (폭발+번개)
-    `<svg viewBox="0 0 70 80" xmlns="http://www.w3.org/2000/svg">
-      <rect width="70" height="80" fill="#1a1000"/>
-      <!-- 폭발 방사형 -->
-      ${[0,30,60,90,120,150,180,210,240,270,300,330].map(a=>`
-      <line x1="35" y1="35"
-        x2="${35+Math.cos(a*Math.PI/180)*28}"
-        y2="${35+Math.sin(a*Math.PI/180)*28}"
-        stroke="#ef9f27" stroke-width="${a%60===0?2:1}" opacity="${a%60===0?0.9:0.3}"/>`).join('')}
-      <!-- 번개 볼트 -->
-      <polygon points="38,10 30,34 37,34 32,58 48,28 38,28 44,10" fill="#f5c842" opacity="0.95"/>
-      <!-- 코어 -->
-      <circle cx="35" cy="35" r="6" fill="#ef9f27" opacity="0.8"/>
-      <circle cx="35" cy="35" r="3" fill="#fff" opacity="0.9"/>
-      <!-- 파편 -->
-      <circle cx="18" cy="20" r="2.5" fill="#ef9f27" opacity="0.7"/>
-      <circle cx="54" cy="22" r="2" fill="#f5c842" opacity="0.6"/>
-      <circle cx="56" cy="52" r="3" fill="#ef9f27" opacity="0.5"/>
-      <circle cx="15" cy="54" r="2" fill="#f5c842" opacity="0.4"/>
-    </svg>`,
-    // 오하나 — 힐러 (의료 드론+꽃)
-    `<svg viewBox="0 0 70 80" xmlns="http://www.w3.org/2000/svg">
-      <rect width="70" height="80" fill="#1a0a12"/>
-      <!-- 꽃잎 -->
-      ${[0,72,144,216,288].map(a=>`
-      <ellipse cx="${35+Math.cos(a*Math.PI/180)*16}" cy="${35+Math.sin(a*Math.PI/180)*16}"
-        rx="8" ry="5"
-        transform="rotate(${a} ${35+Math.cos(a*Math.PI/180)*16} ${35+Math.sin(a*Math.PI/180)*16})"
-        fill="#993556" opacity="0.7"/>`).join('')}
-      <!-- 드론 몸체 -->
-      <rect x="26" y="26" width="18" height="18" rx="3" fill="#c0d0e0"/>
-      <rect x="28" y="28" width="14" height="14" rx="2" fill="#e0eaf4"/>
-      <!-- 십자 -->
-      <rect x="33" y="27" width="4" height="20" rx="1" fill="#993556"/>
-      <rect x="26" y="33" width="18" height="4" rx="1" fill="#993556"/>
-      <!-- 프로펠러 -->
-      <ellipse cx="22" cy="26" rx="5" ry="2" fill="#993556" opacity="0.7"/>
-      <ellipse cx="48" cy="26" rx="5" ry="2" fill="#993556" opacity="0.7"/>
-      <ellipse cx="22" cy="44" rx="5" ry="2" fill="#993556" opacity="0.7"/>
-      <ellipse cx="48" cy="44" rx="5" ry="2" fill="#993556" opacity="0.7"/>
-      <!-- 힐 파티클 -->
-      <circle cx="20" cy="18" r="2" fill="#5dcaa5" opacity="0.8"/>
-      <circle cx="52" cy="16" r="1.5" fill="#5dcaa5" opacity="0.6"/>
-      <circle cx="54" cy="56" r="2" fill="#5dcaa5" opacity="0.7"/>
-      <text x="26" y="66" font-family="sans-serif" font-size="8" fill="#5dcaa5" opacity="0.8">HP+</text>
-    </svg>`,
-  ];
-
   g.innerHTML=CHARS.map((c,i)=>{
     const taken=takenChars.has(i)&&i!==selChar,picked=selChar===i;
     const sc={HP:'#e24b4b',ATK:c.color,DEF:'#5dcaa5',SPD:'#7f77dd'};
+    const cvId=`char-illust-${i}`;
     const charSave=currentUser?.saves?.[i];
     const hasData=charSave&&!charSave.isNew&&(charSave.lv>1||charSave.floor>0||charSave.kills>0);
     const saveLabel=hasData
@@ -1736,7 +1655,6 @@ function renderCharSelect(){
         </div>`
       :`<div style="font-family:var(--tf);font-size:8px;color:#5a7a94;margin-top:2px">새 게임</div>`;
 
-    // 스킬 설명 (최대 4개)
     const skillList=(c.skills||[]).map((sk,si)=>`
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px">
         <span style="font-size:10px">${c.icons?.[si]||'⚡'}</span>
@@ -1747,8 +1665,8 @@ function renderCharSelect(){
     return `<div class="ccard${picked?' picked':''}${taken?' taken':''}" onclick="pickChar(${i})" style="position:relative">
       ${taken?'<span class="taken-b">사용중</span>':''}
       <div style="display:flex;gap:10px;align-items:flex-start">
-        <div style="flex-shrink:0;width:70px;height:80px;border-radius:8px;overflow:hidden;border:1.5px solid ${c.color}55">
-          ${charSVG[i]}
+        <div style="flex-shrink:0;width:70px;height:80px;border-radius:6px;overflow:hidden;background:#000;border:1.5px solid ${c.color}44">
+          <canvas id="${cvId}" width="70" height="80" style="display:block"></canvas>
         </div>
         <div style="flex:1;min-width:0">
           <div class="cch" style="margin-bottom:3px">
@@ -1756,7 +1674,6 @@ function renderCharSelect(){
             <div><div class="ccnm">${c.name}</div><div class="ccrole">${c.role}</div></div>
           </div>
           <div class="stml" style="margin-bottom:4px">${Object.entries(c.stats).map(([k,v])=>`<span class="stpil" style="background:${sc[k]}22;color:${sc[k]};border:1px solid ${sc[k]}44">${k}${v}</span>`).join('')}</div>
-          <!-- 스킬 목록 -->
           <div style="background:#0d111888;border-radius:4px;padding:4px 6px;margin-bottom:2px">
             ${skillList}
           </div>
@@ -1767,7 +1684,33 @@ function renderCharSelect(){
     </div>`;
   }).join('');
 
+  requestAnimationFrame(()=>drawCharIllusts());
   document.getElementById('btn-start').disabled=selChar<0;
+}
+
+function drawCharIllusts(){
+  CHARS.forEach((_,i)=>{
+    const cv=document.getElementById(`char-illust-${i}`);
+    if(!cv) return;
+    const c2=cv.getContext('2d');
+    c2.clearRect(0,0,70,80);
+    const sp=CHAR_SPRITES[i];
+    if(sp?.loaded&&sp?.img){
+      const {w,h}=CHAR_FRAME_SIZE[i]||{w:128,h:150};
+      const scale=Math.min(70/w, 80/h);
+      const dw=Math.round(w*scale), dh=Math.round(h*scale);
+      const dx=Math.round((70-dw)/2), dy=Math.round((80-dh)/2);
+      c2.drawImage(sp.noBgCanvas||sp.img, 0,0,w,h, dx,dy,dw,dh);
+    } else {
+      const cd=CHARS[i];
+      c2.fillStyle=cd.color+'22';c2.fillRect(0,0,70,80);
+      c2.fillStyle=cd.color+'88';c2.fillRect(0,60,70,20);
+      c2.fillStyle=cd.color;c2.font='bold 26px Noto Sans KR';
+      c2.textAlign='center';c2.textBaseline='middle';c2.fillText(cd.init,35,36);
+      c2.fillStyle='#e0e8f0';c2.font='9px Noto Sans KR';
+      c2.fillText(cd.name,35,70);
+    }
+  });
 }
 
 function drawCharIllusts(){
