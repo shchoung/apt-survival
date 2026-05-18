@@ -3317,17 +3317,22 @@ function updateSkillIcons(){
 
 /* ═══════ INPUT ═══════ */
 window.addEventListener('keydown',e=>{
+  // 채팅 입력창 포커스 중이면 게임 키 처리 완전 무시
+  if(document.activeElement&&document.activeElement.id==='chat-inp') return;
   if(listenK){const k=e.key.length===1?e.key.toLowerCase():e.key;KB[listenK]=k;listenK=null;saveKB();renderKBGrid();updateKeyLabels();e.preventDefault();return;}
   const lk=e.key.toLowerCase();keys[lk]=true;keys[e.key]=true;
   if(!running)return;
-  if(!e.repeat){  // 키를 누르고 있을 때 반복 발생하는 이벤트 무시
+  if(!e.repeat){
     if(lk===KB.sk0)useSkill(0);else if(lk===KB.sk1)useSkill(1);else if(lk===KB.sk2)useSkill(2);else if(lk===KB.sk3)useSkill(3);
     if(lk==='i')showInv();
     if(lk==='m')showFloorMap();
   }
   const mv=[KB.up,KB.down,KB.left,KB.right];if(!mv.includes(lk))e.preventDefault();
 });
-window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false;});
+window.addEventListener('keyup',e=>{
+  if(document.activeElement&&document.activeElement.id==='chat-inp') return;
+  keys[e.key.toLowerCase()]=false;keys[e.key]=false;
+});
 gc_el.addEventListener('mousemove',e=>{const r=gc_el.getBoundingClientRect();mouseX=e.clientX-r.left;mouseY=e.clientY-r.top;});
 gc_el.addEventListener('click',()=>{if(running)useSkill(0);});
 window.addEventListener('resize',()=>{if(running)resize();});
