@@ -76,6 +76,24 @@ canvas{display:block;width:100%;height:100%}
 .skicon{font-size:18px}.skkey{font-family:var(--tf);font-size:8px;color:#5a7a94}
 .skcd{position:absolute;bottom:2px;right:3px;font-family:var(--tf);font-size:8px;color:var(--ca)}
 
+/* 퀵슬롯 */
+.qslot{
+  width:46px;height:46px;border-radius:7px;border:1.5px dashed var(--c3);background:var(--c2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  cursor:pointer;position:relative;transition:.1s;user-select:none;
+}
+.qslot:active{border-color:#5dcaa5;background:#0d2018}
+.qslot.filled{border-style:solid;border-color:#5dcaa566}
+.qslot.filled:active{border-color:#5dcaa5}
+.qslot-icon{font-size:16px;line-height:1}
+.qslot-key{font-family:var(--tf);font-size:7px;color:#5a7a94}
+.qslot-qty{
+  position:absolute;bottom:1px;right:3px;
+  font-family:var(--tf);font-size:8px;color:#5dcaa5;font-weight:700;
+}
+.qslot-empty-icon{font-size:14px;opacity:0.3}
+.qslot-sep{width:1px;height:32px;background:var(--c3);margin:0 2px;}
+
 /* PANELS */
 #log-panel{position:absolute;top:110px;left:8px;width:200px;background:#07090daa;border:1px solid var(--c3)44;border-radius:6px;padding:5px 7px;max-height:120px;overflow:hidden;pointer-events:none;z-index:19}
 .loge{font-size:9px;line-height:1.6;font-family:var(--tf);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1200,6 +1218,18 @@ canvas{display:block;width:100%;height:100%}
 </div>
 
 <div id="skill-bar">
+  <!-- 퀵슬롯 -->
+  <div class="qslot" id="qs0" onclick="useQuickSlot(0)" oncontextmenu="clearQuickSlot(0);return false">
+    <div class="qslot-icon" id="qsi0"><span class="qslot-empty-icon">🧪</span></div>
+    <div class="qslot-key">1</div>
+    <div class="qslot-qty" id="qsq0"></div>
+  </div>
+  <div class="qslot" id="qs1" onclick="useQuickSlot(1)" oncontextmenu="clearQuickSlot(1);return false">
+    <div class="qslot-icon" id="qsi1"><span class="qslot-empty-icon">🧪</span></div>
+    <div class="qslot-key">2</div>
+    <div class="qslot-qty" id="qsq1"></div>
+  </div>
+  <div class="qslot-sep"></div>
   <div style="font-family:var(--tf);font-size:9px;color:#5a7a94">SKILL</div>
   <div class="skbtn" id="sk0"><div class="skicon" id="ski0">⚔</div><div class="skkey" id="kl0">Q</div><div class="skcd" id="cd0"></div><div class="sk-tooltip" id="skt0"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
   <div class="skbtn" id="sk1"><div class="skicon" id="ski1">💫</div><div class="skkey" id="kl1">E</div><div class="skcd" id="cd1"></div><div class="sk-tooltip" id="skt1"><div class="skt-name"></div><div class="skt-desc"></div><div class="skt-cd"></div></div></div>
@@ -1805,6 +1835,7 @@ function renderInv(){
         ${canEq&&!isEq?`<div class="itd-btn" onclick="equipItem(${selInvIdx})">장착</div>`:''}
         ${isEq?`<div class="itd-btn" onclick="unequipItem(${selInvIdx})">해제</div>`:''}
         ${item.type==='consumable'?`<div class="itd-btn" onclick="useConsumable(${selInvIdx})">사용</div>`:''}
+        ${item.type==='consumable'?`<div class="itd-btn" style="color:#5dcaa5;border-color:#5dcaa566" onclick="assignQuickSlot(${selInvIdx})">⚡퀵슬롯</div>`:''}
         ${item.type==='weapon'||item.type==='armor'?`<div class="itd-btn" style="color:var(--ca);border-color:var(--ca)" onclick="setEnhTarget(${selInvIdx})">강화대상</div>`:''}
         ${(item.type==='material'||true)&&selEnhIdx>=0&&selEnhIdx!==selInvIdx?`<div class="itd-btn" style="color:var(--cp);border-color:var(--cp)" onclick="setEnhMat(${selInvIdx})">재료설정</div>`:''}
         <div class="itd-btn" style="color:var(--cr);border-color:var(--cr)" onclick="dropItem(${selInvIdx})">버리기</div>
@@ -2305,6 +2336,7 @@ function startGame(){
     loadQuestState();
     updateQuestBadge();
     enemies=[];drops_arr=[];particles=[];floats=[];projectiles=[];
+    quickSlots=[null,null];qsCooldown=[0,0];
     waveKills=0;waveNum=1;cdT=[0,0,0,0];
     startTime=Date.now();running=true;
     updateSkillIcons();
@@ -2579,6 +2611,7 @@ function update(){
   cdT=cdT.map(t=>Math.max(0,t-1));
   updateSkillFX();
   updateProjectiles();
+  updateQuickSlots();
   if(player.invincible>0){
     // 인벤토리 열려있으면 무적 유지
     if(!document.getElementById('inv-screen')?.classList.contains('hidden'))
@@ -3479,6 +3512,105 @@ let bgmGain=null,sfxGain=null;
 let bgmVolume=0.6;
 let bgmAudio=null;
 let bgmOsc=[],bgmPlaying=false;
+
+/* ═══════ 퀵슬롯 시스템 ═══════ */
+// quickSlots[0|1] = {itemId, icon, name} | null
+let quickSlots=[null,null];
+let qsCooldown=[0,0]; // 사용 후 쿨타임 (프레임)
+const QS_CD=40; // 사용 후 쿨타임
+
+function updateQuickSlotUI(){
+  for(let i=0;i<2;i++){
+    const slot=quickSlots[i];
+    const el=document.getElementById('qs'+i);
+    const icon=document.getElementById('qsi'+i);
+    const qty=document.getElementById('qsq'+i);
+    if(!el||!icon||!qty) continue;
+    if(slot){
+      // 인벤에서 수량 계산
+      const count=inventory.filter(e=>e.item.id===slot.itemId).length;
+      if(count===0){
+        // 소진됨 — 슬롯 유지하되 0 표시
+        el.classList.add('filled');
+        icon.innerHTML=`<span style="opacity:0.4">${slot.icon}</span>`;
+        qty.textContent='0';
+        qty.style.color='#ff7070';
+      } else {
+        el.classList.add('filled');
+        icon.innerHTML=slot.icon;
+        qty.textContent=count;
+        qty.style.color='#5dcaa5';
+      }
+      // 쿨타임 오버레이
+      el.style.opacity=qsCooldown[i]>0?'0.5':'1';
+    } else {
+      el.classList.remove('filled');
+      icon.innerHTML=`<span class="qslot-empty-icon">🧪</span>`;
+      qty.textContent='';
+      el.style.opacity='1';
+    }
+  }
+}
+
+function useQuickSlot(i){
+  if(qsCooldown[i]>0){showToast('쿨타임 중...');return;}
+  const slot=quickSlots[i];
+  if(!slot){showToast('슬롯에 아이템을 등록하세요\n(인벤토리 → 아이템 선택 → 퀵슬롯 등록)');return;}
+  // 인벤에서 해당 아이템 찾기
+  const idx=inventory.findIndex(e=>e.item.id===slot.itemId);
+  if(idx<0){showToast(`${slot.name} 없음`);return;}
+  const {item}=inventory[idx];
+  if(item.healAmt){
+    player.hp=Math.min(player.maxHp,player.hp+item.healAmt);
+    addFloat(player.x,player.y,`+${item.healAmt}`,'#5dcaa5');
+    sparks(player.x,player.y,'#5dcaa5',8);
+    addLog(`${item.name} 사용 HP+${item.healAmt}`,'lheal');
+  }
+  inventory.splice(idx,1);
+  // equipped 인덱스 보정
+  Object.keys(equipped).forEach(k=>{
+    if(equipped[k]===idx) equipped[k]=null;
+    else if(equipped[k]!==null&&equipped[k]>idx) equipped[k]--;
+  });
+  qsCooldown[i]=QS_CD;
+  SFX.heal&&SFX.heal();
+  updateQuickSlotUI();
+  if(running&&player) saveGameData();
+}
+
+function clearQuickSlot(i){
+  quickSlots[i]=null;
+  updateQuickSlotUI();
+  showToast(`퀵슬롯 ${i+1} 해제`);
+}
+
+function assignQuickSlot(invIdx){
+  const entry=inventory[invIdx];
+  if(!entry||entry.item.type!=='consumable'){showToast('소비 아이템만 등록 가능합니다');return;}
+  // 빈 슬롯 우선, 없으면 0번 덮어쓰기
+  const free=quickSlots.findIndex(s=>s===null);
+  const target=free>=0?free:0;
+  quickSlots[target]={itemId:entry.item.id,icon:entry.item.icon,name:entry.item.name};
+  updateQuickSlotUI();
+  showToast(`퀵슬롯 ${target+1}에 ${entry.item.name} 등록!`);
+}
+
+// 키보드 단축키 1, 2
+function handleQsKey(e){
+  if(!running||!player) return;
+  if(e.key==='1') useQuickSlot(0);
+  if(e.key==='2') useQuickSlot(1);
+}
+document.addEventListener('keydown',handleQsKey);
+
+// 게임 루프에서 쿨타임 감소 (updateSkillFX 근처에서 호출)
+function updateQuickSlots(){
+  let changed=false;
+  for(let i=0;i<2;i++){
+    if(qsCooldown[i]>0){qsCooldown[i]--;changed=true;}
+  }
+  if(changed) updateQuickSlotUI();
+}
 
 function initBgmAudio(){
   if(bgmAudio) return;
