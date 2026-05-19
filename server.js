@@ -444,12 +444,11 @@ app.get('/api/ranking', async (req, res) => {
     const rows = await db.query(`
       SELECT nick, char_idx, lv, floor, kills, gold,
              array_length(cleared_floors,1) AS clear_count,
-             inventory, equipped,
              saved_at
       FROM game_saves
       WHERE lv > 1 OR floor > 0 OR kills > 0
       ORDER BY ${orderBy}
-      LIMIT 50
+      LIMIT 30
     `);
     res.json({ ok: true, ranking: rows.rows });
   } catch (e) {
@@ -509,6 +508,7 @@ function formatSave(row, charIdx) {
 const sessions  = new Map(); // token → { nick, user_id }
 const rooms     = new Map(); // roomCode → Room
 const clients   = new Map(); // ws → ClientInfo
+const userConnections = new Map(); // user_id → ws (동시접속 방지)
 
 /* ══════════════════════════════════════
    방 & 플레이어 클래스 (단순 릴레이)
@@ -629,6 +629,12 @@ async function removePlayer(ws) {
 
   const player = room.players.get(playerId);
 
+  // userConnections 정리 (현재 ws가 등록된 경우만)
+  if (player?.userId) {
+    const cur = userConnections.get(player.userId);
+    if (cur === ws) userConnections.delete(player.userId);
+  }
+
   // 비정상 이탈 포함 자동 저장
   if (player) await savePlayerToDB(player);
 
@@ -676,6 +682,19 @@ async function handleMessage(ws, raw) {
     }
     const nick = sess?.nick || guestNick || ('생존자'+Math.floor(Math.random()*9000+1000));
     const userId = sess?.user_id || null;
+
+    // ── user_id 기반 중복 접속 차단 (로그인 유저만) ──
+    if (userId) {
+      const existingWs = userConnections.get(userId);
+      if (existingWs && existingWs !== ws && existingWs.readyState === WebSocket.OPEN) {
+        console.log(`[DUPLICATE] user_id=${userId} (${nick}) 중복 접속 — 기존 연결 강제 종료`);
+        try {
+          existingWs.send(JSON.stringify({ type: 'duplicate_login', msg: '다른 기기에서 접속하여 연결이 종료되었습니다.' }));
+          existingWs.close();
+        } catch {}
+      }
+      userConnections.set(userId, ws);
+    }
 
     // ── 같은 닉네임이 이미 방에 있으면 기존 세션 제거 (중복 접속 방지) ──
     for (const [, r] of rooms) {
