@@ -1273,7 +1273,16 @@ canvas{display:block;width:100%;height:100%}
   <div id="inv-screen" class="hidden">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:6px">
       <div class="inv-title">인벤토리</div>
-      <button class="sbtn gray" style="padding:3px 10px;font-size:10px" onclick="hideInv()">닫기</button>
+      <div id="inv-hp-wrap" style="flex:1;margin:0 10px;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:var(--tf);font-size:8px;color:#5a7a94">HP</span>
+          <span id="inv-hp-txt" style="font-family:var(--tf);font-size:9px;color:var(--cr)"></span>
+        </div>
+        <div style="height:5px;border-radius:3px;background:#1a2535;overflow:hidden">
+          <div id="inv-hp-bar" style="height:100%;border-radius:3px;background:var(--cr);transition:width .3s"></div>
+        </div>
+      </div>
+      <button class="sbtn gray" style="padding:3px 10px;font-size:10px;flex-shrink:0" onclick="hideInv()">닫기</button>
     </div>
     <div class="inv-layout">
       <!-- 아이템 목록 -->
@@ -1989,6 +1998,22 @@ function setInvTab(tab){
 function renderInv(){
   const GRADE_ORDER={S:0,A:1,B:2,C:3};
 
+  /* ── 현재 HP 표시 ── */
+  if(player){
+    const hpPct=Math.max(0,Math.min(100,Math.round(player.hp/player.maxHp*100)));
+    const hpBar=document.getElementById('inv-hp-bar');
+    const hpTxt=document.getElementById('inv-hp-txt');
+    if(hpBar) hpBar.style.width=hpPct+'%';
+    // HP 낮을수록 색상 변화: 녹색→노랑→빨강
+    const hpColor = hpPct>60?'#1D9E75':hpPct>30?'#EF9F27':'var(--cr)';
+    if(hpBar) hpBar.style.background=hpColor;
+    if(hpTxt) hpTxt.style.color=hpColor;
+    if(hpTxt) hpTxt.textContent=`${player.hp} / ${player.maxHp}`;
+  }
+
+  /* ── 소모/재료 탭: 같은 itemId끼리 스택 합산 ── */
+  const isStackTab = invTab==='consume' || invTab==='mat';
+
   // 탭별 필터
   const tabFilter={
     equip:  e=>['weapon','armor','acc'].includes(e.item.type),
@@ -1996,67 +2021,118 @@ function renderInv(){
     mat:    e=>e.item.type==='material',
   };
 
-  const sorted=inventory
-    .map((entry,idx)=>({entry,idx}))
-    .filter(({entry})=>tabFilter[invTab]?.(entry))
-    .sort((a,b)=>{
-      const gDiff=(GRADE_ORDER[a.entry.item.grade]??9)-(GRADE_ORDER[b.entry.item.grade]??9);
-      return gDiff!==0?gDiff:b.entry.enhLevel-a.entry.enhLevel;
-    });
-
   const slots=document.getElementById('inv-slots');
   slots.innerHTML='';
-  sorted.forEach(({entry,idx})=>{
-    const {item,enhLevel}=entry;
-    const isEq=Object.values(equipped).includes(idx);
-    const isEnhTarget=selEnhIdx===idx;
-    const isEnhMat=selMatIdx===idx;
-    let cls=`islot grade-${item.grade.toLowerCase()}`;
-    if(idx===selInvIdx) cls+=' sel';
-    if(isEnhTarget) cls+=' enh-sel';
-    if(isEnhMat) cls+=' sel';
-    const div=document.createElement('div');
-    div.className=cls;
-    div.innerHTML=`${item.icon}<span class="grade-badge g${item.grade.toLowerCase()}">${item.grade}</span>${enhLevel>0?`<span class="enh-badge">+${enhLevel}</span>`:''}`;
-    div.title=item.name+(isEq?' [장착중]':``)+(isEnhTarget?' [강화대상]':isEnhMat?' [재료]':'');
-    div.onclick=()=>onInvClick(idx);
-    slots.appendChild(div);
-  });
 
-  /* ── 아이템 상세 ── */
-  const det=document.getElementById('item-detail');
-  if(selInvIdx>=0&&selInvIdx<inventory.length){
-    const {item,enhLevel}=inventory[selInvIdx];
-    const g=GRADES[item.grade];
-    const isEq=Object.values(equipped).includes(selInvIdx);
-    const canEq=item.slot&&(item.shared||(item.charId===CHARS[selChar]?.id));
-    const enh=ENH_LEVELS[enhLevel];
-    let statStr='';
-    if(item.atk){const b=Math.floor(item.atk*enh.atkBonus);statStr+=`ATK+${item.atk+b}${b>0?`(+${b})`:''} `;}
-    if(item.def) statStr+=`DEF+${item.def} `;
-    if(item.hp)  statStr+=`HP+${item.hp} `;
-    if(item.spd) statStr+=`SPD+${item.spd} `;
-    if(item.healBonus) statStr+=`회복+${Math.round(item.healBonus*100)}% `;
-    if(item.atkBonus)  statStr+=`공격+${Math.round(item.atkBonus*100)}% `;
-    if(item.dropRate)  statStr+=`드롭+${Math.round(item.dropRate*100)}% `;
-    if(item.healAmt) statStr+=`즉시회복${item.healAmt} `;
-    // 무기 사거리 표시
-    const rangeTag = item.type==='weapon'&&item.atkRange
-      ? `<span style="font-family:var(--tf);font-size:8px;padding:1px 5px;border-radius:3px;margin-left:3px;background:${item.rangeType==='ranged'?'#185FA522':'#2a1a0a'};color:${item.rangeType==='ranged'?'#85b7eb':'#ef9f27'};border:1px solid ${item.rangeType==='ranged'?'#185FA566':'#ef9f2766'}">${item.rangeType==='ranged'?'🔫 원거리':'⚔️ 근거리'} ${item.atkRange}</span>`
-      : '';
-    det.style.display='block';
-    det.innerHTML=`<div class="itd-name" style="color:${g.color}">[${item.grade}] ${item.name}${enhLevel>0?` +${enhLevel}`:''}${rangeTag}</div>
-      <div class="itd-stat">${statStr}${item.desc}${!item.shared&&item.charName?` / 전용:${item.charName}`:''}</div>
-      <div class="itd-btns">
-        ${canEq&&!isEq?`<div class="itd-btn" onclick="equipItem(${selInvIdx})">장착</div>`:''}
-        ${isEq?`<div class="itd-btn" onclick="unequipItem(${selInvIdx})">해제</div>`:''}
-        ${item.type==='consumable'?`<div class="itd-btn" onclick="useConsumable(${selInvIdx})">사용</div>`:''}
-        ${item.type==='consumable'?`<div class="itd-btn" style="color:#5dcaa5;border-color:#5dcaa566" onclick="assignQuickSlot(${selInvIdx})">⚡퀵슬롯</div>`:''}
-        ${item.type==='weapon'||item.type==='armor'?`<div class="itd-btn" style="color:var(--ca);border-color:var(--ca)" onclick="setEnhTarget(${selInvIdx})">강화대상</div>`:''}
-        ${(item.type==='material'||true)&&selEnhIdx>=0&&selEnhIdx!==selInvIdx?`<div class="itd-btn" style="color:var(--cp);border-color:var(--cp)" onclick="setEnhMat(${selInvIdx})">재료설정</div>`:''}
-        <div class="itd-btn" style="color:var(--cr);border-color:var(--cr)" onclick="dropItem(${selInvIdx})">버리기</div>
-      </div>`;
-  } else { det.style.display='none'; }
+  if(isStackTab){
+    /* ── 스택 뷰: itemId별 그룹핑 ── */
+    // 그룹핑: Map<itemId, {item, count, indices}>
+    const groups=new Map();
+    inventory.forEach((entry,idx)=>{
+      if(!tabFilter[invTab]?.(entry)) return;
+      const id=entry.item.id;
+      if(!groups.has(id)) groups.set(id,{item:entry.item,count:0,firstIdx:idx,indices:[]});
+      groups.get(id).count++;
+      groups.get(id).indices.push(idx);
+    });
+
+    // 등급순 정렬
+    const sorted=[...groups.values()].sort((a,b)=>{
+      return (GRADE_ORDER[a.item.grade]??9)-(GRADE_ORDER[b.item.grade]??9);
+    });
+
+    sorted.forEach(g=>{
+      const isSelected = g.indices.includes(selInvIdx);
+      let cls=`islot grade-${g.item.grade.toLowerCase()}`;
+      if(isSelected) cls+=' sel';
+      const div=document.createElement('div');
+      div.className=cls;
+      div.style.position='relative';
+      div.innerHTML=`${g.item.icon}<span class="grade-badge g${g.item.grade.toLowerCase()}">${g.item.grade}</span>${g.count>1?`<span style="position:absolute;bottom:1px;right:2px;font-family:var(--tf);font-size:8px;color:#e0e8f0;text-shadow:0 0 3px #000;font-weight:700">×${g.count}</span>`:''}`;
+      div.title=`${g.item.name} ×${g.count}`;
+      div.onclick=()=>onStackedInvClick(g.firstIdx, g.indices);
+      slots.appendChild(div);
+    });
+
+    /* ── 스택 선택 시 상세 ── */
+    const det=document.getElementById('item-detail');
+    const selGroup = selInvIdx>=0 ? [...groups.values()].find(g=>g.indices.includes(selInvIdx)) : null;
+    if(selGroup){
+      const {item}=selGroup;
+      const g2=GRADES[item.grade];
+      let statStr='';
+      if(item.healAmt) statStr+=`즉시회복 ${item.healAmt}HP  `;
+      if(item.desc)    statStr+=item.desc;
+      det.style.display='block';
+      det.innerHTML=`<div class="itd-name" style="color:${g2.color}">[${item.grade}] ${item.name} <span style="color:#8ab0cc">×${selGroup.count}</span></div>
+        <div class="itd-stat">${statStr}</div>
+        <div class="itd-btns">
+          ${item.type==='consumable'?`<div class="itd-btn" onclick="useConsumable(${selInvIdx})">사용</div>`:''}
+          ${item.type==='consumable'?`<div class="itd-btn" style="color:#5dcaa5;border-color:#5dcaa566" onclick="assignQuickSlot(${selInvIdx})">⚡퀵슬롯</div>`:''}
+          ${selEnhIdx>=0&&selEnhIdx!==selInvIdx?`<div class="itd-btn" style="color:var(--cp);border-color:var(--cp)" onclick="setEnhMat(${selInvIdx})">재료설정</div>`:''}
+          <div class="itd-btn" style="color:var(--cr);border-color:var(--cr)" onclick="dropItem(${selInvIdx})">버리기</div>
+        </div>`;
+    } else { det.style.display='none'; }
+
+  } else {
+    /* ── 장착 탭: 기존 개별 뷰 ── */
+    const sorted=inventory
+      .map((entry,idx)=>({entry,idx}))
+      .filter(({entry})=>tabFilter[invTab]?.(entry))
+      .sort((a,b)=>{
+        const gDiff=(GRADE_ORDER[a.entry.item.grade]??9)-(GRADE_ORDER[b.entry.item.grade]??9);
+        return gDiff!==0?gDiff:b.entry.enhLevel-a.entry.enhLevel;
+      });
+
+    sorted.forEach(({entry,idx})=>{
+      const {item,enhLevel}=entry;
+      const isEq=Object.values(equipped).includes(idx);
+      const isEnhTarget=selEnhIdx===idx;
+      const isEnhMat=selMatIdx===idx;
+      let cls=`islot grade-${item.grade.toLowerCase()}`;
+      if(idx===selInvIdx) cls+=' sel';
+      if(isEnhTarget) cls+=' enh-sel';
+      if(isEnhMat) cls+=' sel';
+      const div=document.createElement('div');
+      div.className=cls;
+      div.innerHTML=`${item.icon}<span class="grade-badge g${item.grade.toLowerCase()}">${item.grade}</span>${enhLevel>0?`<span class="enh-badge">+${enhLevel}</span>`:''}`;
+      div.title=item.name+(isEq?' [장착중]':'')+(isEnhTarget?' [강화대상]':isEnhMat?' [재료]':'');
+      div.onclick=()=>onInvClick(idx);
+      slots.appendChild(div);
+    });
+
+    /* ── 아이템 상세 (장착탭) ── */
+    const det=document.getElementById('item-detail');
+    if(selInvIdx>=0&&selInvIdx<inventory.length){
+      const {item,enhLevel}=inventory[selInvIdx];
+      const g=GRADES[item.grade];
+      const isEq=Object.values(equipped).includes(selInvIdx);
+      const canEq=item.slot&&(item.shared||(item.charId===CHARS[selChar]?.id));
+      const enh=ENH_LEVELS[enhLevel];
+      let statStr='';
+      if(item.atk){const b=Math.floor(item.atk*enh.atkBonus);statStr+=`ATK+${item.atk+b}${b>0?`(+${b})`:''} `;}
+      if(item.def) statStr+=`DEF+${item.def} `;
+      if(item.hp)  statStr+=`HP+${item.hp} `;
+      if(item.spd) statStr+=`SPD+${item.spd} `;
+      if(item.healBonus) statStr+=`회복+${Math.round(item.healBonus*100)}% `;
+      if(item.atkBonus)  statStr+=`공격+${Math.round(item.atkBonus*100)}% `;
+      if(item.dropRate)  statStr+=`드롭+${Math.round(item.dropRate*100)}% `;
+      if(item.healAmt) statStr+=`즉시회복${item.healAmt} `;
+      const rangeTag = item.type==='weapon'&&item.atkRange
+        ? `<span style="font-family:var(--tf);font-size:8px;padding:1px 5px;border-radius:3px;margin-left:3px;background:${item.rangeType==='ranged'?'#185FA522':'#2a1a0a'};color:${item.rangeType==='ranged'?'#85b7eb':'#ef9f27'};border:1px solid ${item.rangeType==='ranged'?'#185FA566':'#ef9f2766'}">${item.rangeType==='ranged'?'🔫 원거리':'⚔️ 근거리'} ${item.atkRange}</span>`
+        : '';
+      det.style.display='block';
+      det.innerHTML=`<div class="itd-name" style="color:${g.color}">[${item.grade}] ${item.name}${enhLevel>0?` +${enhLevel}`:''}${rangeTag}</div>
+        <div class="itd-stat">${statStr}${item.desc}${!item.shared&&item.charName?` / 전용:${item.charName}`:''}</div>
+        <div class="itd-btns">
+          ${canEq&&!isEq?`<div class="itd-btn" onclick="equipItem(${selInvIdx})">장착</div>`:''}
+          ${isEq?`<div class="itd-btn" onclick="unequipItem(${selInvIdx})">해제</div>`:''}
+          ${item.type==='weapon'||item.type==='armor'?`<div class="itd-btn" style="color:var(--ca);border-color:var(--ca)" onclick="setEnhTarget(${selInvIdx})">강화대상</div>`:''}
+          ${selEnhIdx>=0&&selEnhIdx!==selInvIdx?`<div class="itd-btn" style="color:var(--cp);border-color:var(--cp)" onclick="setEnhMat(${selInvIdx})">재료설정</div>`:''}
+          <div class="itd-btn" style="color:var(--cr);border-color:var(--cr)" onclick="dropItem(${selInvIdx})">버리기</div>
+        </div>`;
+    } else { det.style.display='none'; }
+  }
 
   /* ── 장착 슬롯 ── */
   const ESLOTS=[
@@ -2103,6 +2179,14 @@ function renderInv(){
 
 function onInvClick(idx){
   selInvIdx=selInvIdx===idx?-1:idx;
+  renderInv();
+}
+
+// 스택 아이템 클릭 — 그룹의 첫 번째 인덱스로 선택
+function onStackedInvClick(firstIdx, indices){
+  // 이미 선택된 그룹이면 해제, 아니면 선택
+  const alreadySel = indices.includes(selInvIdx);
+  selInvIdx = alreadySel ? -1 : firstIdx;
   renderInv();
 }
 
