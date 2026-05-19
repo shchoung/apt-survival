@@ -440,10 +440,11 @@ app.get('/api/ranking', async (req, res) => {
       kills: 'kills DESC, floor DESC, lv DESC',
     };
     const orderBy = orderMap[sort] || orderMap.floor;
-    // 유저+캐릭터 조합별 최고 기록 (신규: 캐릭터별 row가 존재하므로 바로 조회)
+    // 유저+캐릭터 조합별 최고 기록 (인벤토리/장착 포함)
     const rows = await db.query(`
       SELECT nick, char_idx, lv, floor, kills, gold,
              array_length(cleared_floors,1) AS clear_count,
+             inventory, equipped,
              saved_at
       FROM game_saves
       WHERE lv > 1 OR floor > 0 OR kills > 0
