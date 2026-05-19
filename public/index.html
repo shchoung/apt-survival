@@ -3846,15 +3846,14 @@ function slotSpin(bet){
   gold-=bet;slotBet=bet;
   document.getElementById('pach-gold').textContent=gold.toLocaleString();
   document.getElementById('pach-result').textContent='';
+  SFX.slotSpin();
 
-  // 각 릴에 새 목표 심볼 세팅
   reels.forEach((r,i)=>{
     r.syms=Array.from({length:20},()=>weightedRandSym());
     r.y=0;
     r.speed=30+Math.random()*10;
     r.done=false;
-    // 각 릴마다 다른 시간에 멈춤
-    r.stopAfter=60+i*40+Math.random()*20; // 프레임
+    r.stopAfter=60+i*40+Math.random()*20;
     r.elapsed=0;
   });
   slotSpinning=true;
@@ -3868,14 +3867,13 @@ function slotLoop(){
     if(r.done) return;
     r.elapsed++;
     r.y=(r.y+r.speed)%(r.syms.length*CELL_H);
-    // 감속 구간
     if(r.elapsed>r.stopAfter){
       r.speed=Math.max(0,r.speed-1.8);
       if(r.speed<=0){
         r.speed=0;
-        // 가장 가까운 심볼 위치에 스냅
         r.y=Math.round(r.y/CELL_H)*CELL_H%(r.syms.length*CELL_H);
         r.done=true;
+        SFX.slotStop(i); // 릴 멈추는 소리
       }
     }
     if(!r.done) allDone=false;
@@ -3920,6 +3918,7 @@ function slotJudge(){
   else if(mult>=10){sparks(player?.x||0,player?.y||0,'#ef9f27',15);}
 
   addLog(`슬롯: ${syms.join('')} → ${mult>0?'+'+win+'G':'꽝'}`, mult>0?'lsys':'lhit');
+  if(mult>0) SFX.slotWin(mult); else SFX.slotLose();
   if(running&&player) saveGameData();
   slotDraw();
 }
@@ -4088,6 +4087,32 @@ const SFX={
   death(){playNoise(.4,.5,200);playTone(100,'square',.4,.3);},
   bossBgm(){},
   playerDmg(){playNoise(.12,.5,300);playTone(150,'square',.1,.3);},
+  // 슬롯머신 효과음
+  slotSpin(){  // 릴 돌아가는 소리
+    playNoise(.04,.08,800);
+    playTone(200,'sawtooth',.03,.08);
+  },
+  slotStop(idx){ // 릴 멈추는 소리 (idx: 0,1,2 순서)
+    const freq=[440,550,660][idx]||440;
+    playTone(freq,'sine',.12,.15);
+    playNoise(.03,.06,500);
+  },
+  slotWin(mult){ // 당첨 소리 (배율에 따라 다름)
+    if(mult>=50){ // 잭팟
+      [523,659,784,1047,1319,1568].forEach((f,i)=>playTone(f,'sine',.3,.5,i*.06));
+      setTimeout(()=>playNoise(.2,.3,1500),200);
+    } else if(mult>=10){
+      [523,659,784,1047].forEach((f,i)=>playTone(f,'sine',.25,.4,i*.07));
+    } else if(mult>=3){
+      [440,554,659].forEach((f,i)=>playTone(f,'sine',.2,.3,i*.06));
+    } else if(mult>0){
+      playTone(440,'sine',.15,.25);playTone(550,'sine',.1,.2,.05);
+    }
+  },
+  slotLose(){ // 꽝
+    playTone(200,'sawtooth',.1,.2);
+    playTone(150,'square',.08,.3,.05);
+  },
 };
 
 /* ═══════ SVG CHARACTER DRAW (스프라이트 시트 우선, 폴백 SVG) ═══════ */
