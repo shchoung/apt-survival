@@ -3137,7 +3137,9 @@ function useSkill(i){
     return;
   }
   const mw=s2w(mouseX,mouseY);
-  const ang=Math.atan2(mw.y-player.y,mw.x-player.x);
+  // 모바일이면 가장 가까운 적으로 자동 조준
+  const aimPt = (ctrlMode>0) ? getAutoAimTarget() : mw;
+  const ang=Math.atan2(aimPt.y-player.y,aimPt.x-player.x);
 
   // 효과음
   if(i===0) SFX.attack();
@@ -3657,9 +3659,39 @@ function draw(){
   const invBlink=player.invincible>0&&Math.floor(player.invincible/3)%2===1;
   if(!invBlink){
     ctx.save();
-    // 이동 방향 각도
+    // 이동 방향 각도 — 모바일이면 자동 조준 방향
     const mw2=s2w(mouseX,mouseY);
-    const ang=Math.atan2(mw2.y-player.y,mw2.x-player.x);
+    let renderAimPt = mw2;
+    if(ctrlMode>0 && enemies.length>0){
+      renderAimPt = getAutoAimTarget();
+    }
+    const ang=Math.atan2(renderAimPt.y-player.y,renderAimPt.x-player.x);
+
+    // 모바일 자동 조준 표시기 — 타깃 적 위에 삼각형 마커
+    if(ctrlMode>0 && autoAimTarget){
+      const ts=w2s(autoAimTarget.x,autoAimTarget.y);
+      ctx.save();
+      ctx.strokeStyle='rgba(255,80,80,0.7)';
+      ctx.lineWidth=1.5;
+      // 위에 작은 삼각형 + 점선 원
+      ctx.beginPath();
+      ctx.moveTo(ts.x, ts.y-18);
+      ctx.lineTo(ts.x-6, ts.y-28);
+      ctx.lineTo(ts.x+6, ts.y-28);
+      ctx.closePath();
+      ctx.fillStyle='rgba(255,80,80,0.55)';
+      ctx.fill();
+      ctx.stroke();
+      // 점선 원
+      ctx.setLineDash([3,3]);
+      ctx.beginPath();
+      ctx.arc(ts.x, ts.y, 14, 0, Math.PI*2);
+      ctx.strokeStyle='rgba(255,120,80,0.5)';
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
     drawCharSVG(ctx,ps.x,ps.y,player.charIdx,ang,false);
     // HP 바
     const hp=player.hp/player.maxHp;
@@ -3781,6 +3813,26 @@ for(let i=0;i<4;i++) document.getElementById('sk'+i).addEventListener('click',((
 document.getElementById('sk4').addEventListener('click',()=>useSkill(4));
 
 /* ═══════ TOUCH CONTROLS ═══════ */
+// ── 자동 조준 ──
+// 모바일(ctrlMode>0)일 때 가장 가까운 적 월드 좌표 반환
+// 범위 내 적이 없으면 현재 마우스 월드 좌표 그대로
+let autoAimTarget = null; // 매 프레임 갱신 (렌더러가 읽음)
+
+function getAutoAimTarget(){
+  if(!player||!enemies.length) return s2w(mouseX,mouseY);
+  const eq = getEquipStats();
+  // 사거리 * 1.5 안에 있는 적만 후보 (너무 멀면 조준 안 함)
+  const maxDist = eq.atkRange * 2.5;
+  let nearest = null, minD = Infinity;
+  enemies.forEach(e=>{
+    const d=Math.sqrt((e.x-player.x)**2+(e.y-player.y)**2);
+    if(d<maxDist && d<minD){ minD=d; nearest=e; }
+  });
+  if(!nearest) return s2w(mouseX,mouseY);
+  autoAimTarget = {x:nearest.x, y:nearest.y};
+  return autoAimTarget;
+}
+
 // 모바일 여부 감지 → 자동 JOY 모드
 let ctrlMode=0;
 const CTRL_L=['⌨ KB','◎ JOY','✛ PAD'];
@@ -3832,15 +3884,13 @@ const tatkEl=document.getElementById('tatk');
 tatkEl.addEventListener('touchstart',e=>{
   e.preventDefault();e.stopPropagation();
   if(!running||!player) return;
-  // 조이스틱/방향 기반으로 어택 방향 설정
-  const r=gc_el.getBoundingClientRect();
-  const cx=r.left+r.width/2, cy=r.top+r.height/2;
-  if(ctrlMode===1&&(Math.abs(jdx)>.1||Math.abs(jdy)>.1)){
-    // 조이스틱 방향으로 어택
-    mouseX=r.width/2+jdx*100;
-    mouseY=r.height/2+jdy*100;
-  } else {
-    // 방향키/기본: 현재 마우스 위치 유지
+  // 자동 조준 모드: 가장 가까운 적이 있으면 방향 오버라이드 불필요
+  const hasNearEnemy = enemies.length>0;
+  if(!hasNearEnemy && ctrlMode===1&&(Math.abs(jdx)>.1||Math.abs(jdy)>.1)){
+    // 자동조준 대상 없을 때만 조이스틱 방향으로 어택
+    const r2=gc_el.getBoundingClientRect();
+    mouseX=r2.width/2+jdx*100;
+    mouseY=r2.height/2+jdy*100;
   }
   useSkill(0);
 },{passive:false});
