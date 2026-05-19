@@ -2082,17 +2082,25 @@ function doEnhance(method){
 
   if(gold<next.cost){showToast('골드 부족!');return;}
 
+  // splice 후 인덱스 보정 헬퍼
+  const fixIndices=(removedIdx)=>{
+    // selEnhIdx 보정
+    if(removedIdx<selEnhIdx) selEnhIdx--;
+    // equipped 인덱스 보정
+    Object.keys(equipped).forEach(k=>{
+      if(equipped[k]===removedIdx) equipped[k]=null;
+      else if(equipped[k]!==null&&equipped[k]>removedIdx) equipped[k]--;
+    });
+  };
+
   if(method==='same'){
-    // 같은 아이템으로 강화
     if(selMatIdx<0||!inventory[selMatIdx]){showToast('재료 아이템을 선택하세요');return;}
     if(inventory[selMatIdx].item.id!==e.item.id){showToast('같은 종류의 아이템이 아닙니다');return;}
-    const matRealIdx=selMatIdx>selEnhIdx?selMatIdx:selMatIdx; // 인덱스 조정
-    inventory.splice(selMatIdx,1);
-    // splice 후 selEnhIdx 보정
-    if(selMatIdx<selEnhIdx) selEnhIdx--;
+    const matIdx=selMatIdx;
+    inventory.splice(matIdx,1);
+    fixIndices(matIdx);
     selMatIdx=-1;
   } else {
-    // 재료 아이템으로 강화
     const matNeeded={};next.mats.forEach(m=>matNeeded[m]=(matNeeded[m]||0)+1);
     for(const [id,n] of Object.entries(matNeeded)){
       let cnt=0;
@@ -2100,7 +2108,7 @@ function doEnhance(method){
         if(i===selEnhIdx)continue;
         if(inventory[i].item.id===id&&inventory[i].item.type==='material'){
           inventory.splice(i,1);
-          if(i<selEnhIdx)selEnhIdx--;
+          fixIndices(i);
           cnt++;if(cnt>=n)break;
         }
       }
