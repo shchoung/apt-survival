@@ -3507,7 +3507,7 @@ window.addEventListener('keyup',e=>{
   keys[e.key.toLowerCase()]=false;keys[e.key]=false;
 });
 gc_el.addEventListener('mousemove',e=>{const r=gc_el.getBoundingClientRect();mouseX=e.clientX-r.left;mouseY=e.clientY-r.top;});
-gc_el.addEventListener('click',()=>{if(running)useSkill(0);});
+gc_el.addEventListener('mousedown',e=>{if(e.button===0&&running)useSkill(0);});
 window.addEventListener('resize',()=>{if(running)resize();});
 for(let i=0;i<4;i++) document.getElementById('sk'+i).addEventListener('click',((ii)=>()=>useSkill(ii))(i));
 document.getElementById('sk4').addEventListener('click',()=>useSkill(4));
