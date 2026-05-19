@@ -1561,12 +1561,16 @@ function updateKeyLabels(){
 }
 function saveSettings(){
   saveKB();updateKeyLabels();
-  // BGM 볼륨 저장
   try{localStorage.setItem('apt_bgm_vol',bgmVolume);}catch(e){}
+  if(prevScr==='__game') panelClose('settings');
   showScr(prevScr==='__game'?null:'title');
   if(prevScr==='__game') hideAllOverlays();
 }
-function openSettings(){prevScr=running?'__game':'title';showScr('settings');renderKBGrid();}
+function openSettings(){
+  prevScr=running?'__game':'title';
+  if(running) panelOpen('settings');
+  showScr('settings');renderKBGrid();
+}
 
 // 타이틀로 돌아가기 (상태 저장 후)
 // ── 저장 키: 닉네임 기준으로 통일 ──
@@ -1696,6 +1700,7 @@ function showScr(id){
   if(id==='board') loadBoard(boardPage||1);
 }
 function hideAllOverlays(){
+  _openPanels.clear(); // 모든 패널 강제 닫힘 → 무적 Set 초기화
   document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));
   const fm=document.getElementById('floor-map-screen');if(fm)fm.classList.add('hidden');
   const inv=document.getElementById('inv-screen');if(inv)inv.classList.add('hidden');
@@ -1706,18 +1711,16 @@ function hideAllOverlays(){
 function showShop(){nextFloor();}
 function hideShop(){}
 function renderShop(){}
-function showFloorMap(){document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
-function hideFloorMap(){document.getElementById('floor-map-screen').classList.add('hidden');}
+function showFloorMap(){panelOpen('floormap');document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
+function hideFloorMap(){panelClose('floormap');document.getElementById('floor-map-screen').classList.add('hidden');}
 function showInv(){
   document.getElementById('inv-screen').classList.remove('hidden');
   renderInv();
-  // 인벤토리 열면 무적 (닫을 때까지)
-  if(player) player.invincible=9999;
+  panelOpen('inv');
 }
 function hideInv(){
   document.getElementById('inv-screen').classList.add('hidden');
-  // 인벤토리 닫으면 무적 해제 (짧은 유예시간)
-  if(player) player.invincible=Math.min(player.invincible,30);
+  panelClose('inv');
 }
 
 /* ═══════ CHAR SELECT ═══════ */
@@ -2853,8 +2856,8 @@ function update(){
   updateProjectiles();
   updateQuickSlots();
   if(player.invincible>0){
-    // 인벤토리 열려있으면 무적 유지
-    if(!document.getElementById('inv-screen')?.classList.contains('hidden'))
+    // 패널이 하나라도 열려있으면 무적 유지
+    if(_openPanels.size > 0)
       player.invincible=9999;
     else
       player.invincible--;
@@ -3894,6 +3897,22 @@ let bgmVolume=0.6;
 let bgmAudio=null;
 let bgmOsc=[],bgmPlaying=false;
 
+/* ═══════ 패널 무적 관리 ═══════ */
+// 열려 있는 패널 수 추적 — 하나라도 열려 있으면 무적 유지
+let _openPanels = new Set();
+
+function panelOpen(name){
+  _openPanels.add(name);
+  if(player) player.invincible = 9999;
+}
+function panelClose(name){
+  _openPanels.delete(name);
+  if(_openPanels.size === 0 && player){
+    // 모든 패널 닫힌 뒤 30프레임(0.5초) 후 무적 해제
+    player.invincible = Math.min(player.invincible, 30);
+  }
+}
+
 /* ═══════ 퀵슬롯 시스템 ═══════ */
 // quickSlots[0|1] = {itemId, icon, name} | null
 let quickSlots=[null,null];
@@ -4058,12 +4077,12 @@ function weightedRandSym(){
 function slotRandSym(){return weightedRandSym();}
 
 function openPachinko(){
+  panelOpen('pachinko');
   document.getElementById('pachinko-screen').classList.remove('hidden');
   document.getElementById('pach-gold').textContent=gold.toLocaleString();
   document.getElementById('pach-result').textContent='';
   slotSpinning=false;
   if(slotRaf){cancelAnimationFrame(slotRaf);slotRaf=null;}
-  // 릴 초기화
   reels.forEach(r=>{
     r.syms=Array.from({length:20},()=>weightedRandSym());
     r.y=0;r.targetY=0;r.speed=0;r.done=true;
@@ -4074,6 +4093,7 @@ function openPachinko(){
 }
 
 function closePachinko(){
+  panelClose('pachinko');
   document.getElementById('pachinko-screen').classList.add('hidden');
   slotSpinning=false;
   if(slotRaf){cancelAnimationFrame(slotRaf);slotRaf=null;}
@@ -5550,7 +5570,7 @@ function genShopStock(){
 }
 
 function openShop(){
-  if(player) player.invincible=9999; // 상점 열면 무적
+  panelOpen('shop'); // 상점 열면 무적
   genShopStock();
   setShopTab('buy');
   document.getElementById('shop-screen').classList.remove('hidden');
@@ -5558,7 +5578,7 @@ function openShop(){
 }
 function closeShop(){
   document.getElementById('shop-screen').classList.add('hidden');
-  if(player) player.invincible=Math.min(player.invincible,30);
+  panelClose('shop');
 }
 
 function setShopTab(tab){
@@ -7133,7 +7153,7 @@ let questOpen = false;
 
 function showQuest(){
   questOpen = true;
-  if(player) player.invincible = 9999;
+  panelOpen('quest');
   loadQuestState();
   updateQuestBadge();
   document.getElementById('quest-screen').classList.remove('hidden');
@@ -7142,7 +7162,7 @@ function showQuest(){
 
 function hideQuest(){
   questOpen = false;
-  if(player) player.invincible = Math.min(player.invincible, 30);
+  panelClose('quest');
   document.getElementById('quest-screen').classList.add('hidden');
 }
 
