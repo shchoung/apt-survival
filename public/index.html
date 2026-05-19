@@ -953,9 +953,14 @@ canvas{display:block;width:100%;height:100%}
           <button class="sbtn gray" style="padding:2px 10px;font-size:10px" onclick="closeShop()">✕ 닫기</button>
         </div>
       </div>
-      <div style="display:flex;gap:4px;flex-shrink:0">
+      <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
         <button class="inv-tab-btn active" id="shop-tab-buy"  onclick="setShopTab('buy')">🛒 구매</button>
         <button class="inv-tab-btn"        id="shop-tab-sell" onclick="setShopTab('sell')">💸 판매</button>
+        <div style="flex:1"></div>
+        <div id="shop-sort-btns" style="display:flex;gap:3px">
+          <button class="inv-tab-btn active" id="shop-sort-grade" onclick="setShopSort('grade')" style="font-size:8px;padding:2px 7px">등급순</button>
+          <button class="inv-tab-btn"        id="shop-sort-price" onclick="setShopSort('price')" style="font-size:8px;padding:2px 7px">가격순</button>
+        </div>
       </div>
       <div id="shop-buy-panel"  style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px"></div>
       <div id="shop-sell-panel" style="flex:1;overflow-y:auto;display:none;flex-direction:column;gap:3px"></div>
@@ -5604,6 +5609,7 @@ const SELL_RATE=0.25;
 // 상점 재고 — 30분 간격 리셋
 let shopStock=[];
 let shopTab='buy';
+let shopSort='grade'; // 'grade' | 'price'
 let sellSelected=new Set();
 let buySelected=new Set();
 
@@ -5739,8 +5745,18 @@ function setShopTab(tab){
   if(buyFooter) buyFooter.style.display=tab==='buy'?'block':'none';
   const sellFooter=document.getElementById('shop-sell-footer');
   if(sellFooter) sellFooter.style.display=tab==='sell'?'block':'none';
+  const sortBtns=document.getElementById('shop-sort-btns');
+  if(sortBtns) sortBtns.style.display=tab==='buy'?'flex':'none';
   if(tab==='buy') renderShopBuy();
   else            renderShopSell();
+}
+
+function setShopSort(sort){
+  shopSort=sort;
+  ['grade','price'].forEach(s=>{
+    document.getElementById(`shop-sort-${s}`)?.classList.toggle('active', s===sort);
+  });
+  renderShopBuy();
 }
 
 function renderShopBuy(){
@@ -5748,9 +5764,19 @@ function renderShopBuy(){
   if(!el) return;
   document.getElementById('shop-gold').textContent=gold.toLocaleString();
   const gc=GRADES||{C:{color:'#888780'},B:{color:'#378ADD'},A:{color:'#5dcaa5'},S:{color:'#ef9f27'}};
+  const GRADE_ORDER={S:0,A:1,B:2,C:3};
 
-  el.innerHTML=shopStock.map((s,i)=>{
-    const {item,price}=s;
+  // 정렬된 인덱스 배열 생성
+  const sorted=[...shopStock.keys()].sort((a,b)=>{
+    const sa=shopStock[a], sb=shopStock[b];
+    if(shopSort==='price') return sa.price-sb.price;
+    // 등급순 (S→A→B→C), 같으면 가격 오름차순
+    const gd=(GRADE_ORDER[sa.item.grade]??9)-(GRADE_ORDER[sb.item.grade]??9);
+    return gd!==0 ? gd : sa.price-sb.price;
+  });
+
+  el.innerHTML=sorted.map(i=>{
+    const {item,price}=shopStock[i];
     const gradeColor=gc[item.grade]?.color||'#888';
     const canAfford=gold>=price;
     const exclusive=!item.shared?`<span style="font-size:8px;color:#f5c842">[${item.charName||'전용'}]</span>`:'';
