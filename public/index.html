@@ -443,13 +443,13 @@ canvas{display:block;width:100%;height:100%}
   pointer-events:none;
   box-shadow:0 0 6px var(--cr)88;
 }
-.qs-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+.qs-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;align-items:stretch}
 
 /* 퀘스트 카드 */
 .qcard{
   background:var(--c1);border:1px solid var(--c3);border-radius:7px;
-  padding:8px 10px;display:flex;flex-direction:column;gap:5px;
-  position:relative;overflow:hidden;transition:.15s;
+  padding:10px 12px;display:flex;flex-direction:column;gap:6px;
+  position:relative;flex-shrink:0;transition:.15s;
 }
 .qcard.complete{border-color:#1D9E7566;background:#0a1912}
 .qcard.claimable{border-color:var(--ca);background:#1a130a;animation:glowCard 1s infinite alternate}
