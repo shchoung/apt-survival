@@ -954,7 +954,7 @@ canvas{display:block;width:100%;height:100%}
     <div class="dpbtn" id="dp-c">MOVE</div><div class="dpbtn" id="dp-r">▶</div>
     <div class="dpbtn" id="dp-d">▼</div>
   </div>
-  <div id="tatk" onclick="useSkill(0)">ATK</div>
+  <div id="tatk">ATK</div>
   <div id="toast"></div>
 
   <!-- 채팅 패널 -->
@@ -3507,7 +3507,24 @@ window.addEventListener('keyup',e=>{
   keys[e.key.toLowerCase()]=false;keys[e.key]=false;
 });
 gc_el.addEventListener('mousemove',e=>{const r=gc_el.getBoundingClientRect();mouseX=e.clientX-r.left;mouseY=e.clientY-r.top;});
-gc_el.addEventListener('mousedown',e=>{if(e.button===0&&running)useSkill(0);});
+// window 레벨 mousemove — 캔버스 밖에서도 좌표 업데이트
+window.addEventListener('mousemove',e=>{
+  const r=gc_el.getBoundingClientRect();
+  mouseX=e.clientX-r.left;mouseY=e.clientY-r.top;
+});
+// 어택 — window 레벨에서 통합 처리 (이동 중에도 작동)
+window.addEventListener('mousedown',e=>{
+  if(e.button!==0||!running||!player) return;
+  // UI 요소 클릭 제외
+  const t=e.target;
+  if(t.tagName==='BUTTON'||t.tagName==='INPUT'||
+     t.closest('.skbtn')||t.closest('.hchip')||t.closest('.qslot')||
+     t.closest('#tatk')||t.closest('#joy-wrap')||t.closest('#dpad')||
+     t.closest('#shop-screen')||t.closest('#inv-screen')||
+     t.closest('#floor-map-screen')||t.closest('#pachinko-screen')||
+     t.closest('.scr')) return;
+  useSkill(0);
+});
 window.addEventListener('resize',()=>{if(running)resize();});
 for(let i=0;i<4;i++) document.getElementById('sk'+i).addEventListener('click',((ii)=>()=>useSkill(ii))(i));
 document.getElementById('sk4').addEventListener('click',()=>useSkill(4));
@@ -3558,6 +3575,25 @@ function dpBind(id,dir){
   el.addEventListener('mousedown',on);el.addEventListener('mouseup',off);el.addEventListener('mouseleave',off);
 }
 dpBind('dp-u','up');dpBind('dp-d','down');dpBind('dp-l','left');dpBind('dp-r','right');
+
+// ATK 버튼 — touchstart로 즉시 발동 (조이스틱과 동시 터치 가능)
+const tatkEl=document.getElementById('tatk');
+tatkEl.addEventListener('touchstart',e=>{
+  e.preventDefault();e.stopPropagation();
+  if(!running||!player) return;
+  // 조이스틱/방향 기반으로 어택 방향 설정
+  const r=gc_el.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  if(ctrlMode===1&&(Math.abs(jdx)>.1||Math.abs(jdy)>.1)){
+    // 조이스틱 방향으로 어택
+    mouseX=r.width/2+jdx*100;
+    mouseY=r.height/2+jdy*100;
+  } else {
+    // 방향키/기본: 현재 마우스 위치 유지
+  }
+  useSkill(0);
+},{passive:false});
+tatkEl.addEventListener('click',()=>{if(running)useSkill(0);});
 gc_el.addEventListener('touchstart',e=>{if(!ctrlMode)return;e.preventDefault();const r=gc_el.getBoundingClientRect(),t=e.touches[0];mouseX=t.clientX-r.left;mouseY=t.clientY-r.top;},{passive:false});
 gc_el.addEventListener('touchmove',e=>{if(!ctrlMode)return;e.preventDefault();const r=gc_el.getBoundingClientRect(),t=e.touches[0];mouseX=t.clientX-r.left;mouseY=t.clientY-r.top;},{passive:false});
 
@@ -6860,6 +6896,7 @@ initSkillTooltips();
 document.addEventListener('dragstart',e=>e.preventDefault());
 document.addEventListener('selectstart',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  // mousedown 이벤트 처리 후에만 막기
   e.preventDefault();
 });
 document.documentElement.style.setProperty('--vh',`${window.innerHeight*0.01}px`);
