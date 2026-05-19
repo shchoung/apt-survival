@@ -491,6 +491,33 @@ canvas{display:block;width:100%;height:100%}
 }
 
 /* 보상 팝업 */
+/* 퀵슬롯 슬롯 선택 팝업 */
+#qs-pick-popup{
+  display:none;position:absolute;z-index:200;
+  background:#0d1520f2;border:1px solid var(--ca);border-radius:10px;
+  padding:12px 14px;min-width:190px;
+  left:50%;top:50%;transform:translate(-50%,-50%);
+  box-shadow:0 0 20px var(--ca)44;
+}
+#qs-pick-popup.show{display:block}
+.qsp-title{font-family:var(--tf);font-size:10px;color:#8ab0cc;margin-bottom:10px;text-align:center;letter-spacing:1px}
+.qsp-slots{display:flex;gap:8px;justify-content:center;margin-bottom:10px}
+.qsp-slot{
+  flex:1;padding:8px 6px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--c3);background:var(--c1);text-align:center;
+  transition:.12s;
+}
+.qsp-slot:hover{border-color:var(--ca);background:var(--ca)18}
+.qsp-slot:active{background:var(--ca)33}
+.qsp-slot-num{font-family:var(--tf);font-size:8px;color:#5a7a94;margin-bottom:4px}
+.qsp-slot-icon{font-size:20px;line-height:1.2}
+.qsp-slot-name{font-family:var(--tf);font-size:8px;color:#a0b8cc;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70px}
+.qsp-cancel{
+  font-family:var(--tf);font-size:9px;color:#5a7a94;
+  width:100%;text-align:center;cursor:pointer;padding:2px 0;
+}
+.qsp-cancel:active{color:var(--cr)}
 #reward-popup{
   position:absolute;
   top:50%;left:50%;transform:translate(-50%,-50%) scale(.85);
@@ -1003,6 +1030,12 @@ canvas{display:block;width:100%;height:100%}
   <div id="quest-tracker"></div>
 
   <!-- 보상 팝업 -->
+  <div id="qs-pick-popup">
+    <div class="qsp-title">어느 퀵슬롯에 등록할까요?</div>
+    <div class="qsp-slots" id="qsp-slots"></div>
+    <div class="qsp-cancel" onclick="closeQsPickPopup()">취소</div>
+  </div>
+
   <div id="reward-popup">
     <div class="rp-title">퀘스트 완료!</div>
     <div class="rp-icon" id="rp-icon">🎁</div>
@@ -3936,12 +3969,46 @@ function clearQuickSlot(i){
 function assignQuickSlot(invIdx){
   const entry=inventory[invIdx];
   if(!entry||entry.item.type!=='consumable'){showToast('소비 아이템만 등록 가능합니다');return;}
-  // 빈 슬롯 우선, 없으면 0번 덮어쓰기
+
   const free=quickSlots.findIndex(s=>s===null);
-  const target=free>=0?free:0;
-  quickSlots[target]={itemId:entry.item.id,icon:entry.item.icon,name:entry.item.name};
+  if(free>=0){
+    // 빈 슬롯이 있으면 바로 등록
+    quickSlots[free]={itemId:entry.item.id,icon:entry.item.icon,name:entry.item.name};
+    updateQuickSlotUI();
+    showToast(`퀵슬롯 ${free+1}에 ${entry.item.name} 등록!`);
+  } else {
+    // 두 칸 모두 차있으면 선택 팝업
+    openQsPickPopup(invIdx);
+  }
+}
+
+function openQsPickPopup(invIdx){
+  const popup=document.getElementById('qs-pick-popup');
+  const slotsEl=document.getElementById('qsp-slots');
+  if(!popup||!slotsEl) return;
+
+  slotsEl.innerHTML=quickSlots.map((slot,i)=>`
+    <div class="qsp-slot" onclick="confirmQsPick(${invIdx},${i})">
+      <div class="qsp-slot-num">슬롯 ${i+1}</div>
+      <div class="qsp-slot-icon">${slot?.icon||'❓'}</div>
+      <div class="qsp-slot-name">${slot?.name||'비어있음'}</div>
+    </div>
+  `).join('');
+
+  popup.classList.add('show');
+}
+
+function confirmQsPick(invIdx, slotIdx){
+  const entry=inventory[invIdx];
+  if(!entry) return;
+  quickSlots[slotIdx]={itemId:entry.item.id,icon:entry.item.icon,name:entry.item.name};
   updateQuickSlotUI();
-  showToast(`퀵슬롯 ${target+1}에 ${entry.item.name} 등록!`);
+  showToast(`퀵슬롯 ${slotIdx+1}에 ${entry.item.name} 등록!`);
+  closeQsPickPopup();
+}
+
+function closeQsPickPopup(){
+  document.getElementById('qs-pick-popup')?.classList.remove('show');
 }
 
 // 키보드 단축키 1, 2
