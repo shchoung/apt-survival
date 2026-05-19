@@ -909,6 +909,11 @@ canvas{display:block;width:100%;height:100%}
       </div>
       <div id="shop-buy-panel"  style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px"></div>
       <div id="shop-sell-panel" style="flex:1;overflow-y:auto;display:none;flex-direction:column;gap:3px"></div>
+      <div id="shop-buy-footer" style="display:none;padding:8px 0 0;border-top:1px solid var(--c3)44">
+        <button id="shop-buy-btn" onclick="confirmBuySelected()" style="width:100%;font-family:var(--tf);font-size:12px;padding:8px;background:var(--c2);border:1px solid #ef9f27;border-radius:5px;color:#ef9f27;cursor:pointer">
+          아이템을 선택하세요
+        </button>
+      </div>
       <div id="shop-sell-footer" style="display:none;padding:8px 0 0;border-top:1px solid var(--c3)44">
         <button id="shop-sell-btn" onclick="confirmSellSelected()" style="width:100%;font-family:var(--tf);font-size:12px;padding:8px;background:var(--c2);border:1px solid #5dcaa5;border-radius:5px;color:#5dcaa5;cursor:pointer">
           선택 0개 판매 (+0G)
@@ -5090,7 +5095,8 @@ const SELL_RATE=0.25;
 // 상점 재고 — 층에 따라 변경, 진입마다 랜덤 8개
 let shopStock=[];
 let shopTab='buy';
-let sellSelected=new Set(); // 판매 선택된 인벤토리 인덱스
+let sellSelected=new Set();
+let buySelected=new Set(); // 구매 선택된 shopStock 인덱스
 
 function calcBuyPrice(item){
   const base=SHOP_BASE_PRICE[item.grade]||150;
@@ -5154,13 +5160,16 @@ function closeShop(){
 function setShopTab(tab){
   shopTab=tab;
   sellSelected.clear();
+  buySelected.clear();
   ['buy','sell'].forEach(t=>{
     document.getElementById(`shop-tab-${t}`)?.classList.toggle('active',t===tab);
     const panel=document.getElementById(`shop-${t}-panel`);
     if(panel) panel.style.display=t===tab?'flex':'none';
   });
-  const footer=document.getElementById('shop-sell-footer');
-  if(footer) footer.style.display=tab==='sell'?'block':'none';
+  const buyFooter=document.getElementById('shop-buy-footer');
+  if(buyFooter) buyFooter.style.display=tab==='buy'?'block':'none';
+  const sellFooter=document.getElementById('shop-sell-footer');
+  if(sellFooter) sellFooter.style.display=tab==='sell'?'block':'none';
   if(tab==='buy') renderShopBuy();
   else            renderShopSell();
 }
@@ -5168,7 +5177,7 @@ function setShopTab(tab){
 function renderShopBuy(){
   const el=document.getElementById('shop-buy-panel');
   if(!el) return;
-  document.getElementById('shop-gold').textContent=gold;
+  document.getElementById('shop-gold').textContent=gold.toLocaleString();
   const gc=GRADES||{C:{color:'#888780'},B:{color:'#378ADD'},A:{color:'#5dcaa5'},S:{color:'#ef9f27'}};
 
   el.innerHTML=shopStock.map((s,i)=>{
@@ -5176,8 +5185,11 @@ function renderShopBuy(){
     const gradeColor=gc[item.grade]?.color||'#888';
     const canAfford=gold>=price;
     const exclusive=!item.shared?`<span style="font-size:8px;color:#f5c842">[${item.charName||'전용'}]</span>`:'';
+    const sel=buySelected.has(i);
     return `<div class="shop-item ${item.grade==='S'?'s-grade':item.grade==='A'?'a-grade':''}"
-      onclick="buyShopItem(${i})">
+      onclick="toggleBuySelect(${i})"
+      style="cursor:pointer;opacity:${canAfford?1:0.45};${sel?'background:rgba(239,159,39,0.1);border-left:2px solid #ef9f27;':''}">
+      <div style="width:18px;text-align:center;font-size:13px;flex-shrink:0">${sel?'☑':'☐'}</div>
       <div class="shop-icon">${item.icon}</div>
       <div class="shop-info">
         <div class="shop-name">
@@ -5189,6 +5201,60 @@ function renderShopBuy(){
       <div class="shop-price ${canAfford?'':'cant-afford'}">${price.toLocaleString()}G</div>
     </div>`;
   }).join('')||'<div style="font-family:var(--tf);font-size:11px;color:#5a7a94;padding:20px;text-align:center">재고 없음</div>';
+
+  updateBuyFooter();
+}
+
+function toggleBuySelect(i){
+  const s=shopStock[i];
+  if(!s) return;
+  if(buySelected.has(i)) buySelected.delete(i);
+  else buySelected.add(i);
+  renderShopBuy();
+}
+
+function updateBuyFooter(){
+  const btn=document.getElementById('shop-buy-btn');
+  if(!btn) return;
+  const count=buySelected.size;
+  const total=[...buySelected].reduce((s,i)=>s+(shopStock[i]?.price||0),0);
+  const canAfford=gold>=total;
+  if(count>0){
+    btn.textContent=`선택 ${count}개 구매 (-${total.toLocaleString()}G)`;
+    btn.style.opacity=canAfford?'1':'0.4';
+    btn.style.cursor=canAfford?'pointer':'not-allowed';
+    btn.style.borderColor=canAfford?'#ef9f27':'#888';
+    btn.style.color=canAfford?'#ef9f27':'#888';
+  } else {
+    btn.textContent='아이템을 선택하세요';
+    btn.style.opacity='0.4';
+    btn.style.cursor='default';
+  }
+}
+
+function confirmBuySelected(){
+  if(buySelected.size===0){showToast('구매할 아이템을 선택하세요');return;}
+  const total=[...buySelected].reduce((s,i)=>s+(shopStock[i]?.price||0),0);
+  if(gold<total){showToast(`💰 골드가 부족합니다! (필요: ${total.toLocaleString()}G)`);return;}
+  const count=buySelected.size;
+  const names=[...buySelected].slice(0,3).map(i=>shopStock[i]?.item.name||'').filter(Boolean);
+  const nameStr=names.join(', ')+(count>3?` 외 ${count-3}개`:'');
+  if(!confirm(`${nameStr}\n총 ${count}개를 구매하시겠습니까?\n-${total.toLocaleString()}G`)) return;
+
+  // 인덱스 큰 순서로 제거 (splice 인덱스 밀림 방지)
+  const sorted=[...buySelected].sort((a,b)=>b-a);
+  sorted.forEach(i=>{
+    const s=shopStock[i];
+    if(!s) return;
+    gold-=s.price;
+    addItem(s.item.id);
+  });
+  sorted.forEach(i=>shopStock.splice(i,1));
+  buySelected.clear();
+  showToast(`✅ ${count}개 구매 완료 (-${total.toLocaleString()}G)`);
+  document.getElementById('shop-gold').textContent=gold.toLocaleString();
+  renderShopBuy();
+  if(running&&player) saveGameData();
 }
 
 function renderShopSell(){
