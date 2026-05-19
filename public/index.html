@@ -425,10 +425,24 @@ canvas{display:block;width:100%;height:100%}
 .qs-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:8px}
 .qs-title{font-family:var(--tf);font-size:13px;color:var(--ct);letter-spacing:2px}
 .qs-tabs{display:flex;gap:4px;flex-shrink:0;margin-bottom:8px}
-.qs-tab{font-family:var(--tf);font-size:9px;padding:3px 10px;border-radius:4px;
-  border:1px solid var(--c3);background:transparent;color:#5a7a94;cursor:pointer;}
+.qs-tab{
+  font-family:var(--tf);font-size:9px;padding:3px 10px;border-radius:4px;
+  border:1px solid var(--c3);background:transparent;color:#5a7a94;cursor:pointer;
+  position:relative; /* 탭 뱃지 포지셔닝 기준 */
+}
 .qs-tab.active{border-color:var(--ct);color:var(--ct);background:var(--c2)}
 .qs-tab:active{opacity:.7}
+/* 탭별 수령가능 뱃지 */
+.qs-tab-badge{
+  position:absolute;top:-5px;right:-5px;
+  min-width:14px;height:14px;padding:0 3px;
+  border-radius:7px;background:var(--cr);
+  font-family:var(--tf);font-size:8px;color:#fff;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  animation:pulseBadge .8s infinite alternate;
+  pointer-events:none;
+  box-shadow:0 0 6px var(--cr)88;
+}
 .qs-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
 
 /* 퀘스트 카드 */
@@ -446,25 +460,35 @@ canvas{display:block;width:100%;height:100%}
 .qcard-name{font-size:11px;font-weight:700;color:#e0e8f0;margin-bottom:2px}
 .qcard-desc{font-family:var(--tf);font-size:9px;color:#5a7a94;line-height:1.5}
 .qcard-reward{font-family:var(--tf);font-size:9px;color:var(--ca);margin-top:1px}
-.qcard-prog{display:flex;align-items:center;gap:6px}
+.qcard-prog{display:flex;align-items:center;gap:6px;margin-top:2px}
 .qpbar{flex:1;height:4px;border-radius:2px;background:#1a2535;overflow:hidden}
 .qpfill{height:100%;border-radius:2px;background:var(--ct);transition:width .4s}
 .qcard.complete .qpfill{background:#1D9E75}
-.qpct{font-family:var(--tf);font-size:8px;color:#7a9ab8;flex-shrink:0;min-width:32px;text-align:right}
+.qcard.claimable .qpfill{background:var(--ca)}
+.qpct{font-family:var(--tf);font-size:8px;color:#7a9ab8;flex-shrink:0;min-width:38px;text-align:right}
 .qclaim-btn{
   font-family:var(--tf);font-size:9px;padding:3px 10px;border-radius:4px;
   border:1px solid var(--ca);background:var(--ca)22;color:var(--ca);cursor:pointer;
-  flex-shrink:0;transition:.1s;
+  flex-shrink:0;transition:.1s;white-space:nowrap;
 }
 .qclaim-btn:active{background:var(--ca);color:var(--c0)}
+/* 카드 좌상단 타입 뱃지 (수령 버튼과 겹치지 않게 왼쪽 배치) */
 .qcard-badge{
-  position:absolute;top:6px;right:8px;
+  display:inline-flex;align-items:center;
   font-family:var(--tf);font-size:8px;padding:1px 6px;border-radius:20px;
+  margin-bottom:4px;/* 카드 상단 인라인 배치 */
+  flex-shrink:0;
 }
-.qbadge-daily{background:#7f77dd22;color:#7f77dd;border:1px solid #7f77dd44}
+.qbadge-daily {background:#7f77dd22;color:#7f77dd;border:1px solid #7f77dd44}
 .qbadge-weekly{background:#ba751722;color:#BA7517;border:1px solid #BA751744}
 .qbadge-achiev{background:#e24b4b22;color:#E24B4A;border:1px solid #E24B4A44}
-.qbadge-story{background:#1D9E7522;color:#1D9E75;border:1px solid #1D9E7544}
+.qbadge-story {background:#1D9E7522;color:#1D9E75;border:1px solid #1D9E7544}
+/* 수령가능 강조 뱃지 */
+.qbadge-claimable{
+  background:var(--ca)33;color:var(--ca);border:1px solid var(--ca)88;
+  animation:pulseBadge .8s infinite alternate;
+  font-weight:700;
+}
 
 /* 보상 팝업 */
 #reward-popup{
@@ -1256,10 +1280,10 @@ canvas{display:block;width:100%;height:100%}
       <button class="sbtn gray" style="padding:3px 10px;font-size:10px" onclick="hideQuest()">닫기</button>
     </div>
     <div class="qs-tabs">
-      <button class="qs-tab active" id="qs-tab-daily"   onclick="setQuestTab('daily')">일일</button>
-      <button class="qs-tab"        id="qs-tab-weekly"  onclick="setQuestTab('weekly')">주간</button>
-      <button class="qs-tab"        id="qs-tab-achieve" onclick="setQuestTab('achieve')">도전과제</button>
-      <button class="qs-tab"        id="qs-tab-story"   onclick="setQuestTab('story')">스토리</button>
+      <button class="qs-tab active" id="qs-tab-daily"   onclick="setQuestTab('daily')">일일<span class="qs-tab-badge" id="qtb-daily"   style="display:none"></span></button>
+      <button class="qs-tab"        id="qs-tab-weekly"  onclick="setQuestTab('weekly')">주간<span class="qs-tab-badge" id="qtb-weekly"  style="display:none"></span></button>
+      <button class="qs-tab"        id="qs-tab-achieve" onclick="setQuestTab('achieve')">도전과제<span class="qs-tab-badge" id="qtb-achieve" style="display:none"></span></button>
+      <button class="qs-tab"        id="qs-tab-story"   onclick="setQuestTab('story')">스토리<span class="qs-tab-badge" id="qtb-story"   style="display:none"></span></button>
     </div>
     <div class="qs-list" id="qs-list"></div>
   </div>
@@ -7014,16 +7038,28 @@ function countClaimable(){
 }
 
 function updateQuestBadge(){
+  // HUD 전체 뱃지
   const badge = document.getElementById('quest-badge');
-  if(!badge) return;
   const n = countClaimable();
-  if(n > 0){
-    badge.className = 'show';
-    badge.style.cssText = '';
-  } else {
-    badge.className = '';
-    badge.style.cssText = '';
+  if(badge){
+    badge.className = n > 0 ? 'show' : '';
   }
+
+  // 탭별 뱃지
+  ['daily','weekly','achieve','story'].forEach(cat=>{
+    const tb = document.getElementById('qtb-'+cat);
+    if(!tb) return;
+    const cnt = QUEST_DEFS[cat]?.filter(q=>{
+      const s = questState[cat]?.[q.id];
+      return s && s.prog >= q.target && !s.claimed;
+    }).length || 0;
+    if(cnt > 0){
+      tb.textContent = cnt;
+      tb.style.display = 'flex';
+    } else {
+      tb.style.display = 'none';
+    }
+  });
 }
 
 // ── 퀘스트 UI ──
@@ -7033,6 +7069,7 @@ function showQuest(){
   questOpen = true;
   if(player) player.invincible = 9999;
   loadQuestState();
+  updateQuestBadge();
   document.getElementById('quest-screen').classList.remove('hidden');
   renderQuestList();
 }
@@ -7057,6 +7094,8 @@ function renderQuestList(){
   const defs = QUEST_DEFS[currentQuestTab];
   if(!defs?.length){ list.innerHTML='<div style="font-family:var(--tf);font-size:10px;color:#5a7a94;text-align:center;padding:24px">퀘스트 없음</div>'; return; }
 
+  const badgeLabel = {daily:'일일', weekly:'주간', achiev:'도전', story:'스토리'};
+
   list.innerHTML = defs.map(q=>{
     const s = questState[currentQuestTab]?.[q.id] || {prog:0, claimed:false};
     const pct = Math.min(100, Math.round(s.prog / q.target * 100));
@@ -7066,26 +7105,27 @@ function renderQuestList(){
     // 보상 텍스트
     const rw = q.reward;
     const rwParts = [];
-    if(rw.gold) rwParts.push(`💰 ${rw.gold}G`);
-    if(rw.exp)  rwParts.push(`✨ EXP +${rw.exp}`);
+    if(rw.gold)  rwParts.push(`💰 ${rw.gold}G`);
+    if(rw.exp)   rwParts.push(`✨ EXP +${rw.exp}`);
     if(rw.item){ const it = ITEM_POOL.find(x=>x.id===rw.item); if(it) rwParts.push(`${it.icon} ${it.name}`); }
-    if(rw.title) rwParts.push(`🏅 칭호: ${rw.title}`);
+    if(rw.title) rwParts.push(`🏅 ${rw.title}`);
 
     const cardCls = claimed ? 'qcard complete' : done ? 'qcard claimable' : 'qcard';
     const progTxt = claimed ? '완료 ✓' : `${s.prog} / ${q.target}`;
 
+    // 타입 뱃지: 수령 가능이면 강조 스타일로 교체
+    const badgeCls = (done && !claimed) ? 'qcard-badge qbadge-claimable' : `qcard-badge qbadge-${q.badge}`;
+    const badgeTxt = (done && !claimed) ? '🎁 수령가능' : (badgeLabel[q.badge] || q.badge);
+
     return `<div class="${cardCls}">
-      <span class="qcard-badge qbadge-${q.badge}">${q.badge==='daily'?'일일':q.badge==='weekly'?'주간':q.badge==='story'?'스토리':'도전'}</span>
-      <div class="qcard-top">
-        <div class="qcard-icon">${q.icon}</div>
-        <div class="qcard-info">
-          <div class="qcard-name">${q.name}</div>
-          <div class="qcard-desc">${q.desc}</div>
-          <div class="qcard-reward">보상: ${rwParts.join('  ')}</div>
-        </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+        <span class="${badgeCls}">${badgeTxt}</span>
+        <span class="qcard-name" style="flex:1;margin-bottom:0">${q.icon} ${q.name}</span>
         ${done&&!claimed ? `<button class="qclaim-btn" onclick="claimQuest('${currentQuestTab}','${q.id}')">수령</button>` : ''}
-        ${claimed ? `<div style="font-family:var(--tf);font-size:10px;color:#1D9E75;flex-shrink:0">✓</div>` : ''}
+        ${claimed ? `<span style="font-family:var(--tf);font-size:10px;color:#1D9E75;flex-shrink:0">✓ 완료</span>` : ''}
       </div>
+      <div class="qcard-desc">${q.desc}</div>
+      <div class="qcard-reward">보상: ${rwParts.join('  ')}</div>
       <div class="qcard-prog">
         <div class="qpbar"><div class="qpfill" style="width:${pct}%"></div></div>
         <div class="qpct">${progTxt}</div>
