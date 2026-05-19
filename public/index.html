@@ -191,8 +191,8 @@ canvas{display:block;width:100%;height:100%}
 }
 
 
-#csg{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:16px;max-width:480px;width:100%}
-.ccard{background:var(--c2);border:2px solid var(--c3);border-radius:9px;padding:11px;cursor:pointer;transition:.2s;position:relative}
+#csg{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;max-width:480px;width:100%}
+.ccard{background:var(--c2);border:2px solid var(--c3);border-radius:9px;padding:8px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
 .ccard:hover{border-color:#4a6a94}
 .ccard.picked{border-color:var(--ct)!important;background:#0d1f1a}
 .ccard.taken{opacity:.4;cursor:not-allowed;pointer-events:none}
@@ -1708,32 +1708,35 @@ function renderCharSelect(){
         </div>`
       :`<div style="font-family:var(--tf);font-size:8px;color:#5a7a94;margin-top:2px">새 게임</div>`;
 
-    const skillList=(c.skills||[]).map((sk,si)=>`
-      <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px">
-        <span style="font-size:10px">${c.icons?.[si]||'⚡'}</span>
-        <span style="font-family:var(--tf);font-size:8px;color:${c.color};min-width:32px">${sk}</span>
-        <span style="font-family:var(--tf);font-size:7.5px;color:#7a9ab8">${c.skillDescs?.[si]||''}</span>
+    const skillList=(c.skills||[]).slice(0,4).map((sk,si)=>`
+      <div style="display:flex;align-items:center;gap:3px;line-height:1.3">
+        <span style="font-size:9px;flex-shrink:0">${c.icons?.[si]||'⚡'}</span>
+        <span style="font-family:var(--tf);font-size:7px;color:${c.color};flex-shrink:0;min-width:28px">${sk}</span>
+        <span style="font-family:var(--tf);font-size:7px;color:#607888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.skillDescs?.[si]||''}</span>
       </div>`).join('');
 
     return `<div class="ccard${picked?' picked':''}${taken?' taken':''}" onclick="pickChar(${i})" style="position:relative">
       ${taken?'<span class="taken-b">사용중</span>':''}
-      <div style="display:flex;gap:10px;align-items:flex-start">
-        <div style="flex-shrink:0;width:70px;height:80px;border-radius:6px;overflow:hidden;background:#000;border:1.5px solid ${c.color}44">
-          <canvas id="${cvId}" width="70" height="80" style="display:block"></canvas>
+      <div style="display:flex;gap:7px;align-items:flex-start">
+        <div style="flex-shrink:0;width:54px;height:62px;border-radius:5px;overflow:hidden;background:#000;border:1.5px solid ${c.color}44">
+          <canvas id="${cvId}" width="54" height="62" style="display:block"></canvas>
         </div>
         <div style="flex:1;min-width:0">
-          <div class="cch" style="margin-bottom:3px">
-            <div class="ccav" style="background:${c.bg};color:${c.color};border-color:${c.color};width:26px;height:26px;font-size:10px">${c.init}</div>
-            <div><div class="ccnm">${c.name}</div><div class="ccrole">${c.role}</div></div>
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
+            <div class="ccav" style="background:${c.bg};color:${c.color};border-color:${c.color};width:20px;height:20px;font-size:8px;flex-shrink:0">${c.init}</div>
+            <div>
+              <div style="font-family:var(--tf);font-size:11px;color:#e0e8f0;font-weight:700">${c.name}</div>
+              <div style="font-family:var(--tf);font-size:8px;color:${c.color}">${c.role}</div>
+            </div>
           </div>
-          <div class="stml" style="margin-bottom:4px">${Object.entries(c.stats).map(([k,v])=>`<span class="stpil" style="background:${sc[k]}22;color:${sc[k]};border:1px solid ${sc[k]}44">${k}${v}</span>`).join('')}</div>
-          <div style="background:#0d111888;border-radius:4px;padding:4px 6px;margin-bottom:2px">
+          <div class="stml" style="margin-bottom:3px;gap:2px">${Object.entries(c.stats).map(([k,v])=>`<span class="stpil" style="font-size:7px;padding:1px 4px;background:${sc[k]}22;color:${sc[k]};border:1px solid ${sc[k]}44">${k}${v}</span>`).join('')}</div>
+          <div style="background:#0d111888;border-radius:3px;padding:3px 5px;margin-bottom:2px">
             ${skillList}
           </div>
           ${saveLabel}
         </div>
       </div>
-      ${picked?`<div style="position:absolute;top:6px;right:6px;font-family:var(--tf);font-size:9px;padding:2px 7px;border-radius:20px;background:${c.color}22;color:${c.color};border:1px solid ${c.color}55">선택됨</div>`:''}
+      ${picked?`<div style="position:absolute;top:4px;right:4px;font-family:var(--tf);font-size:8px;padding:1px 6px;border-radius:20px;background:${c.color}22;color:${c.color};border:1px solid ${c.color}55">✓</div>`:''}
     </div>`;
   }).join('');
 
@@ -1746,22 +1749,20 @@ function drawCharIllusts(){
     const cv=document.getElementById(`char-illust-${i}`);
     if(!cv) return;
     const c2=cv.getContext('2d');
-    c2.clearRect(0,0,70,80);
+    c2.clearRect(0,0,54,62);
     const sp=CHAR_SPRITES[i];
     if(sp?.loaded&&sp?.img){
       const {w,h}=CHAR_FRAME_SIZE[i]||{w:128,h:150};
-      const scale=Math.min(70/w, 80/h);
+      const scale=Math.min(54/w, 62/h);
       const dw=Math.round(w*scale), dh=Math.round(h*scale);
-      const dx=Math.round((70-dw)/2), dy=Math.round((80-dh)/2);
+      const dx=Math.round((54-dw)/2), dy=Math.round((62-dh)/2);
       c2.drawImage(sp.noBgCanvas||sp.img, 0,0,w,h, dx,dy,dw,dh);
     } else {
       const cd=CHARS[i];
-      c2.fillStyle=cd.color+'22';c2.fillRect(0,0,70,80);
-      c2.fillStyle=cd.color+'88';c2.fillRect(0,60,70,20);
-      c2.fillStyle=cd.color;c2.font='bold 26px Noto Sans KR';
-      c2.textAlign='center';c2.textBaseline='middle';c2.fillText(cd.init,35,36);
-      c2.fillStyle='#e0e8f0';c2.font='9px Noto Sans KR';
-      c2.fillText(cd.name,35,70);
+      c2.fillStyle=cd.color+'22';c2.fillRect(0,0,54,62);
+      c2.fillStyle=cd.color;c2.font='bold 22px Noto Sans KR';
+      c2.textAlign='center';c2.textBaseline='middle';c2.fillText(cd.init,27,28);
+      c2.fillStyle='#e0e8f0';c2.font='8px Noto Sans KR';c2.fillText(cd.name,27,50);
     }
   });
 }
