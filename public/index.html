@@ -948,6 +948,7 @@ canvas{display:block;width:100%;height:100%}
       <div style="display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
         <div style="font-family:var(--tf);font-size:15px;color:#f5c842;letter-spacing:2px">🏪 상점</div>
         <div style="display:flex;gap:8px;align-items:center">
+          <div style="font-family:var(--tf);font-size:9px;color:#5a7a94">🔄 <span id="shop-reset-timer">--:--</span></div>
           <div style="font-family:var(--tf);font-size:12px;color:#f5c842">💰 <span id="shop-gold">0</span>G</div>
           <button class="sbtn gray" style="padding:2px 10px;font-size:10px" onclick="closeShop()">✕ 닫기</button>
         </div>
@@ -5600,11 +5601,68 @@ const SHOP_BASE_PRICE={C:150, B:600, A:1800, S:7000};
 // 판매 시 구매가의 25%
 const SELL_RATE=0.25;
 
-// 상점 재고 — 층에 따라 변경, 진입마다 랜덤 8개
+// 상점 재고 — 30분 간격 리셋
 let shopStock=[];
 let shopTab='buy';
 let sellSelected=new Set();
-let buySelected=new Set(); // 구매 선택된 shopStock 인덱스
+let buySelected=new Set();
+
+const SHOP_RESET_MS = 30 * 60 * 1000; // 30분
+let shopNextReset = 0; // 다음 리셋 시각 (Date.now() 기준)
+let shopResetTimer = null; // setInterval ID
+
+function getShopResetKey(){
+  return 'apt_shopReset_'+(currentUser?.nick||'guest')+'_char'+selChar;
+}
+function saveShopResetState(){
+  try{
+    localStorage.setItem(getShopResetKey(), JSON.stringify({
+      nextReset: shopNextReset,
+      stock: shopStock.map(s=>({itemId:s.item.id, price:s.price}))
+    }));
+  }catch(e){}
+}
+function loadShopResetState(){
+  try{
+    const raw=localStorage.getItem(getShopResetKey());
+    if(!raw) return false;
+    const {nextReset, stock}=JSON.parse(raw);
+    if(Date.now() >= nextReset) return false; // 만료됨
+    // 재고 복원
+    const pool=[...EQUIP_POOL,...CONSUME_POOL,...MATERIAL_POOL];
+    shopStock=stock.map(s=>{
+      const item=pool.find(it=>it.id===s.itemId);
+      return item ? {item, price:s.price} : null;
+    }).filter(Boolean);
+    shopNextReset=nextReset;
+    return shopStock.length > 0;
+  }catch(e){ return false; }
+}
+
+function scheduleShopReset(){
+  if(shopResetTimer) clearInterval(shopResetTimer);
+  shopResetTimer=setInterval(()=>{
+    if(Date.now() >= shopNextReset){
+      genShopStock();
+      // 상점이 열려있으면 즉시 화면 갱신
+      const screen=document.getElementById('shop-screen');
+      if(screen&&!screen.classList.contains('hidden')) renderShopBuy();
+      showToast('🏪 상점 재고가 리셋되었습니다!');
+    }
+    updateShopResetTimer();
+  }, 10000); // 10초마다 체크 & 타이머 갱신
+}
+
+function updateShopResetTimer(){
+  const el=document.getElementById('shop-reset-timer');
+  if(!el) return;
+  const remain=Math.max(0, shopNextReset - Date.now());
+  const m=Math.floor(remain/60000);
+  const s=Math.floor((remain%60000)/1000);
+  el.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  // 5분 이하면 강조
+  el.style.color = remain < 5*60*1000 ? '#ef9f27' : '#5a7a94';
+}
 
 function calcBuyPrice(item){
   const base=SHOP_BASE_PRICE[item.grade]||150;
@@ -5627,17 +5685,14 @@ function genShopStock(){
 
   // 층에 따라 등장 가능 등급 결정
   const grades=floor<5?['C','B']:floor<12?['C','B','A']:['B','A'];
-  // S등급은 20층 이상에서 30% 확률로 재고에 1개만
   const allowS=floor>=20&&Math.random()<0.3;
 
-  // 구매 가능 풀 (내 캐릭 전용 + 공용)
   const pool=[...EQUIP_POOL,...CONSUME_POOL].filter(it=>{
     if(!grades.includes(it.grade)) return false;
     if(!it.shared && it.charId!==charId) return false;
     return true;
   });
 
-  // S등급은 1개 이하, A는 2개 이하
   let sCount=0, aCount=0;
   const shuffled=[...pool].sort(()=>Math.random()-0.5);
   for(const it of shuffled){
@@ -5646,16 +5701,22 @@ function genShopStock(){
     if(it.grade==='A'){ if(aCount>=2) continue; aCount++; }
     stock.push({item:it, price:calcBuyPrice(it)});
   }
-  // 재료도 2~3개 추가
   const mats=[...MATERIAL_POOL].sort(()=>Math.random()-0.5).slice(0,2);
   mats.forEach(it=>stock.push({item:it,price:calcBuyPrice(it)}));
 
   shopStock=stock;
+  shopNextReset=Date.now()+SHOP_RESET_MS; // 다음 리셋 시각 갱신
+  saveShopResetState();
 }
 
 function openShop(){
-  panelOpen('shop'); // 상점 열면 무적
-  genShopStock();
+  panelOpen('shop');
+  // 저장된 재고가 유효하면 복원, 아니면 새로 생성
+  if(!loadShopResetState()){
+    genShopStock();
+  }
+  scheduleShopReset();
+  updateShopResetTimer();
   setShopTab('buy');
   document.getElementById('shop-screen').classList.remove('hidden');
   renderShopBuy();
@@ -5759,6 +5820,7 @@ function confirmBuySelected(){
   });
   sorted.forEach(i=>shopStock.splice(i,1));
   buySelected.clear();
+  saveShopResetState(); // 구매 후 재고 상태 저장
   showToast(`✅ ${count}개 구매 완료 (-${total.toLocaleString()}G)`);
   document.getElementById('shop-gold').textContent=gold.toLocaleString();
   renderShopBuy();
@@ -5874,6 +5936,7 @@ function buyShopItem(i){
   addItem(s.item.id);
   showToast(`✅ ${s.item.name} 구매!`);
   shopStock.splice(i,1);
+  saveShopResetState(); // 구매 후 재고 상태 저장
   renderShopBuy();
   if(running&&player) saveGameData();
 }
