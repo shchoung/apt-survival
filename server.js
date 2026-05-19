@@ -444,11 +444,12 @@ app.get('/api/ranking', async (req, res) => {
     const rows = await db.query(`
       SELECT nick, char_idx, lv, floor, kills, gold,
              array_length(cleared_floors,1) AS clear_count,
+             inventory, equipped,
              saved_at
       FROM game_saves
       WHERE lv > 1 OR floor > 0 OR kills > 0
       ORDER BY ${orderBy}
-      LIMIT 30
+      LIMIT 50
     `);
     res.json({ ok: true, ranking: rows.rows });
   } catch (e) {
