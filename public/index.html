@@ -2113,7 +2113,12 @@ function renderInv(){
       const {item,enhLevel}=inventory[selInvIdx];
       const g=GRADES[item.grade];
       const isEq=Object.values(equipped).includes(selInvIdx);
-      const canEq=item.slot&&(item.shared||(item.charId===CHARS[selChar]?.id));
+      const canEq=item.slot&&(item.shared||(item.charId===CHARS[selChar]?.id))&&canEquipWeapon(item,selChar);
+      // 착용 불가 사유 (무기 타입 제한)
+      const wpBlock = item.type==='weapon'&&item.slot&&!canEquipWeapon(item,selChar);
+      const wpBlockMsg = wpBlock
+        ? (CHARS[selChar]?.id==='jun' ? '⚠ 이준호는 원거리 무기 착용 불가' : '⚠ 김서아는 근거리 무기 착용 불가')
+        : '';
       const enh=ENH_LEVELS[enhLevel];
       let statStr='';
       if(item.atk){const b=Math.floor(item.atk*enh.atkBonus);statStr+=`ATK+${item.atk+b}${b>0?`(+${b})`:''} `;}
@@ -2133,6 +2138,7 @@ function renderInv(){
         <div class="itd-btns">
           ${canEq&&!isEq?`<div class="itd-btn" onclick="equipItem(${selInvIdx})">장착</div>`:''}
           ${isEq?`<div class="itd-btn" onclick="unequipItem(${selInvIdx})">해제</div>`:''}
+          ${wpBlockMsg?`<div style="font-family:var(--tf);font-size:8px;color:var(--cr);padding:2px 4px">${wpBlockMsg}</div>`:''}
           ${item.type==='weapon'||item.type==='armor'?`<div class="itd-btn" style="color:var(--ca);border-color:var(--ca)" onclick="setEnhTarget(${selInvIdx})">강화대상</div>`:''}
           ${selEnhIdx>=0&&selEnhIdx!==selInvIdx?`<div class="itd-btn" style="color:var(--cp);border-color:var(--cp)" onclick="setEnhMat(${selInvIdx})">재료설정</div>`:''}
           <div class="itd-btn" style="color:var(--cr);border-color:var(--cr)" onclick="dropItem(${selInvIdx})">버리기</div>
@@ -2322,8 +2328,24 @@ function doEnhance(method){
   if(running&&player) saveGameData();
 }
 
+function canEquipWeapon(item, charIdx){
+  if(item.type !== 'weapon') return true; // 무기 아닌 건 제한 없음
+  const charId = CHARS[charIdx]?.id;
+  const rt = item.rangeType || 'melee';
+  if(charId === 'jun'  && rt === 'ranged') return false; // 이준호: 원거리 불가
+  if(charId === 'sea'  && rt === 'melee')  return false; // 김서아: 근거리 불가
+  // 박민재, 오하나: 제한 없음
+  return true;
+}
+
 function equipItem(idx){
   const {item}=inventory[idx];if(!item.slot)return;
+  if(!canEquipWeapon(item, selChar)){
+    const charId=CHARS[selChar]?.id;
+    const msg = charId==='jun' ? '이준호는 원거리 무기를 사용할 수 없습니다.'
+                               : '김서아는 근거리 무기를 사용할 수 없습니다.';
+    showToast(msg); return;
+  }
   Object.keys(equipped).forEach(k=>{if(equipped[k]===idx)equipped[k]=null;});
   equipped[item.slot]=idx;renderInv();showToast(`${item.name} 장착!`);
   if(running&&player) saveGameData();
@@ -3145,7 +3167,11 @@ function useSkill(i){
     SFX.heal();
     spawnSkillFX('heal',player.x,player.y,ang,CHARS[selChar].color);
     if(sk.aoe>0) spawnSkillFX('aoe',player.x,player.y,ang,CHARS[selChar].color);
-    const h=Math.floor(-sk.dmg*atkTotal*(1+eq.healBonus));
+    // 기본공격(i===0) 힐은 고정 소량 회복 — ATK 스케일 제거
+    // 스킬 힐(i>=1)은 기존대로 atkTotal 반영
+    const h = i===0
+      ? Math.floor((player.maxHp * 0.03 + 8) * (1 + eq.healBonus))  // maxHP의 3% + 8 고정
+      : Math.floor(-sk.dmg * atkTotal * (1 + eq.healBonus));
     if(sk.aoe>0){
       enemies.forEach(e=>{
         const d=Math.sqrt((e.x-player.x)**2+(e.y-player.y)**2);
