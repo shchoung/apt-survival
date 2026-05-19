@@ -6350,6 +6350,14 @@ function onWsMsg(msg){
 
     case 'error': showToast('⚠ '+msg.msg); break;
     case 'pong': break;
+    case 'duplicate_login': {
+      if(ws){ try{ws.close();}catch(e){} ws=null; }
+      isMultiGame=false;
+      running=false;
+      alert('⚠️ 다른 기기에서 접속하여 연결이 종료되었습니다.\n다시 로그인해주세요.');
+      logout();
+      break;
+    }
     default: console.log('[WS unhandled]',msg.type);
   }
 }
