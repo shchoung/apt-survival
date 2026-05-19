@@ -1020,6 +1020,8 @@ canvas{display:block;width:100%;height:100%}
       <button class="sbtn" style="padding:4px 14px;font-size:11px" onclick="loadRanking('floor')">층수 순</button>
       <button class="sbtn" style="padding:4px 14px;font-size:11px" onclick="loadRanking('lv')">레벨 순</button>
       <button class="sbtn" style="padding:4px 14px;font-size:11px" onclick="loadRanking('kills')">처치 순</button>
+      <button class="sbtn" style="padding:4px 14px;font-size:11px;border-color:#ef9f27;color:#ef9f27" onclick="loadRanking('weapon')">⚔ 무기 순</button>
+      <button class="sbtn" style="padding:4px 14px;font-size:11px;border-color:#5dcaa5;color:#5dcaa5" onclick="loadRanking('armor')">🛡 방어구 순</button>
     </div>
     <div id="rank-content" style="width:100%;max-width:480px">
       <div class="rank-loading">랭킹 불러오는 중...</div>
@@ -5516,6 +5518,24 @@ async function loadRanking(sortBy='floor'){
   if(!el) return;
   el.innerHTML='<div class="rank-loading">랭킹 불러오는 중...</div>';
 
+  // 아이템 랭킹은 서버 전체 데이터 필요 — 별도 처리
+  if(sortBy==='weapon'||sortBy==='armor'){
+    try{
+      const res=await fetch(getApiBase()+`/api/ranking?sort=floor&limit=50`,{
+        headers:currentUser?.token?{'Authorization':currentUser.token}:{}
+      });
+      const data=await res.json();
+      if(data.ok&&data.ranking?.length){
+        renderItemRankTable(data.ranking, sortBy, el);
+      } else {
+        el.innerHTML='<div class="rank-empty">랭킹 데이터가 없습니다.</div>';
+      }
+    } catch(e){
+      renderItemRankFallback(sortBy, el);
+    }
+    return;
+  }
+
   try{
     const res=await fetch(getApiBase()+`/api/ranking?sort=${sortBy}`,{
       headers:currentUser?.token?{'Authorization':currentUser.token}:{}
@@ -5527,19 +5547,26 @@ async function loadRanking(sortBy='floor'){
     }
     renderRankTable(data.ranking, sortBy, el);
   } catch(e){
-    // 서버 없을 때 — 로컬 데이터로 표시
     try{
-      const localSave=JSON.parse(localStorage.getItem(getSaveKey())||'null');
-      if(localSave){
+      const myNick=currentUser?.nick||'나';
+      const mySaves=currentUser?.saves||[];
+      const bestSave=mySaves.reduce((best,s)=>{
+        if(!s||s.isNew) return best;
+        if(!best) return s;
+        return (s[sortBy]||0)>(best[sortBy]||0)?s:best;
+      },null);
+      if(bestSave){
         renderRankTable([{
-          nick:currentUser?.nick||'나',
-          char_idx:localSave.charIdx||0,
-          lv:localSave.lv||1,
-          floor:localSave.floor||0,
-          kills:localSave.kills||0,
-          gold:localSave.gold||0,
-          clear_count:(localSave.clearedFloors||[]).length,
-          saved_at:new Date(localSave.savedAt||Date.now()).toISOString(),
+          nick:myNick,
+          char_idx:bestSave.charIdx||0,
+          lv:bestSave.lv||1,
+          floor:bestSave.floor||0,
+          kills:bestSave.kills||0,
+          gold:bestSave.gold||0,
+          clear_count:(bestSave.clearedFloors||[]).length,
+          inventory:bestSave.inventory||[],
+          equipped:bestSave.equipped||{},
+          saved_at:new Date(bestSave.savedAt||Date.now()).toISOString(),
         }], sortBy, el);
         el.innerHTML+='<div style="font-family:var(--tf);font-size:9px;color:#5a7a94;text-align:center;margin-top:8px">* 서버 미연결 — 내 기록만 표시</div>';
       } else {
@@ -5549,6 +5576,97 @@ async function loadRanking(sortBy='floor'){
       el.innerHTML='<div class="rank-empty">랭킹을 불러올 수 없습니다.</div>';
     }
   }
+}
+
+// 아이템 랭킹 렌더 — ranking rows에서 inventory 파싱
+function renderItemRankTable(rows, itemType, el){
+  const isWeapon=itemType==='weapon';
+  const typeLabel=isWeapon?'무기':'방어구';
+  const typeKey=isWeapon?'weapon':'armor';
+  const MEDALS=['🥇','🥈','🥉'];
+  const myNick=currentUser?.nick||'';
+  const gc={C:'#888780',B:'#378ADD',A:'#5dcaa5',S:'#ef9f27'};
+
+  // 각 플레이어의 최고 강화 아이템 추출
+  const itemRows=rows.map(r=>{
+    const inv=r.inventory||[];
+    // 해당 타입 아이템 필터
+    const items=inv.filter(e=>{
+      const base=ITEM_POOL.find(x=>x.id===e.itemId);
+      return base&&base.type===typeKey;
+    }).map(e=>{
+      const base=ITEM_POOL.find(x=>x.id===e.itemId)||{};
+      return {...base,enhLevel:e.enhLevel||0};
+    });
+    // 강화 레벨 기준 최고 아이템
+    const best=items.sort((a,b)=>b.enhLevel-a.enhLevel)[0]||null;
+    return {nick:r.nick,char_idx:r.char_idx,lv:r.lv,best};
+  })
+  .filter(r=>r.best) // 아이템 없는 유저 제외
+  .sort((a,b)=>b.best.enhLevel-a.best.enhLevel);
+
+  if(!itemRows.length){
+    el.innerHTML=`<div class="rank-empty">${typeLabel} 강화 기록이 없습니다.</div>`;
+    return;
+  }
+
+  el.innerHTML=`
+  <div style="font-family:var(--tf);font-size:10px;color:#5a7a94;margin-bottom:8px;text-align:center">
+    ⚔ ${typeLabel} 강화 레벨 순위
+  </div>
+  <table class="rank-table">
+    <thead><tr>
+      <th>순위</th><th>닉네임</th><th>캐릭터</th>
+      <th>${typeLabel}</th><th>등급</th><th>강화</th>
+    </tr></thead>
+    <tbody>
+    ${itemRows.slice(0,20).map((r,i)=>{
+      const isMe=r.nick===myNick;
+      const ci=r.char_idx||0;
+      const medal=i<3?MEDALS[i]:`${i+1}`;
+      const gradeColor=gc[r.best.grade]||'#888';
+      const enhStr=r.best.enhLevel>0?`+${r.best.enhLevel}`:'기본';
+      const enhColor=r.best.enhLevel>=7?'#f088f0':r.best.enhLevel>=5?'#ef9f27':r.best.enhLevel>=3?'#5dcaa5':'#a0bcd0';
+      return `<tr class="rank-${i+1}${isMe?' rank-me':''}">
+        <td><span class="rank-medal">${medal}</span></td>
+        <td style="${isMe?'color:var(--ct);font-weight:700':''}">${r.nick}${isMe?' ★':''}</td>
+        <td style="color:${CHAR_COLORS_R[ci]||'#888'}">${CHAR_NAMES[ci]||'?'}</td>
+        <td style="font-size:10px">${r.best.icon||''}${r.best.name||'?'}</td>
+        <td><span style="color:${gradeColor};border:1px solid ${gradeColor}44;padding:1px 4px;border-radius:3px;font-size:9px">${r.best.grade||'?'}</span></td>
+        <td style="color:${enhColor};font-weight:700">${enhStr}</td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderItemRankFallback(itemType, el){
+  // 서버 없을 때 — 내 인벤토리에서 표시
+  const myNick=currentUser?.nick||'나';
+  const mySaves=currentUser?.saves||[];
+  const isWeapon=itemType==='weapon';
+  const typeKey=isWeapon?'weapon':'armor';
+  const typeLabel=isWeapon?'무기':'방어구';
+  const gc={C:'#888780',B:'#378ADD',A:'#5dcaa5',S:'#ef9f27'};
+
+  const rows=[];
+  mySaves.forEach((save,ci)=>{
+    if(!save||save.isNew) return;
+    (save.inventory||[]).forEach(e=>{
+      const base=ITEM_POOL.find(x=>x.id===e.itemId);
+      if(base&&base.type===typeKey){
+        rows.push({nick:myNick,char_idx:ci,lv:save.lv||1,best:{...base,enhLevel:e.enhLevel||0}});
+      }
+    });
+  });
+
+  if(!rows.length){
+    el.innerHTML=`<div class="rank-empty">보유한 ${typeLabel}이 없습니다.</div>`;
+    return;
+  }
+  rows.sort((a,b)=>b.best.enhLevel-a.best.enhLevel);
+  renderItemRankTable([...mySaves.filter(Boolean).map((s,i)=>({...s,char_idx:i,nick:myNick}))], itemType, el);
+  el.innerHTML+='<div style="font-family:var(--tf);font-size:9px;color:#5a7a94;text-align:center;margin-top:8px">* 서버 미연결 — 내 기록만 표시</div>';
 }
 
 function renderRankTable(rows, sortBy, el){
