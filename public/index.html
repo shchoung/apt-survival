@@ -734,7 +734,7 @@ canvas{display:block;width:100%;height:100%}
 /* CHAT — 하단 스킬바 위 */
 #chat-panel{
   position:absolute;
-  bottom:calc(64px + var(--safe-bot));
+  bottom:var(--skillbar-h, 65px);
   left:0; right:0;
   width:100%;
   max-height:120px;
@@ -763,10 +763,10 @@ canvas{display:block;width:100%;height:100%}
 }
 #chat-send:active{background:var(--c3)}
 
-/* 채팅 토글 버튼 — 스킬바 위 우측, 항상 표시 */
+/* 채팅 토글 버튼 */
 #chat-toggle{
   position:absolute;
-  bottom:calc(64px + var(--safe-bot));
+  bottom:var(--skillbar-h, 65px);
   right:8px;
   left:auto; top:auto;
   font-family:var(--tf);font-size:11px;padding:3px 8px;border-radius:4px;
@@ -943,7 +943,7 @@ canvas{display:block;width:100%;height:100%}
     <div class="game-title">APT SURVIVAL</div>
     <div class="floor-info" id="floor-info">B3F</div>
   </div>
-  <div id="minimap"><canvas id="mc" width="100" height="75"></canvas></div>
+  <div id="minimap"><canvas id="mc" width="100" height="52"></canvas></div>
   <div id="log-panel"></div>
   <div id="party-panel"></div>
   <div id="lvup-popup"><div class="lvup-t">LEVEL UP!</div><div class="lvup-s" id="lvup-s"></div></div>
@@ -3422,7 +3422,7 @@ function draw(){
   // 미니맵 — 맵 레이어는 캐시, 동적 요소만 매 프레임
   if(!minimapCache||minimapDirty){
     minimapCache=document.createElement('canvas');
-    minimapCache.width=100;minimapCache.height=75;
+    minimapCache.width=100;minimapCache.height=52;
     const mc2=minimapCache.getContext('2d');
     mc2.fillStyle='#07090d';mc2.fillRect(0,0,100,75);
     const sx2=100/COLS,sy2=75/ROWS;
@@ -6900,6 +6900,13 @@ document.addEventListener('selectstart',e=>{
   e.preventDefault();
 });
 document.documentElement.style.setProperty('--vh',`${window.innerHeight*0.01}px`);
+// 스킬바 실제 높이를 CSS 변수로 → 채팅 위치 자동 계산
+function updateSkillbarHeight(){
+  const sb=document.getElementById('skill-bar');
+  if(sb) document.documentElement.style.setProperty('--skillbar-h', sb.offsetHeight+'px');
+}
+requestAnimationFrame(updateSkillbarHeight);
+window.addEventListener('resize',updateSkillbarHeight);
 initCtrlMode();
 try{
   const savedVol=localStorage.getItem('apt_bgm_vol');
