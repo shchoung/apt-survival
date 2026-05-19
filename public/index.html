@@ -1487,7 +1487,7 @@ function getSaveKey(charIdx){
   return 'apt_save_'+(currentUser?.nick||'guest')+'_char'+ci;
 }
 
-function saveGameData(clearMemory=false){
+async function saveGameData(clearMemory=false){
   if(!player||selChar<0) return;
   try{
     const sd={
@@ -1511,18 +1511,31 @@ function saveGameData(clearMemory=false){
     };
     // 서버 저장
     if(currentUser?.token){
-      fetch(getApiBase()+'/api/save',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':currentUser.token},
-        body:JSON.stringify(sd),
-      }).catch(()=>{});
-    }
-    if(clearMemory){
-      // 게임 종료 시 — 인메모리 슬롯 초기화해서 다음 startGame이 서버에서 새로 받도록
-      if(currentUser?.saves) currentUser.saves[selChar]=null;
+      if(clearMemory){
+        // 종료 시 — fetch 완료 후 인메모리 초기화
+        try{
+          await fetch(getApiBase()+'/api/save',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':currentUser.token},
+            body:JSON.stringify(sd),
+          });
+        }catch(e){}
+        if(currentUser?.saves) currentUser.saves[selChar]=null;
+      } else {
+        // 인게임 자동저장 — 비동기, 인메모리 즉시 갱신
+        fetch(getApiBase()+'/api/save',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':currentUser.token},
+          body:JSON.stringify(sd),
+        }).catch(()=>{});
+        if(currentUser){
+          if(!currentUser.saves) currentUser.saves=Array(4).fill(null);
+          currentUser.saves[selChar]={...sd,isNew:false};
+        }
+      }
     } else {
-      // 인게임 자동저장 — 인메모리 갱신 (raw 형태만)
-      if(currentUser){
+      // 토큰 없을 때 인메모리만 갱신
+      if(!clearMemory&&currentUser){
         if(!currentUser.saves) currentUser.saves=Array(4).fill(null);
         currentUser.saves[selChar]={...sd,isNew:false};
       }
@@ -1556,8 +1569,7 @@ function loadGameData(charIdx){
   }catch(e){return null;}
 }
 
-function goTitle(){
-  // 매칭 타이머 및 WS 세션 정리
+async function goTitle(){
   clearTimeout(matchTimer); matchTimer=null;
   isMultiGame=false; myPlayerId=null; myRoomCode=null;
   wsRoomPlayers={}; isHost=false;
@@ -1565,17 +1577,19 @@ function goTitle(){
 
   if(running||player){
     stopBGM();running=false;
-    saveGameData(true); // 종료 시 인메모리 초기화
+    showToast('💾 저장 중...');
+    await saveGameData(true);
     showToast('💾 저장 완료');
   }
   hideAllOverlays();
   showScr('title');
 }
 
-function quitGame(){
+async function quitGame(){
   if(!confirm('게임을 종료하시겠습니까?\n진행 상황이 저장됩니다.')) return;
   stopBGM();running=false;
-  saveGameData(true); // 종료 시 인메모리 초기화
+  showToast('💾 저장 중...');
+  await saveGameData(true);
   showToast('💾 저장 완료! 종료합니다.');
   setTimeout(()=>{try{window.close();}catch(e){}location.reload();},1200);
 }
