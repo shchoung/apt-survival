@@ -31,7 +31,14 @@ body{
   -webkit-overflow-scrolling:touch;
   padding-top:var(--safe-top);
   padding-bottom:var(--safe-bot);
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-user-drag:none;
 }
+*{-webkit-user-drag:none}
+img,canvas{pointer-events:none;-webkit-user-drag:none}
+/* 채팅 입력창은 텍스트 선택 허용 */
+#chat-inp,input,textarea{user-select:text;-webkit-user-select:text}
 
 /* HUD */
 #hud{
@@ -6642,6 +6649,12 @@ function updateBossHPBar(){
 /* ═══════ INIT ═══════ */
 loadKB();updateKeyLabels();
 initSkillTooltips();
+// 드래그 완전 차단
+document.addEventListener('dragstart',e=>e.preventDefault());
+document.addEventListener('selectstart',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  e.preventDefault();
+});
 document.documentElement.style.setProperty('--vh',`${window.innerHeight*0.01}px`);
 initCtrlMode();
 try{
