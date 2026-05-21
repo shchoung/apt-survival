@@ -1038,6 +1038,14 @@ canvas{display:block;width:100%;height:100%}
       <canvas id="pach-canvas" width="320" height="200" style="width:100%;border-radius:12px;border:2px solid #f5c84255;background:#0a0800;display:block;box-shadow:0 0 20px #f5c84222"></canvas>
       <!-- 결과 -->
       <div id="pach-result" style="font-family:var(--tf);font-size:15px;text-align:center;min-height:26px;color:#f5c842;letter-spacing:1px"></div>
+      <!-- 피티 게이지 -->
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="font-family:var(--tf);font-size:8px;color:#f088f0;white-space:nowrap">🔥 잭팟 게이지</div>
+        <div style="flex:1;height:6px;background:#1a0d1a;border-radius:3px;overflow:hidden;border:1px solid #f088f033">
+          <div id="pity-bar" style="height:100%;border-radius:3px;background:linear-gradient(90deg,#a020c0,#f088f0);width:0%;transition:width .4s"></div>
+        </div>
+        <div id="pity-lbl" style="font-family:var(--tf);font-size:8px;color:#f088f0;white-space:nowrap;min-width:28px;text-align:right">0%</div>
+      </div>
       <!-- 베팅 버튼 -->
       <div style="display:flex;gap:6px">
         <button onclick="slotSpin(100)"  class="slot-bet-btn">100G</button>
@@ -4905,12 +4913,22 @@ function updateQuickSlots(){
    슬롯머신 미니게임
    ═══════════════════════════════════════ */
 const SLOT_SYMBOLS=['7️⃣','⭐','💎','🍒','🔔','🍋','🍇'];
-const SLOT_WEIGHTS=[2,4,6,10,12,14,16]; // 낮을수록 희귀 (합=64)
+// 가중치 상향 (합=100 기준, 낮을수록 희귀)
+// 구: [2,4,6,10,12,14,16] → 꽝 비율 ~65% / 잭팟 0.003%
+// 신: [5,8,12,16,18,20,21] → 꽝 비율 ~38% / 잭팟 0.125%
+const SLOT_WEIGHTS=[5,8,12,16,18,20,21]; // 합=100
 const SLOT_COLS=3;
 const SLOT_W=320, SLOT_H=200;
 const REEL_W=SLOT_W/SLOT_COLS;
 const CELL_H=70; // 보이는 칸 높이
 const VISIBLE=3; // 릴당 보이는 심볼 수
+
+// ── 피티 시스템 ──
+// 누적 베팅액이 쌓일수록 잭팟(7️⃣) 가중치 보너스 부여
+// 잭팟 발생 시 초기화
+let slotPityBet=0;       // 누적 투입 골드 (잭팟 미발생 동안)
+const PITY_STEP=5000;    // 이 금액마다 7️⃣ 가중치 +1
+const PITY_MAX_BONUS=15; // 최대 보너스 (= 5000G×15=75000G 무적 방지)
 
 let slotCtx=null;
 let slotBet=0;
@@ -4924,8 +4942,11 @@ let reels=[null,null,null].map(()=>({
 }));
 
 function weightedRandSym(){
-  let r=Math.random()*SLOT_WEIGHTS.reduce((a,b)=>a+b,0);
-  for(let i=0;i<SLOT_WEIGHTS.length;i++){r-=SLOT_WEIGHTS[i];if(r<=0)return i;}
+  // 피티 보너스: 누적 베팅 PITY_STEP마다 7️⃣(인덱스0) 가중치 +1
+  const pityBonus=Math.min(Math.floor(slotPityBet/PITY_STEP),PITY_MAX_BONUS);
+  const weights=SLOT_WEIGHTS.map((w,i)=>i===0?w+pityBonus:w);
+  let r=Math.random()*weights.reduce((a,b)=>a+b,0);
+  for(let i=0;i<weights.length;i++){r-=weights[i];if(r<=0)return i;}
   return SLOT_SYMBOLS.length-1;
 }
 
@@ -4938,6 +4959,7 @@ function openPachinko(){
   document.getElementById('pach-result').textContent='';
   slotSpinning=false;
   if(slotRaf){cancelAnimationFrame(slotRaf);slotRaf=null;}
+  updatePityUI();
   reels.forEach(r=>{
     r.syms=Array.from({length:20},()=>weightedRandSym());
     r.y=0;r.targetY=0;r.speed=0;r.done=true;
@@ -4958,6 +4980,7 @@ function slotSpin(bet){
   if(slotSpinning){showToast('릴이 돌아가는 중...');return;}
   if(gold<bet){showToast('💰 골드가 부족합니다!');return;}
   gold-=bet;slotBet=bet;
+  slotPityBet+=bet; // 피티 누적
   document.getElementById('pach-gold').textContent=gold.toLocaleString();
   document.getElementById('pach-result').textContent='';
   SFX.slotSpin();
@@ -5012,7 +5035,10 @@ function slotJudge(){
   const two=results[0]===results[1]||results[1]===results[2]||results[0]===results[2];
 
   let mult=0, msg='', color='#e24b4b';
-  if(all3&&results[0]===0){mult=50;msg='🎉 JACKPOT! 7️⃣7️⃣7️⃣';color='#f088f0';}
+  if(all3&&results[0]===0){
+    mult=50;msg='🎉 JACKPOT! 7️⃣7️⃣7️⃣';color='#f088f0';
+    slotPityBet=0; // 잭팟 → 피티 초기화
+  }
   else if(all3&&results[0]===1){mult=20;msg='⭐ 대박! ⭐⭐⭐';color='#ef9f27';}
   else if(all3&&results[0]===2){mult=10;msg='💎 보너스! 💎💎💎';color='#5dcaa5';}
   else if(all3&&results[0]===3){mult=5;msg='🍒🍒🍒 체리 3개!';color='#378ADD';}
@@ -5026,7 +5052,11 @@ function slotJudge(){
 
   const el=document.getElementById('pach-result');
   el.style.color=color;
-  el.textContent=mult>0?`${msg}  +${win.toLocaleString()}G (×${mult})`:msg;
+
+  // 피티 보너스 표시
+  const pityBonus=Math.min(Math.floor(slotPityBet/PITY_STEP),PITY_MAX_BONUS);
+  const pityTxt=pityBonus>0?` 🔥잭팟확률+${pityBonus*100/100|0}%p`:'';
+  el.textContent=mult>0?`${msg}  +${win.toLocaleString()}G (×${mult})${pityTxt}`:`${msg}${pityTxt}`;
 
   if(mult>=50){sparks(player?.x||0,player?.y||0,'#f088f0',30);sparks(player?.x||0,player?.y||0,'#f5c842',20);}
   else if(mult>=10){sparks(player?.x||0,player?.y||0,'#ef9f27',15);}
@@ -5034,7 +5064,17 @@ function slotJudge(){
   addLog(`슬롯: ${syms.join('')} → ${mult>0?'+'+win+'G':'꽝'}`, mult>0?'lsys':'lhit');
   if(mult>0) SFX.slotWin(mult); else SFX.slotLose();
   if(running&&player) saveGameData();
+  updatePityUI();
   slotDraw();
+}
+
+function updatePityUI(){
+  const bar=document.getElementById('pity-bar');
+  const lbl=document.getElementById('pity-lbl');
+  if(!bar||!lbl) return;
+  const pct=Math.min(Math.floor(slotPityBet/PITY_STEP)*100/PITY_MAX_BONUS, 100);
+  bar.style.width=pct+'%';
+  lbl.textContent=Math.floor(pct)+'%';
 }
 
 function slotDraw(){
