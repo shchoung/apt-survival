@@ -7297,41 +7297,51 @@ function renderAucCharGold(){
   const CHAR_COLORS=['#378ADD','#1D9E75','#BA7517','#993556'];
   const CHAR_INIT =['준','서','민','하'];
   const CHAR_NAMES=['이준호','김서아','박민재','오하나'];
+  // 2×2 그리드 레이아웃
+  el.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;flex-shrink:0';
   el.innerHTML='';
   for(let i=0;i<4;i++){
     const sv=saves[i];
-    const isActive = selChar===i && typeof gold!=='undefined';
-    // 현재 플레이 중인 캐릭이면 실시간 gold 변수 사용, 아니면 save 데이터
-    const g = isActive ? gold : (sv?.gold ?? null);
-    const lv= sv?.lv ?? (isActive ? player?.lv : null);
-    const isNew = !sv || sv.isNew;
+    const isActive = selChar===i;
+    const g = isActive ? (typeof gold!=='undefined'?gold:sv?.gold??0) : (sv?.gold??0);
+    const lv = isActive ? (player?.lv??sv?.lv??1) : (sv?.lv??1);
+    const hasData = isActive || (sv && !sv.isNew);
     const chip=document.createElement('div');
-    chip.style.cssText=`
-      display:flex;align-items:center;gap:4px;padding:4px 8px;
-      background:var(--c1);border:1px solid ${CHAR_COLORS[i]}44;
-      border-radius:6px;flex:1;min-width:0;
-      ${isActive?`border-color:${CHAR_COLORS[i]};box-shadow:0 0 6px ${CHAR_COLORS[i]}44`:''};
-    `;
-    const initEl=document.createElement('div');
-    initEl.style.cssText=`
-      width:18px;height:18px;border-radius:50%;
-      background:${CHAR_COLORS[i]}33;border:1px solid ${CHAR_COLORS[i]};
-      font-family:var(--tf);font-size:9px;font-weight:700;
-      color:${CHAR_COLORS[i]};display:flex;align-items:center;justify-content:center;
-      flex-shrink:0;
-    `;
-    initEl.textContent=CHAR_INIT[i];
-    const info=document.createElement('div');
-    info.style.cssText='flex:1;min-width:0;overflow:hidden';
-    if(isNew || g===null){
-      info.innerHTML=`<div style="font-family:var(--tf);font-size:8px;color:#5a7a94;white-space:nowrap">${CHAR_NAMES[i]}</div>
-        <div style="font-family:var(--tf);font-size:8px;color:#3a4a5a">미사용</div>`;
+    chip.style.cssText=[
+      'display:flex;align-items:center;gap:6px;padding:5px 8px',
+      'background:var(--c1)',
+      `border:1px solid ${hasData?CHAR_COLORS[i]+'66':CHAR_COLORS[i]+'22'}`,
+      'border-radius:6px;min-width:0;box-sizing:border-box',
+      isActive?`box-shadow:0 0 8px ${CHAR_COLORS[i]}55`:''
+    ].join(';');
+    // 이니셜 뱃지
+    const badge=document.createElement('div');
+    badge.style.cssText=[
+      'width:22px;height:22px;border-radius:50%;flex-shrink:0',
+      `background:${CHAR_COLORS[i]}${hasData?'44':'1a'}`,
+      `border:1.5px solid ${CHAR_COLORS[i]}${hasData?'':'66'}`,
+      'font-family:var(--tf);font-size:10px;font-weight:700',
+      `color:${CHAR_COLORS[i]};display:flex;align-items:center;justify-content:center`
+    ].join(';');
+    badge.textContent=CHAR_INIT[i];
+    // 텍스트 영역
+    const txt=document.createElement('div');
+    txt.style.cssText='flex:1;min-width:0;overflow:hidden';
+    if(hasData){
+      txt.innerHTML=
+        `<div style="font-family:var(--tf);font-size:8px;color:${CHAR_COLORS[i]};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">`+
+          `${CHAR_NAMES[i]} <span style="color:#5a7a94">Lv${lv}</span>`+
+        `</div>`+
+        `<div style="font-family:var(--tf);font-size:11px;font-weight:700;color:#f5c842;white-space:nowrap">`+
+          `💰 ${g.toLocaleString()}G`+
+        `</div>`;
     } else {
-      info.innerHTML=`<div style="font-family:var(--tf);font-size:8px;color:${CHAR_COLORS[i]};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${CHAR_NAMES[i]}${lv?` Lv${lv}`:''}</div>
-        <div style="font-family:var(--tf);font-size:10px;font-weight:700;color:#f5c842;white-space:nowrap">💰${g.toLocaleString()}G</div>`;
+      txt.innerHTML=
+        `<div style="font-family:var(--tf);font-size:8px;color:${CHAR_COLORS[i]}88;white-space:nowrap">${CHAR_NAMES[i]}</div>`+
+        `<div style="font-family:var(--tf);font-size:9px;color:#3a4a5a">미사용</div>`;
     }
-    chip.appendChild(initEl);
-    chip.appendChild(info);
+    chip.appendChild(badge);
+    chip.appendChild(txt);
     el.appendChild(chip);
   }
 }
