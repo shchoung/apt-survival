@@ -115,6 +115,14 @@ async function initDB() {
     `);
   } catch(e) { console.warn('[MIGRATE] game_saves 마이그레이션 스킵:', e.message); }
 
+  // 공용 인벤토리 컬럼 마이그레이션 (users 테이블에 JSONB 컬럼 추가)
+  try {
+    await db.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS
+        shared_inventory JSONB DEFAULT '[]';
+    `);
+  } catch(e) { console.warn('[MIGRATE] shared_inventory 마이그레이션 스킵:', e.message); }
+
   await db.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       token       VARCHAR(128) PRIMARY KEY,
@@ -350,6 +358,53 @@ app.post('/api/save', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[SAVE ERROR]', e.message);
+    res.json({ ok: false, msg: '저장 실패' });
+  }
+});
+
+/* ═══ 공용 인벤토리 API ═══ */
+
+// GET /api/shared-inv — 공용 인벤토리 조회
+app.get('/api/shared-inv', async (req, res) => {
+  try {
+    const token = req.headers.authorization;
+    if (!token) return res.json({ ok: false, msg: '인증 필요' });
+    const sess = await db.query(
+      'SELECT user_id FROM sessions WHERE token=$1 AND expires_at>NOW()', [token]
+    );
+    if (!sess.rows.length) return res.json({ ok: false, msg: '세션 만료' });
+    const uid = sess.rows[0].user_id;
+    const row = await db.query('SELECT shared_inventory FROM users WHERE id=$1', [uid]);
+    const inv = row.rows[0]?.shared_inventory || [];
+    res.json({ ok: true, sharedInv: inv });
+  } catch (e) {
+    console.error('[SHARED-INV GET]', e.message);
+    res.json({ ok: false, msg: '조회 실패' });
+  }
+});
+
+// POST /api/shared-inv — 공용 인벤토리 저장
+app.post('/api/shared-inv', async (req, res) => {
+  try {
+    const token = req.headers.authorization;
+    if (!token) return res.json({ ok: false, msg: '인증 필요' });
+    const sess = await db.query(
+      'SELECT user_id FROM sessions WHERE token=$1 AND expires_at>NOW()', [token]
+    );
+    if (!sess.rows.length) return res.json({ ok: false, msg: '세션 만료' });
+    const uid = sess.rows[0].user_id;
+    const { sharedInv } = req.body;
+    if (!Array.isArray(sharedInv)) return res.json({ ok: false, msg: '잘못된 데이터' });
+    // 최대 40슬롯 제한
+    const clamped = sharedInv.slice(0, 40);
+    await db.query(
+      'UPDATE users SET shared_inventory=$1 WHERE id=$2',
+      [JSON.stringify(clamped), uid]
+    );
+    console.log(`[SHARED-INV] user:${uid} items:${clamped.length}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[SHARED-INV POST]', e.message);
     res.json({ ok: false, msg: '저장 실패' });
   }
 });
