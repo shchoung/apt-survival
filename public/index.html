@@ -236,7 +236,18 @@ canvas{display:block;width:100%;height:100%}
 /* FLOOR MAP */
 #floor-map-screen{position:absolute;inset:0;background:#07090df5;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;z-index:90;padding:12px;overflow-y:auto}
 #floor-map-screen.hidden{display:none}
-.fm-title{font-family:var(--tf);font-size:16px;color:var(--ct);letter-spacing:3px;margin-bottom:10px}
+.fm-title{font-family:var(--tf);font-size:16px;color:var(--ct);letter-spacing:3px;margin-bottom:8px}
+/* 동 탭 */
+.fm-map-tabs{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-bottom:8px;width:100%;max-width:500px;}
+.fm-map-tab{
+  font-family:var(--tf);font-size:9px;padding:4px 10px;border-radius:20px;cursor:pointer;
+  border:1.5px solid rgba(255,255,255,0.1);background:rgba(13,17,23,0.7);color:#5a7a94;
+  transition:.15s;
+}
+.fm-map-tab.active{color:#e0e8f0;background:rgba(13,17,23,0.95);}
+.fm-map-tab.locked-tab{opacity:.4;cursor:not-allowed;}
+/* 동 클리어율 */
+.fm-map-progress{font-family:var(--tf);font-size:9px;color:#5a7a94;margin-bottom:6px;text-align:center;}
 .fm-grid{display:flex;flex-direction:column-reverse;gap:4px;width:100%;max-width:500px}
 .frow{display:flex;gap:4px;align-items:center}
 .fnlbl{font-family:var(--tf);font-size:10px;color:#5a7a94;width:52px;text-align:right;flex-shrink:0}
@@ -1435,7 +1446,9 @@ canvas{display:block;width:100%;height:100%}
 
   <!-- FLOOR MAP -->
   <div id="floor-map-screen" class="hidden">
-    <div class="fm-title">APT 층별 맵</div>
+    <div class="fm-title">층 선택</div>
+    <div class="fm-map-tabs" id="fm-map-tabs"></div>
+    <div class="fm-map-progress" id="fm-map-progress"></div>
     <div class="fm-grid" id="fm-grid"></div>
     <div style="margin-top:10px;display:flex;gap:7px">
       <button class="sbtn gray" onclick="hideFloorMap()">닫기</button>
@@ -1830,7 +1843,9 @@ async function saveGameData(clearMemory=false){
       atk:player.atk,
       def:player.def,
       floor:currentFloor,
+      mapIdx:currentMapIdx,
       clearedFloors:[...clearedFloors],
+      mapProgress:{...mapProgress},
       inventory:inventory.map(e=>({itemId:e.item.id,enhLevel:e.enhLevel})),
       equipped:{
         weapon:equipped.weapon!=null?inventory[equipped.weapon]?.item.id:null,
@@ -1949,7 +1964,7 @@ function hideAllOverlays(){
 function showShop(){nextFloor();}
 function hideShop(){}
 function renderShop(){}
-function showFloorMap(){panelOpen('floormap');document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
+function showFloorMap(){panelOpen('floormap');floorMapViewIdx=currentMapIdx;document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
 function hideFloorMap(){panelClose('floormap');document.getElementById('floor-map-screen').classList.add('hidden');}
 function showInv(){
   document.getElementById('inv-screen').classList.remove('hidden');
@@ -2198,31 +2213,75 @@ function pickChar(i){
 /* ═══════ FLOOR MAP ═══════ */
 let currentFloor=0;
 let floorProgress=new Array(TOTAL_FLOORS).fill(false);
+// 동별 클리어 기록: { mapId: { clearedFloors:[...], floor:N } }
+let mapProgress={};
+// 층 선택 화면에서 보고 있는 동 인덱스 (현재 플레이 동과 별개)
+let floorMapViewIdx=0;
 let clearedFloors=[];  // 클리어한 층 목록
 
 function renderFloorMap(){
+  // ── 동 탭 ──
+  const tabWrap=document.getElementById('fm-map-tabs');
+  tabWrap.innerHTML='';
+  APT_MAPS.forEach((m,i)=>{
+    const isActive=floorMapViewIdx===i;
+    const tab=document.createElement('div');
+    tab.className='fm-map-tab'+(isActive?' active':'')+(m.locked?' locked-tab':'');
+    tab.style.borderColor=isActive?m.color:'rgba(255,255,255,0.1)';
+    tab.style.color=isActive?m.color:'#5a7a94';
+    // 해당 동 클리어율 계산
+    const mp=mapProgress[m.id];
+    const clearedCnt=mp?.clearedFloors?.length||0;
+    tab.textContent=`${m.icon} ${m.name} ${m.locked?'🔒':`${clearedCnt}/${m.floors}`}`;
+    if(!m.locked) tab.onclick=()=>{ floorMapViewIdx=i; renderFloorMap(); };
+    tabWrap.appendChild(tab);
+  });
+
+  // ── 현재 보는 동 정보 ──
+  const vm=APT_MAPS[floorMapViewIdx];
+  const vmp=mapProgress[vm.id];
+  const vCleared=vmp?.clearedFloors?.length||0;
+  const pctTxt=`${vm.name} · ${vCleared}/${vm.floors}층 클리어 (${Math.round(vCleared/vm.floors*100)}%)`;
+  document.getElementById('fm-map-progress').textContent=pctTxt;
+
+  // ── 층 노드 ──
   const g=document.getElementById('fm-grid');
   g.innerHTML='';
-  for(let i=0;i<TOTAL_FLOORS;i++){
+  const isCurrentMap=floorMapViewIdx===currentMapIdx;
+  const vmBoss=new Set(vm.bossFloors);
+  const vmCleared=new Set(vmp?.clearedFloors||[]);
+  const vmCurFloor=isCurrentMap?currentFloor:(vmp?.floor??-1);
+
+  for(let i=0;i<vm.floors;i++){
     const row=document.createElement('div');row.className='frow';
-    const lbl=document.createElement('div');lbl.className='fnlbl';lbl.textContent=floorName(i);
+    const lbl=document.createElement('div');lbl.className='fnlbl';lbl.textContent=vm.floorName(i);
     const node=document.createElement('div');
-    const isBoss=BOSS_FLOORS.has(i);
-    const cleared=floorProgress[i];
-    const isCur=currentFloor===i;
-    const locked=i>currentFloor&&!cleared&&!floorProgress[i-1]&&i>0;
+    const isBoss=vmBoss.has(i);
+    const cleared=vmCleared.has(i);
+    const isCur=isCurrentMap&&currentFloor===i;
+    const prevCleared=i===0||vmCleared.has(i-1);
+    const locked=!cleared&&!isCur&&!prevCleared;
     node.className=`fnode${isBoss?' boss':''}${cleared?' cleared':''}${isCur?' current':''}${locked?' locked':''}`;
     const icon=isBoss?'👹':'⚔';
-    const clbl=cleared?'✓':isCur?'현재':'';
-    node.innerHTML=`<span class="fnode-icon">${icon}</span><span class="fnode-lbl" style="color:${isBoss?'#E24B4A':cleared?'#1D9E75':isCur?'#5dcaa5':'#5a7a94'}">${floorName(i)}${isBoss?' [BOSS]':''} ${clbl}</span>`;
-    if(!locked) node.onclick=()=>{hideFloorMap();travelToFloor(i);};
+    const clbl=cleared?'✓':isCur?'◀ 현재':'';
+    node.innerHTML=`<span class="fnode-icon">${icon}</span><span class="fnode-lbl" style="color:${isBoss?'#E24B4A':cleared?'#1D9E75':isCur?'#5dcaa5':'#5a7a94'}">${vm.floorName(i)}${isBoss?' [BOSS]':''} ${clbl}</span>`;
+    if(!locked) node.onclick=()=>{ hideFloorMap(); travelToFloor(i, floorMapViewIdx); };
     row.appendChild(lbl);row.appendChild(node);g.appendChild(row);
   }
 }
 
-function travelToFloor(idx){
+function travelToFloor(idx, mapIdx){
   const wasRunning=running;
   running=false;
+  // 동이 바뀌는 경우 맵 적용
+  if(mapIdx!==undefined && mapIdx!==currentMapIdx){
+    applyMap(mapIdx);
+    floorProgress=new Array(TOTAL_FLOORS).fill(false);
+    const mp=mapProgress[getMap().id];
+    if(mp?.clearedFloors) mp.clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
+    clearedFloors=mp?.clearedFloors?[...mp.clearedFloors]:[];
+    showToast(`🏢 ${getMap().name}으로 이동`);
+  }
   currentFloor=idx;
   if(!player){startGame();return;}
   resetFloor();
@@ -3101,6 +3160,7 @@ function startGame(){
   gold=0;kills=0;
   currentFloor=0;
   clearedFloors=[];
+  mapProgress={};
   floorProgress=new Array(TOTAL_FLOORS).fill(false);
   selInvIdx=-1;selEnhIdx=-1;selMatIdx=-1;
 
@@ -3126,13 +3186,23 @@ function startGame(){
 
     const save=loadGameData(selChar);
     if(save){
+      // 동(맵) 복원
+      const savedMapIdx=save.mapIdx??currentMapIdx;
+      applyMap(savedMapIdx);
+      currentMapIdx=savedMapIdx;
+      floorMapViewIdx=savedMapIdx;
+      mapProgress=save.mapProgress||{};
+
       currentFloor=save.floor||0;
       inventory=save.inventoryObj||[];
       equipped=save.equippedObj||{weapon:null,armor:null,acc:null};
       gold=save.gold||0;kills=save.kills||0;
       clearedFloors=save.clearedFloors||[];
       clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
-      showToast(`💾 ${CHARS[selChar]?.name} 데이터 복원 Lv${save.lv} / ${floorName(currentFloor)}`);
+      // 동별 클리어 데이터 복원
+      const mp=mapProgress[getMap().id];
+      if(mp?.clearedFloors) mp.clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
+      showToast(`💾 ${CHARS[selChar]?.name} 데이터 복원 Lv${save.lv} / ${getMap().name} ${floorName(currentFloor)}`);
     }
 
     resize();buildMap(currentFloor);
@@ -3481,6 +3551,12 @@ function stageComplete(){
 
   // ── 층 클리어 시 즉시 저장 ──
   if(!clearedFloors.includes(currentFloor)) clearedFloors.push(currentFloor);
+  // 동별 클리어 기록 업데이트
+  const mapId=getMap().id;
+  if(!mapProgress[mapId]) mapProgress[mapId]={clearedFloors:[],floor:0};
+  if(!mapProgress[mapId].clearedFloors.includes(currentFloor))
+    mapProgress[mapId].clearedFloors.push(currentFloor);
+  mapProgress[mapId].floor=currentFloor;
   saveGameData();
   showToast('💾 저장됨');
 
