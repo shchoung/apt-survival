@@ -2205,7 +2205,25 @@ function renderInv(){
       div.style.position='relative';
       div.innerHTML=`${g.item.icon}<span class="grade-badge g${g.item.grade.toLowerCase()}">${g.item.grade}</span>${g.count>1?`<span style="position:absolute;bottom:1px;right:2px;font-family:var(--tf);font-size:8px;color:#e0e8f0;text-shadow:0 0 3px #000;font-weight:700">×${g.count}</span>`:''}`;
       div.title=`${g.item.name} ×${g.count}`;
-      div.onclick=()=>onStackedInvClick(g.firstIdx, g.indices);
+      div.onclick=()=>{
+        _invLastTap={idx:-1,t:0}; // 스택탭은 별도 처리
+        onStackedInvClick(g.firstIdx, g.indices);
+      };
+      div.ondblclick=()=>{
+        if(g.item.type==='consumable'||g.item.type==='material'){
+          selInvIdx=g.firstIdx;
+          useConsumable(g.firstIdx);
+        }
+      };
+      // 모바일 더블탭
+      let _stLast=0;
+      div.addEventListener('touchend',()=>{
+        const now=Date.now();
+        if(now-_stLast<350&&(g.item.type==='consumable'||g.item.type==='material')){
+          selInvIdx=g.firstIdx; useConsumable(g.firstIdx);
+        }
+        _stLast=now;
+      });
       slots.appendChild(div);
     });
 
@@ -2252,7 +2270,19 @@ function renderInv(){
       div.className=cls;
       div.innerHTML=`${item.icon}<span class="grade-badge g${item.grade.toLowerCase()}">${item.grade}</span>${enhLevel>0?`<span class="enh-badge">+${enhLevel}</span>`:''}`;
       div.title=item.name+(isEq?' [장착중]':'')+(isEnhTarget?' [강화대상]':isEnhMat?' [재료]':'');
-      div.onclick=()=>onInvClick(idx);
+      div.onclick=()=>onInvTap(idx, item.type, Object.values(equipped).includes(idx));
+      div.ondblclick=()=>{
+        const {item}=inventory[idx]||{};
+        if(!item) return;
+        const isEq=Object.values(equipped).includes(idx);
+        if(isEq){
+          unequipItem(idx);
+        } else if(item.slot){
+          equipItem(idx);
+        } else if(item.type==='consumable'){
+          useConsumable(idx);
+        }
+      };
       slots.appendChild(div);
     });
 
@@ -2341,6 +2371,22 @@ function renderInv(){
 function onInvClick(idx){
   selInvIdx=selInvIdx===idx?-1:idx;
   renderInv();
+}
+
+// 모바일 더블탭 감지용
+let _invLastTap={idx:-1,t:0};
+function onInvTap(idx, type, isEq){
+  const now=Date.now();
+  if(_invLastTap.idx===idx && now-_invLastTap.t<350){
+    // 더블탭 → 즉시 장착/해제/사용
+    _invLastTap={idx:-1,t:0};
+    if(isEq){ unequipItem(idx); return; }
+    if(type==='consumable'||type==='material'){ useConsumable(idx); return; }
+    equipItem(idx);
+    return;
+  }
+  _invLastTap={idx,t:now};
+  onInvClick(idx);
 }
 
 // 스택 아이템 클릭 — 그룹의 첫 번째 인덱스로 선택
