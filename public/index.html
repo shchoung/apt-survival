@@ -1426,20 +1426,28 @@ function floorName(idx){
 
 /* ═══════ ENEMY TYPES ═══════ */
 const ETYPES_BASE=[
-  {name:"순찰 드론",   hp:90,  atk:18, spd:1.4,size:9, color:"#888780",exp:15,gold:5},
+  {name:"순찰 드론",   hp:90,  atk:18, spd:1.4,size:9, color:"#888780",exp:15,gold:5,
+    ranged:true,  shotSpd:5,  shotRange:180, shotCd:90,  shotType:'drone_shot'},
   {name:"전투 로봇",   hp:210, atk:45, spd:1.1,size:12,color:"#1D9E75",exp:45,gold:15},
-  {name:"해커봇",      hp:320, atk:65, spd:1.6,size:10,color:"#534AB7",exp:80,gold:25},
+  {name:"해커봇",      hp:320, atk:65, spd:1.6,size:10,color:"#534AB7",exp:80,gold:25,
+    ranged:true,  shotSpd:7,  shotRange:200, shotCd:70,  shotType:'hack_shot'},
   {name:"엘리트 센티넬",hp:550,atk:90, spd:1.0,size:15,color:"#BA7517",exp:160,gold:50},
-  {name:"사이버 헌터", hp:380, atk:110,spd:1.8,size:11,color:"#993556",exp:120,gold:40},
+  {name:"사이버 헌터", hp:380, atk:110,spd:1.8,size:11,color:"#993556",exp:120,gold:40,
+    ranged:true,  shotSpd:9,  shotRange:220, shotCd:55,  shotType:'hunter_shot'},
 ];
 
 const BOSS_TYPES=[
-  {name:"SENTINEL-7",hp:800, atk:80, spd:.9,size:22,color:"#E24B4A",exp:400,gold:200,boss:true},
-  {name:"NEXUS",     hp:1200,atk:100,spd:.8,size:24,color:"#534AB7",exp:600,gold:300,boss:true},
+  {name:"SENTINEL-7",hp:800, atk:80, spd:.9,size:22,color:"#E24B4A",exp:400,gold:200,boss:true,
+    ranged:true,  shotSpd:6,  shotRange:280, shotCd:80,  shotType:'boss_shot'},
+  {name:"NEXUS",     hp:1200,atk:100,spd:.8,size:24,color:"#534AB7",exp:600,gold:300,boss:true,
+    ranged:true,  shotSpd:7,  shotRange:300, shotCd:70,  shotType:'boss_shot', shotCount:3},
   {name:"BEHEMOTH",  hp:2000,atk:130,spd:.7,size:28,color:"#BA7517",exp:900,gold:500,boss:true},
-  {name:"APEX-α",    hp:3000,atk:160,spd:.8,size:30,color:"#E24B4A",exp:1500,gold:800,boss:true},
-  {name:"APEX-β",    hp:5000,atk:200,spd:.9,size:32,color:"#E24B4A",exp:2500,gold:1500,boss:true},
-  {name:"APEX CORE", hp:9999,atk:250,spd:1.0,size:36,color:"#ef9f27",exp:5000,gold:3000,boss:true},
+  {name:"APEX-α",    hp:3000,atk:160,spd:.8,size:30,color:"#E24B4A",exp:1500,gold:800,boss:true,
+    ranged:true,  shotSpd:8,  shotRange:320, shotCd:60,  shotType:'boss_shot', shotCount:5},
+  {name:"APEX-β",    hp:5000,atk:200,spd:.9,size:32,color:"#E24B4A",exp:2500,gold:1500,boss:true,
+    ranged:true,  shotSpd:9,  shotRange:350, shotCd:50,  shotType:'boss_shot', shotCount:6},
+  {name:"APEX CORE", hp:9999,atk:250,spd:1.0,size:36,color:"#ef9f27",exp:5000,gold:3000,boss:true,
+    ranged:true,  shotSpd:10, shotRange:380, shotCd:45,  shotType:'boss_shot', shotCount:8},
 ];
 
 /* ═══════ ITEM SYSTEM ═══════ */
@@ -2433,6 +2441,145 @@ let player,enemies=[],keys={},mouseX=0,mouseY=0;
 let cdT=[0,0,0,0,0],ntick=0;
 let camX=0,camY=0;
 
+/* ═══════ 층별 PNG 맵 시스템 ═══════
+ *
+ * 사용법:
+ *   FLOOR_MAP_IMAGES[층번호] = './maps/floor_01.png'
+ *   형식으로 층에 PNG를 연결하면 자동으로 적용됩니다.
+ *
+ * PNG 제작 규칙 (방식 B — MAP 배열 자동 생성):
+ *   크기: 28×20 픽셀 (COLS×ROWS, 픽셀 1개 = 타일 1개)
+ *   색상: 순수 흰색(255,255,255) = 바닥(0)
+ *         순수 검정(0,0,0) = 벽(1)
+ *         회색(128,128,128) = 장애물(2)
+ *         빨강(255,0,0) = 플레이어 스폰
+ *         초록(0,255,0) = EXIT(다음 층 출구)
+ *         파랑(0,0,255) = 적 스폰 포인트
+ *
+ * 방식 A (배경 이미지만 교체, MAP은 BSP 자동생성 유지):
+ *   FLOOR_BG_IMAGES[층번호] = './maps/bg_floor_01.png'
+ *   — 크기 제한 없음, 아무 PNG나 배경으로 사용 가능
+ * ════════════════════════════════════════════════════ */
+
+// 방식 A: 배경 이미지 (크기 자유, MAP은 BSP 유지)
+const FLOOR_BG_IMAGES = {
+  // 예시: 1: './maps/bg_floor_01.png',
+  //       5: './maps/bg_floor_05_boss.png',
+};
+
+// 방식 B: 28×20 픽셀 PNG → MAP 배열 + 스폰 자동 생성
+const FLOOR_MAP_IMAGES = {
+  // 예시: 1: './maps/map_floor_01.png',
+  //       2: './maps/map_floor_02.png',
+};
+
+let floorBgImgs = {};   // 방식A: 로드된 Image 객체
+let floorMapImgs = {};  // 방식B: 로드된 Image 객체
+let currentBgImg = null; // 현재 배경 Image
+
+// 게임 시작 시 미리 로딩
+function preloadFloorImages(){
+  Object.entries(FLOOR_BG_IMAGES).forEach(([floor, src])=>{
+    const img=new Image();
+    img.src=src;
+    floorBgImgs[floor]=img;
+  });
+  Object.entries(FLOOR_MAP_IMAGES).forEach(([floor, src])=>{
+    const img=new Image();
+    img.src=src;
+    floorMapImgs[floor]=img;
+  });
+}
+
+/* 방식 B: PNG 픽셀 읽어서 MAP 배열 생성 */
+function buildMapFromImage(img, floor){
+  const oc=document.createElement('canvas');
+  oc.width=COLS; oc.height=ROWS;
+  const oc2=oc.getContext('2d');
+  oc2.drawImage(img,0,0,COLS,ROWS);
+  const px=oc2.getImageData(0,0,COLS,ROWS).data;
+
+  MAP=[];ROOMS=[];SPAWN_POINTS=[];
+  let playerSpawn=null, exitPos=null;
+
+  for(let r=0;r<ROWS;r++){
+    MAP[r]=[];
+    for(let c=0;c<COLS;c++){
+      const i=(r*COLS+c)*4;
+      const R=px[i],G=px[i+1],B=px[i+2];
+
+      if(R>200&&G>200&&B>200){          // 흰색 → 바닥
+        MAP[r][c]=0;
+      } else if(R<60&&G<60&&B<60){      // 검정 → 벽
+        MAP[r][c]=1;
+      } else if(R>100&&G>100&&B>100){   // 회색 → 장애물
+        MAP[r][c]=2;
+      } else if(R>180&&G<80&&B<80){     // 빨강 → 플레이어 스폰
+        MAP[r][c]=0;
+        playerSpawn={x:c*TILE+TILE/2, y:r*TILE+TILE/2};
+      } else if(R<80&&G>180&&B<80){     // 초록 → EXIT
+        MAP[r][c]=0;
+        // EXIT 방으로 가상 Room 생성
+        ROOMS.push({x:c-1,y:r-1,w:3,h:3,isExit:true});
+      } else if(R<80&&G<80&&B>180){     // 파랑 → 적 스폰
+        MAP[r][c]=0;
+        SPAWN_POINTS.push({x:c*TILE+TILE/2, y:r*TILE+TILE/2});
+      } else {
+        MAP[r][c]=0; // 기타 → 바닥
+      }
+    }
+  }
+
+  // 플레이어 스폰 적용
+  if(playerSpawn) {
+    window._overridePlayerSpawn = playerSpawn;
+  }
+  // 파랑 픽셀이 없으면 바닥 전체에서 자동 스폰 포인트 수집
+  if(SPAWN_POINTS.length===0){
+    for(let r=1;r<ROWS-1;r++) for(let c=1;c<COLS-1;c++){
+      if(MAP[r][c]===0&&Math.random()<0.04)
+        SPAWN_POINTS.push({x:c*TILE+TILE/2,y:r*TILE+TILE/2});
+    }
+  }
+  // EXIT 없으면 오른쪽 하단 빈 공간 자동 배치
+  if(ROOMS.length===0||!ROOMS.find(r=>r.isExit)){
+    for(let r=ROWS-2;r>0;r--) for(let c=COLS-2;c>0;c--){
+      if(MAP[r][c]===0){ROOMS.push({x:c-1,y:r-1,w:3,h:3});break;}
+    }
+  }
+
+  console.log(`[MAP] 층 ${floor} PNG에서 맵 생성 완료. 스폰:${SPAWN_POINTS.length}개`);
+}
+
+/* 방식 A: 배경만 PNG로 교체 */
+function loadFloorBg(floor){
+  currentBgImg = floorBgImgs[floor] || null;
+}
+
+/* buildMap 래퍼 — PNG 있으면 PNG 우선 */
+const _origBuildMap = buildMap;
+function buildMap(floor){
+  minimapCache=null; minimapDirty=true;
+  window._overridePlayerSpawn=null;
+
+  // 방식 B: MAP 배열 PNG
+  const mapImg=floorMapImgs[floor];
+  if(mapImg&&mapImg.complete&&mapImg.naturalWidth>0){
+    buildMapFromImage(mapImg, floor);
+    loadFloorBg(floor);
+    return;
+  }
+  // 방식 A: 배경만 PNG, MAP은 BSP
+  loadFloorBg(floor);
+  // PNG 로딩 중이면 로드 후 재시도
+  if(mapImg&&!mapImg.complete){
+    mapImg.onload=()=>{ buildMap(floor); };
+    _origBuildMap(floor);
+    return;
+  }
+  _origBuildMap(floor);
+}
+
 /* ═══════ BSP MAP GENERATOR ═══════ */
 let ROOMS=[];   // [{x,y,w,h}] 방 목록 (타일 단위)
 let SPAWN_POINTS=[];  // 적 스폰 위치 (픽셀)
@@ -2710,13 +2857,17 @@ function startGame(){
 }
 
 function resetFloor(){
-  enemies=[];drops_arr=[];particles=[];floats=[];skillFX=[];projectiles=[];
+  enemies=[];drops_arr=[];particles=[];floats=[];skillFX=[];projectiles=[];enemyProjectiles=[];
   waveKills=0;waveNum=1;cdT=[0,0,0,0,0];  // kills는 누적값 — 리셋 안 함
   minimapCache=null;minimapDirty=true;  // 미니맵 캐시 초기화
   buildMap(currentFloor);
   if(player){
     let sx=COLS/2*TILE,sy=ROWS/2*TILE;
-    if(ROOMS.length>0){
+    // PNG 맵에서 지정한 스폰 우선
+    if(window._overridePlayerSpawn){
+      sx=window._overridePlayerSpawn.x;
+      sy=window._overridePlayerSpawn.y;
+    } else if(ROOMS.length>0){
       sx=(ROOMS[0].x+Math.floor(ROOMS[0].w/2))*TILE+TILE/2;
       sy=(ROOMS[0].y+Math.floor(ROOMS[0].h/2))*TILE+TILE/2;
     }
@@ -2784,9 +2935,10 @@ function spawnEnemy(t){
     ...t,x:sx,y:sy,id:Math.random(),atkT:rand(20,65),flick:0,
     path:[],pathTick:0,alertTick:0,wanderTick:0,wanderDx:0,wanderDy:0,
     state:'idle',
-    typeIdx:t.typeIdx??0,  // 비호스트 동기화용
-    maxHp:t.hp,           // maxHp 저장
+    typeIdx:t.typeIdx??0,
+    maxHp:t.hp,
     prevX:sx,prevY:sy,atkAnim:0,hitAnim:0,animPhase:Math.random()*Math.PI*2,
+    shotCdT: t.ranged ? rand(0, t.shotCd||80) : 0, // 원거리 쿨타임 (초기값 분산)
   });
 }
 
@@ -2934,11 +3086,10 @@ function update(){
       if(!freed){const safe=findSafeSpawn(e.x,e.y);e.x=safe.x;e.y=safe.y;}
     }
 
-    // 공격 판정 — 타겟 플레이어에게 데미지
+    // 근접 공격 판정
     e.atkT--;
     if(e.atkT<=0&&dist<(e.size||12)+20){
       e.atkT=65;e.state='chase';e.atkAnim=12;
-      // 호스트 자신이 타겟이면 직접 데미지
       const isTargetMe=(targetX===player.x&&targetY===player.y);
       if(isTargetMe&&player.invincible===0){
         const defTotal=player.def+eq.def;
@@ -2949,6 +3100,32 @@ function update(){
         sparks(player.x,player.y,'#ff7070',6);
         addFloat(player.x,player.y,`-${dmg}`,'#ff7070');
         if(player.hp<=0)gameOver();
+      }
+    }
+
+    // ── 원거리 공격 ──
+    if(e.ranged && e.shotCdT!==undefined){
+      e.shotCdT--;
+      const shotRange = e.shotRange || 200;
+      // 사거리 안에 있고 chase 상태일 때 발사
+      if(e.shotCdT<=0 && e.state==='chase' && dist<=shotRange && dist>30){
+        e.shotCdT = e.shotCd || 80;
+        e.atkAnim = 8;
+        const ang = Math.atan2(player.y-e.y, player.x-e.x);
+        const dmg = Math.max(1, Math.floor(e.atk*0.6) - Math.floor((player.def+eq.def)*0.3) + rand(-3,4));
+        const count = e.shotCount||1;
+        const spd = e.shotSpd||6;
+        const life = Math.ceil(shotRange/spd)+5;
+        if(count===1){
+          spawnEnemyProjectile(e.shotType||'enemy_shot', e.x, e.y, ang, dmg, {spd, maxLife:life, color:e.color});
+        } else {
+          // 산탄 (보스 다중발사)
+          const spread = Math.PI*0.18;
+          for(let b=0;b<count;b++){
+            const a = ang + (b-(count-1)/2)*spread/(count-1);
+            spawnEnemyProjectile(e.shotType||'boss_shot', e.x, e.y, a, Math.floor(dmg*0.7), {spd, maxLife:life, color:e.color});
+          }
+        }
       }
     }
     if(e.flick>0)e.flick--;
@@ -2966,6 +3143,7 @@ function update(){
   cdT=cdT.map(t=>Math.max(0,t-1));
   updateSkillFX();
   updateProjectiles();
+  updateEnemyProjectiles();
   updateQuickSlots();
   if(player.invincible>0){
     // 패널이 하나라도 열려있으면 무적 유지
@@ -3447,6 +3625,17 @@ function gameOver(){
 function draw(){
   ctx.fillStyle='#07090d';ctx.fillRect(0,0,W,H);
 
+  // ── 층 배경 PNG (방식 A) ──
+  if(currentBgImg&&currentBgImg.complete&&currentBgImg.naturalWidth>0){
+    const mapW=COLS*TILE, mapH=ROWS*TILE;
+    const ms=w2s(0,0);
+    const scale=TILE; // 월드→스크린 스케일
+    ctx.save();
+    ctx.globalAlpha=0.92;
+    ctx.drawImage(currentBgImg, ms.x, ms.y, mapW*(W/(camX+W)), mapH*(H/(camY+H)));
+    ctx.restore();
+  }
+
   const th=currentFloor;
   const wallC=th<3?'#1a2235':th<7?'#161d2e':th<12?'#1c1530':th<17?'#152218':th<22?'#221515':'#15152a';
   const obstC=th<3?'#243045':th<7?'#1e2840':th<12?'#281e3a':th<17?'#1e2a28':th<22?'#2a1e1e':'#1e1e2a';
@@ -3652,6 +3841,7 @@ function draw(){
   // 스킬 이펙트 (적 아래)
   drawSkillFX();
   drawProjectiles();
+  drawEnemyProjectiles();
   // 멀티 다른 플레이어
   drawMultiPlayers();
   // 플레이어
@@ -4010,6 +4200,9 @@ TILE_KEYS.forEach(k=>{
   try{ img.src=eval(k); }catch(e){}
   tileImgs[k]=img;
 });
+
+// 층별 PNG 맵 미리 로딩
+preloadFloorImages();
 
 // 탱커 이미지 로드
 const tankerImg=new Image();
@@ -4950,7 +5143,137 @@ function spawnProjectile(type,wx,wy,angle,dmg,opts={}){
     life:0, maxLife,
     dmg, type, angle,
     pierce, hit:new Set(),
-    trail:[], // 잔상 포인트
+    trail:[],
+    fromEnemy: false,
+  });
+}
+
+// 적 전용 투사체 — 플레이어에게 데미지
+let enemyProjectiles=[];
+
+function spawnEnemyProjectile(type, wx, wy, angle, dmg, opts={}){
+  const spd=opts.spd||6;
+  const maxLife=opts.maxLife||40;
+  enemyProjectiles.push({
+    x:wx, y:wy,
+    vx:Math.cos(angle)*spd,
+    vy:Math.sin(angle)*spd,
+    life:0, maxLife,
+    dmg, type, angle,
+    color: opts.color||'#ff4444',
+    trail:[],
+  });
+}
+
+function updateEnemyProjectiles(){
+  const eq=getEquipStats();
+  const toRemove=[];
+  enemyProjectiles.forEach((p,idx)=>{
+    p.trail.push({x:p.x,y:p.y});
+    if(p.trail.length>6) p.trail.shift();
+    p.x+=p.vx; p.y+=p.vy;
+    p.life++;
+
+    // 벽 충돌
+    const tc=Math.floor(p.x/TILE), tr=Math.floor(p.y/TILE);
+    if(tr>=0&&tr<ROWS&&tc>=0&&tc<COLS&&MAP[tr]&&MAP[tr][tc]===1){
+      toRemove.push(idx);
+      sparks(p.x,p.y,'#ff6644',4);
+      return;
+    }
+
+    // 플레이어 충돌
+    if(player&&player.invincible===0){
+      const d=Math.sqrt((player.x-p.x)**2+(player.y-p.y)**2);
+      if(d<18){
+        toRemove.push(idx);
+        const dmg2=Math.max(1,p.dmg-Math.floor(eq.def*0.4)+rand(-3,4));
+        player.hp=Math.max(0,player.hp-dmg2);
+        player.invincible=18;
+        SFX.playerDmg();
+        addFloat(player.x,player.y,`-${dmg2}`,'#ff9966');
+        sparks(player.x,player.y,'#ff6644',5);
+        addLog(`원거리 피격 -${dmg2}`,'lhit');
+        if(player.hp<=0) gameOver();
+      }
+    }
+
+    if(p.life>=p.maxLife) toRemove.push(idx);
+  });
+  [...new Set(toRemove)].sort((a,b)=>b-a).forEach(i=>enemyProjectiles.splice(i,1));
+}
+
+function drawEnemyProjectiles(){
+  enemyProjectiles.forEach(p=>{
+    const s=w2s(p.x,p.y);
+    const t=p.life/p.maxLife;
+
+    ctx.save();
+
+    // 잔상
+    p.trail.forEach((pt,i)=>{
+      const ts=w2s(pt.x,pt.y);
+      ctx.beginPath();
+      ctx.arc(ts.x,ts.y,2*(i/p.trail.length),0,Math.PI*2);
+      ctx.fillStyle=p.color||'#ff4444';
+      ctx.globalAlpha=0.3*(i/p.trail.length);
+      ctx.fill();
+    });
+    ctx.globalAlpha=1;
+
+    ctx.rotate?.(0); // reset
+    ctx.save();
+    ctx.translate(s.x,s.y);
+    ctx.rotate(p.angle);
+
+    if(p.type==='drone_shot'){
+      // 드론 — 작은 에너지 볼
+      ctx.beginPath();ctx.arc(0,0,4,0,Math.PI*2);
+      ctx.fillStyle='#cccccc';ctx.fill();
+      ctx.shadowColor='#ffffff';ctx.shadowBlur=6;
+      ctx.beginPath();ctx.arc(0,0,2,0,Math.PI*2);
+      ctx.fillStyle='#ffffff';ctx.fill();
+    } else if(p.type==='hack_shot'){
+      // 해커봇 — 육각형 데이터 패킷
+      ctx.beginPath();
+      for(let i=0;i<6;i++){
+        const a=i*Math.PI/3-Math.PI/6;
+        i===0?ctx.moveTo(Math.cos(a)*5,Math.sin(a)*5):ctx.lineTo(Math.cos(a)*5,Math.sin(a)*5);
+      }
+      ctx.closePath();
+      ctx.fillStyle='#534AB7';ctx.fill();
+      ctx.strokeStyle='#a099ff';ctx.lineWidth=1;ctx.stroke();
+      ctx.shadowColor='#a099ff';ctx.shadowBlur=8;
+    } else if(p.type==='hunter_shot'){
+      // 사이버 헌터 — 붉은 레이저 볼트
+      ctx.beginPath();ctx.ellipse(0,0,8,3,0,0,Math.PI*2);
+      ctx.fillStyle='#993556';ctx.fill();
+      ctx.shadowColor='#ff3377';ctx.shadowBlur=10;
+      ctx.beginPath();ctx.arc(0,0,2,0,Math.PI*2);
+      ctx.fillStyle='#ffaacc';ctx.fill();
+    } else if(p.type==='boss_shot'){
+      // 보스 — 크고 위협적인 에너지탄
+      const rad=6+Math.sin(p.life*0.4)*1;
+      ctx.beginPath();ctx.arc(0,0,rad,0,Math.PI*2);
+      ctx.fillStyle=p.color||'#E24B4A';ctx.fill();
+      ctx.shadowColor=p.color||'#E24B4A';ctx.shadowBlur=14;
+      ctx.beginPath();ctx.arc(0,0,3,0,Math.PI*2);
+      ctx.fillStyle='#ffffff88';ctx.fill();
+      // 외곽 링
+      ctx.strokeStyle=p.color||'#E24B4A';ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.arc(0,0,rad+3,0,Math.PI*2);
+      ctx.globalAlpha=0.4;ctx.stroke();
+      ctx.globalAlpha=1;
+    } else {
+      // 기본 적 투사체
+      ctx.beginPath();ctx.arc(0,0,4,0,Math.PI*2);
+      ctx.fillStyle=p.color||'#ff4444';ctx.fill();
+      ctx.shadowColor=p.color||'#ff4444';ctx.shadowBlur=8;
+    }
+
+    ctx.shadowBlur=0;
+    ctx.restore();
+    ctx.restore();
   });
 }
 
