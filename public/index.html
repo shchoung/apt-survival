@@ -3334,10 +3334,19 @@ function stageComplete(){
 
   // ── clear_1.png 4분할 → 배경으로 캐릭터별 분기 ──
   // 구성: 좌상=이준호(0), 우상=김서아(1), 좌하=박민재(2), 우하=오하나(3)
-  const bgPos=['left top','right top','left bottom','right bottom'][selChar]||'left top';
-  sc.style.backgroundImage=`url(${CLEAR1_PNG})`;
-  sc.style.backgroundSize='200% 200%';
-  sc.style.backgroundPosition=bgPos;
+  // PC/모바일 모두 이미지가 퍼지지 않도록: 화면 크기 기준으로 픽셀 단위 계산
+  (function applyCharBg(){
+    const sw=sc.offsetWidth||window.innerWidth;
+    const sh=sc.offsetHeight||window.innerHeight;
+    // 이미지는 2×2 분할이므로 각 칸을 화면 전체로 채우려면 2배 크기
+    const bgW=sw*2, bgH=sh*2;
+    const col=selChar%2, row=Math.floor(selChar/2);
+    const offX=-(col*sw), offY=-(row*sh);
+    sc.style.backgroundImage=`url(${CLEAR1_PNG})`;
+    sc.style.backgroundSize=`${bgW}px ${bgH}px`;
+    sc.style.backgroundPosition=`${offX}px ${offY}px`;
+    sc.style.backgroundRepeat='no-repeat';
+  })();
   sc.style.display='flex';
 
   const titleEl=document.getElementById('sc-title');
