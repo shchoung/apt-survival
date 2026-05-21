@@ -1658,6 +1658,11 @@ canvas{display:block;width:100%;height:100%}
     </div>
     <!-- 아이템 상세 (선택 시) -->
     <div class="item-detail" id="item-detail" style="display:none;flex-shrink:0;margin-top:5px"></div>
+    <!-- 공용창 빠른 이동 버튼 (아이템 선택 시 항상 표시) -->
+    <div id="inv-shared-quickbar" style="display:none;flex-shrink:0;margin-top:4px;display:none;gap:5px">
+      <button class="sbtn" id="btn-to-shared-quick" style="font-size:10px;padding:4px 10px;flex:1;border-color:#a0e8ff;color:#a0e8ff" onclick="moveToSharedQuick()">📦 공용창에 넣기</button>
+      <button class="sbtn" id="btn-to-auction-quick" style="font-size:10px;padding:4px 10px;flex:1;border-color:#f5c842;color:#f5c842" onclick="goAucSellFromInv()">🏺 경매 등록</button>
+    </div>
   </div>
 
   <!-- 퀘스트 / 도전과제 화면 -->
@@ -2135,6 +2140,8 @@ function showInv(){
 function hideInv(){
   document.getElementById('inv-screen').classList.add('hidden');
   panelClose('inv');
+  const bar=document.getElementById('inv-shared-quickbar');
+  if(bar) bar.style.display='none';
 }
 
 /* ═══════ CHAR SELECT ═══════ */
@@ -2542,6 +2549,55 @@ function renderSharedInv(){
   if(btnFrom) btnFrom.disabled= selSharedIdx<0||!sharedInventory[selSharedIdx];
 }
 
+// 인벤 하단 퀵바 표시/숨김
+function updateInvSharedQuickbar(){
+  const bar = document.getElementById('inv-shared-quickbar');
+  if(!bar) return;
+  const hasItem = selInvIdx >= 0 && inventory[selInvIdx];
+  const isEquipped = hasItem && Object.values(equipped).includes(selInvIdx);
+  if(hasItem && !isEquipped && invTab !== 'shared'){
+    bar.style.display = 'flex';
+    const btnShared = document.getElementById('btn-to-shared-quick');
+    if(btnShared) btnShared.disabled = sharedInventory.length >= 40;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+// 퀵바 → 공용창 이동 (공용탭 전환 없이 바로 처리)
+function moveToSharedQuick(){
+  if(selInvIdx < 0 || !inventory[selInvIdx]){ showToast('아이템을 선택하세요'); return; }
+  if(sharedInventory.length >= 40){ showToast('공용창이 가득 찼습니다 (40/40)'); return; }
+  if(Object.values(equipped).includes(selInvIdx)){ showToast('장착 중인 아이템은 공용창에 넣을 수 없습니다'); return; }
+  const e = inventory[selInvIdx];
+  sharedInventory.push({itemId: e.item.id, enhLevel: e.enhLevel});
+  ['weapon','armor','acc'].forEach(slot=>{
+    if(equipped[slot] !== null && equipped[slot] > selInvIdx) equipped[slot]--;
+  });
+  inventory.splice(selInvIdx, 1);
+  selInvIdx = -1;
+  saveSharedInv();
+  saveGameData();
+  showToast(`📦 공용창에 넣었습니다`);
+  renderInv();
+  updateInvSharedQuickbar();
+}
+
+// 퀵바 → 경매 등록 탭으로 바로 이동
+function goAucSellFromInv(){
+  if(selInvIdx < 0 || !inventory[selInvIdx]){ showToast('아이템을 선택하세요'); return; }
+  if(Object.values(equipped).includes(selInvIdx)){ showToast('장착 중인 아이템은 등록할 수 없습니다'); return; }
+  const savedIdx = selInvIdx;
+  const {item, enhLevel} = inventory[savedIdx];
+  hideInv();
+  showScr('auction');
+  // 잠깐 기다렸다가 sell 탭 열고 해당 아이템 미리 선택
+  setTimeout(()=>{
+    setAucTab('sell');
+    setTimeout(()=>{ selectSellItem(savedIdx, item, enhLevel); }, 80);
+  }, 80);
+}
+
 // 내 인벤 → 공용창으로 이동
 function moveToShared(){
   if(selInvIdx<0||!inventory[selInvIdx]){ showToast('내 인벤에서 아이템을 선택하세요'); return; }
@@ -2719,6 +2775,7 @@ function renderInv(){
           <div class="itd-btn" style="color:var(--cr);border-color:var(--cr)" onclick="dropItem(${selInvIdx})">버리기</div>
         </div>`;
     } else { det.style.display='none'; }
+    updateInvSharedQuickbar();
 
   } else {
     /* ── 장착 탭: 기존 개별 뷰 ── */
@@ -2796,6 +2853,7 @@ function renderInv(){
           <div class="itd-btn" style="color:var(--cr);border-color:var(--cr)" onclick="dropItem(${selInvIdx})">버리기</div>
         </div>`;
     } else { det.style.display='none'; }
+    updateInvSharedQuickbar();
   }
 
   /* ── 장착 슬롯 ── */
