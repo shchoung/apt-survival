@@ -1342,6 +1342,8 @@ canvas{display:block;width:100%;height:100%}
       <div class="stitle" style="font-size:16px;letter-spacing:2px;margin:0">🏺 경매장</div>
       <button class="sbtn gray" style="padding:3px 10px;font-size:10px" onclick="showScr('title')">← 뒤로</button>
     </div>
+    <!-- 캐릭터별 골드 현황 -->
+    <div id="auc-char-gold" style="display:flex;gap:4px;margin-bottom:8px;flex-shrink:0;flex-wrap:wrap"></div>
     <!-- 탭 -->
     <div class="auc-tabs" style="flex-shrink:0">
       <button class="auc-tab active" id="auc-tab-browse" onclick="setAucTab('browse')">🔍 둘러보기</button>
@@ -2116,7 +2118,7 @@ function showScr(id){
   if(id==='title') startBGM(0);
   if(id==='ranking') loadRanking('floor');
   if(id==='board') loadBoard(boardPage||1);
-  if(id==='auction'){ setAucTab('browse'); }
+  if(id==='auction'){ renderAucCharGold(); setAucTab('browse'); }
 }
 function hideAllOverlays(){
   _openPanels.clear(); // 모든 패널 강제 닫힘 → 무적 Set 초기화
@@ -4227,6 +4229,26 @@ function useSkill(i){
     return;
   }
 
+  // ── 공통: i===0 기본공격 + 원거리 무기 장착 시 투사체 발사 (전 캐릭터) ──
+  if(i===0 && eq.rangeType==='ranged'){
+    const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.5+rand(-3,6)));
+    const wpDraw=(equipped.weapon!=null&&inventory[equipped.weapon])
+      ? inventory[equipped.weapon].item.weaponDraw : 'pistol';
+    const isSniper=['sniper','bow'].includes(wpDraw);
+    const spd  = isSniper ? 11 : 8;
+    const proj = isSniper ? 'sniper_proj' : 'ranged_basic';
+    const life = Math.round(eq.atkRange / spd);
+    spawnProjectile(proj, player.x, player.y, ang, dmg, {spd, maxLife:life, pierce:isSniper});
+    // 시각 이펙트
+    const gradeColor2=(equipped.weapon!=null&&inventory[equipped.weapon])
+      ?({S:'#f5c842',A:'#e24b4b',B:'#5dcaa5',C:'#a0bcd0'}[inventory[equipped.weapon].item.grade]||'#a0bcd0')
+      :'#a0bcd0';
+    spawnSkillFX('hack', player.x, player.y, ang, gradeColor2, 'C');
+    addLog(`${CHARS[selChar].skills[i]}`,'lsk');
+    cdT[i]=sk.cd;
+    return;
+  }
+
   // 공격 스킬 이펙트 — 투사체 캐릭터(min/hana)는 생략
   if(selChar!==2&&selChar!==3){
     let fxType='slash';
@@ -4341,20 +4363,8 @@ function useSkill(i){
   }
 
   let hit=0;
-  // ── 기본공격 스킬(i===0)은 장착 무기 사거리/타입 적용 ──
+  // ── 근접 공격: 사거리/AOE 적용 ──
   const effRange = (i===0) ? eq.atkRange : sk.range;
-  const isRangedWp = (i===0) && eq.rangeType==='ranged';
-
-  if(isRangedWp && i===0){
-    // ── 원거리 무기 기본공격: 자동 투사체 발사 ──
-    const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.5+rand(-3,6)));
-    const wpDraw = (equipped.weapon!=null&&inventory[equipped.weapon]) ? inventory[equipped.weapon].item.weaponDraw : 'pistol';
-    const projType = ['sniper','bow'].includes(wpDraw) ? 'sniper_proj' : 'ranged_basic';
-    const spd = ['sniper','bow'].includes(wpDraw) ? 11 : 8;
-    spawnProjectile(projType, player.x, player.y, ang, dmg, {spd, maxLife:Math.round(effRange/spd), pierce:false});
-    addLog(`${CHARS[selChar].skills[i]}`,'lsk');
-    return;
-  }
 
   enemies.forEach(e=>{
     const dp=Math.sqrt((e.x-player.x)**2+(e.y-player.y)**2);
@@ -7279,6 +7289,53 @@ function fmtDate(s){
 /* ═══════════════════════════════════════
    경매장 클라이언트 로직
    ═══════════════════════════════════════ */
+// 경매장 상단 — 캐릭터별 골드 표시
+function renderAucCharGold(){
+  const el=document.getElementById('auc-char-gold');
+  if(!el) return;
+  const saves=currentUser?.saves||[];
+  const CHAR_COLORS=['#378ADD','#1D9E75','#BA7517','#993556'];
+  const CHAR_INIT =['준','서','민','하'];
+  const CHAR_NAMES=['이준호','김서아','박민재','오하나'];
+  el.innerHTML='';
+  for(let i=0;i<4;i++){
+    const sv=saves[i];
+    const isActive = selChar===i && typeof gold!=='undefined';
+    // 현재 플레이 중인 캐릭이면 실시간 gold 변수 사용, 아니면 save 데이터
+    const g = isActive ? gold : (sv?.gold ?? null);
+    const lv= sv?.lv ?? (isActive ? player?.lv : null);
+    const isNew = !sv || sv.isNew;
+    const chip=document.createElement('div');
+    chip.style.cssText=`
+      display:flex;align-items:center;gap:4px;padding:4px 8px;
+      background:var(--c1);border:1px solid ${CHAR_COLORS[i]}44;
+      border-radius:6px;flex:1;min-width:0;
+      ${isActive?`border-color:${CHAR_COLORS[i]};box-shadow:0 0 6px ${CHAR_COLORS[i]}44`:''};
+    `;
+    const initEl=document.createElement('div');
+    initEl.style.cssText=`
+      width:18px;height:18px;border-radius:50%;
+      background:${CHAR_COLORS[i]}33;border:1px solid ${CHAR_COLORS[i]};
+      font-family:var(--tf);font-size:9px;font-weight:700;
+      color:${CHAR_COLORS[i]};display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;
+    `;
+    initEl.textContent=CHAR_INIT[i];
+    const info=document.createElement('div');
+    info.style.cssText='flex:1;min-width:0;overflow:hidden';
+    if(isNew || g===null){
+      info.innerHTML=`<div style="font-family:var(--tf);font-size:8px;color:#5a7a94;white-space:nowrap">${CHAR_NAMES[i]}</div>
+        <div style="font-family:var(--tf);font-size:8px;color:#3a4a5a">미사용</div>`;
+    } else {
+      info.innerHTML=`<div style="font-family:var(--tf);font-size:8px;color:${CHAR_COLORS[i]};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${CHAR_NAMES[i]}${lv?` Lv${lv}`:''}</div>
+        <div style="font-family:var(--tf);font-size:10px;font-weight:700;color:#f5c842;white-space:nowrap">💰${g.toLocaleString()}G</div>`;
+    }
+    chip.appendChild(initEl);
+    chip.appendChild(info);
+    el.appendChild(chip);
+  }
+}
+
 let aucTab='browse';
 let aucGrade='';
 let aucPage=1;
@@ -7419,6 +7476,7 @@ async function aucBuy(){
       saveGameData();
       showToast(`🎉 ${d.item.itemIcon||'📦'} ${d.item.itemName} 구매 완료! (-${d.paid.toLocaleString()}G)`);
       addLog(`경매장 구매: ${d.item.itemName} ${d.paid.toLocaleString()}G`,'lsys');
+      renderAucCharGold();
       selAucId=null;
       document.getElementById('auc-detail').classList.remove('show');
       loadAuction();
