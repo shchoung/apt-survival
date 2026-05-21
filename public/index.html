@@ -624,6 +624,28 @@ canvas{display:block;width:100%;height:100%}
   background:linear-gradient(180deg, rgba(7,9,13,0.92) 0%, rgba(13,17,23,0.96) 100%) !important;
   backdrop-filter:blur(2px);
 }
+.sc-hp-wrap{
+  width:220px;margin:8px auto 2px;
+}
+.sc-hp-label{
+  display:flex;justify-content:space-between;
+  font-family:var(--tf);font-size:9px;margin-bottom:3px;
+}
+.sc-hp-bar-bg{
+  height:7px;border-radius:4px;background:#1a2535;overflow:hidden;
+}
+.sc-hp-bar-fill{
+  height:100%;border-radius:4px;transition:width .5s ease;
+}
+.sc-action-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;width:240px;margin-top:10px;
+}
+.sc-action-grid .sbtn{
+  font-size:10px;padding:7px 4px;
+  display:flex;align-items:center;justify-content:center;gap:4px;
+}
 .sc-title{
   text-shadow:0 0 20px var(--ct)88;
   animation:clearTitle .5s ease-out;
@@ -1052,10 +1074,34 @@ canvas{display:block;width:100%;height:100%}
   <div id="stage-clear">
     <div class="sc-title" id="sc-title">STAGE CLEAR!</div>
     <div class="sc-sub" id="sc-sub"></div>
+
+    <!-- HP 바 -->
+    <div class="sc-hp-wrap">
+      <div class="sc-hp-label">
+        <span style="color:#5a7a94">HP</span>
+        <span id="sc-hp-txt" style="color:var(--cr)"></span>
+      </div>
+      <div class="sc-hp-bar-bg">
+        <div id="sc-hp-bar" class="sc-hp-bar-fill" style="background:var(--cr);width:100%"></div>
+      </div>
+    </div>
+
     <div class="sc-drops" id="sc-drops"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-      <button class="sbtn" id="sc-next" onclick="nextFloor()">다음 층으로 →</button>
-      <button class="sbtn gray" onclick="showFloorMap()">층 선택</button>
+
+    <!-- 다음 층 (전체 폭) -->
+    <button class="sbtn" id="sc-next" onclick="nextFloor()"
+      style="width:240px;margin-top:10px;padding:9px 0;font-size:12px;letter-spacing:1px">
+      다음 층으로 →
+    </button>
+
+    <!-- 2×3 액션 버튼 그리드 -->
+    <div class="sc-action-grid">
+      <button class="sbtn gray" onclick="scOpenInv()">📦 인벤</button>
+      <button class="sbtn gray" onclick="scOpenShop()">🏪 상점</button>
+      <button class="sbtn gray" onclick="scOpenPachinko()">🎰 파친코</button>
+      <button class="sbtn gray" onclick="showFloorMap()">🗺 층 선택</button>
+      <button class="sbtn gray" onclick="scGoTitle()">🏠 타이틀로</button>
+      <button class="sbtn red"  onclick="scQuit()" style="border-color:var(--cr);color:var(--cr)">⏹ 게임 종료</button>
     </div>
   </div>
 
@@ -3182,6 +3228,20 @@ function stageComplete(){
   sc.style.display='flex';sc.style.flexDirection='column';sc.style.alignItems='center';sc.style.justifyContent='center';
   document.getElementById('sc-title').textContent=isBoss?'BOSS CLEAR!':'STAGE CLEAR!';
   document.getElementById('sc-sub').textContent=`${floorName(currentFloor)} 클리어 · 처치 ${kills} · EXP+${Math.floor(currentFloor*50+100)}`;
+
+  // HP 바 업데이트
+  if(player){
+    const pct=Math.max(0,Math.min(100,Math.round(player.hp/player.maxHp*100)));
+    const hpBar=document.getElementById('sc-hp-bar');
+    const hpTxt=document.getElementById('sc-hp-txt');
+    const hpColor=pct>60?'#1D9E75':pct>30?'#EF9F27':'var(--cr)';
+    if(hpBar){hpBar.style.width=pct+'%';hpBar.style.background=hpColor;}
+    if(hpTxt){hpTxt.textContent=`${player.hp} / ${player.maxHp}`;hpTxt.style.color=hpColor;}
+  }
+
+  // 다음 층 버튼 텍스트
+  const nb=document.getElementById('sc-next');
+  nb.textContent=currentFloor<TOTAL_FLOORS-1?'다음 층으로 →':'🏆 게임 클리어!';
   const bonusDrops=[];
   const dropCount=isBoss?3+rand(1,2):1+rand(0,1);
 
@@ -3225,8 +3285,6 @@ function stageComplete(){
   questProgress('gold', gold);  // 현재 골드 업데이트
   questProgress('floor_clear', 1, {floor: currentFloor});  // 층 클리어
   document.getElementById('sc-drops').innerHTML=[...bonusDrops.map(it=>`<span class="sc-drop" style="border-color:${GRADES[it.grade].color};color:${GRADES[it.grade].color}">${it.icon} [${it.grade}] ${it.name}</span>`),`<span class="sc-drop" style="border-color:var(--ca);color:var(--ca)">💰 ${goldBonus}G</span>`].join('');
-  const nb=document.getElementById('sc-next');
-  nb.textContent=currentFloor<TOTAL_FLOORS-1?'다음 층으로 →':'🏆 게임 클리어!';
   if(isBoss) setTimeout(showShop,1500);
 }
 
@@ -3252,6 +3310,65 @@ function nextFloor(){
   // 서버에 내 층 정보 전달 (같은 층 플레이어 동기화용)
   if(isMultiGame) wsSend({type:'player_floor',floor:currentFloor});
 }
+
+// ── 클리어 화면 액션 함수들 ──
+// 클리어 화면 유지한 채로 패널 열기
+function scOpenInv(){
+  showInv();
+}
+function scOpenShop(){
+  document.getElementById('stage-clear').style.display='none';
+  openShop();
+  // 상점 닫을 때 클리어 화면 복원
+  const _orig=closeShop.toString();
+  closeShop=function(){
+    document.getElementById('shop-screen').classList.add('hidden');
+    panelClose('shop');
+    // HP 바 갱신 후 클리어 화면 재표시
+    if(player){
+      const pct=Math.max(0,Math.min(100,Math.round(player.hp/player.maxHp*100)));
+      const hpBar=document.getElementById('sc-hp-bar');
+      const hpTxt=document.getElementById('sc-hp-txt');
+      const hpColor=pct>60?'#1D9E75':pct>30?'#EF9F27':'var(--cr)';
+      if(hpBar){hpBar.style.width=pct+'%';hpBar.style.background=hpColor;}
+      if(hpTxt){hpTxt.textContent=`${player.hp} / ${player.maxHp}`;hpTxt.style.color=hpColor;}
+    }
+    document.getElementById('stage-clear').style.display='flex';
+    closeShop=_closeShop; // 원래 함수로 복원
+  };
+}
+function scOpenPachinko(){
+  document.getElementById('stage-clear').style.display='none';
+  openPachinko();
+  const _origClose=closePachinko;
+  closePachinko=function(){
+    _origClose();
+    document.getElementById('stage-clear').style.display='flex';
+    closePachinko=_origClose;
+  };
+}
+function scGoTitle(){
+  if(!confirm('타이틀로 돌아가시겠습니까?\n(현재 진행상황은 저장됩니다)')) return;
+  saveGameData();
+  document.getElementById('stage-clear').style.display='none';
+  running=false;
+  hideAllOverlays();
+  showScr('title');
+}
+function scQuit(){
+  if(!confirm('게임을 종료하시겠습니까?\n(브라우저 탭이 닫힙니다)')) return;
+  saveGameData();
+  window.close();
+  // 탭 닫기가 막힌 경우 타이틀로 폴백
+  setTimeout(()=>{
+    document.getElementById('stage-clear').style.display='none';
+    running=false;
+    hideAllOverlays();
+    showScr('title');
+  }, 500);
+}
+// 원래 closeShop 참조 보관
+const _closeShop=closeShop;
 
 function useSkill(i){
   if(cdT[i]>0)return;
