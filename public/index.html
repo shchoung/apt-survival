@@ -2012,7 +2012,12 @@ async function saveGameData(clearMemory=false){
       floor:currentFloor,
       mapIdx:currentMapIdx,
       clearedFloors:[...clearedFloors],
-      mapProgress:{...mapProgress},
+      // mapProgress 깊은 복사 — clearedFloors 배열이 참조 공유되지 않도록
+      mapProgress:Object.fromEntries(
+        Object.entries(mapProgress).map(([k,v])=>[
+          k, {...v, clearedFloors:[...(v.clearedFloors||[])]}
+        ])
+      ),
       inventory:inventory.map(e=>({itemId:e.item.id,enhLevel:e.enhLevel})),
       equipped:{
         weapon:equipped.weapon!=null?inventory[equipped.weapon]?.item.id:null,
@@ -2443,12 +2448,25 @@ function renderFloorMap(){
 function travelToFloor(idx, mapIdx){
   const wasRunning=running;
   running=false;
+  // 같은 동이라도 floorProgress는 mapProgress 기준으로 항상 동기화
+  if(mapIdx===undefined || mapIdx===currentMapIdx){
+    const mpSame=mapProgress[getMap().id];
+    floorProgress=new Array(TOTAL_FLOORS).fill(false);
+    if(mpSame?.clearedFloors) mpSame.clearedFloors.forEach(f=>{
+      if(f>=0&&f<TOTAL_FLOORS) floorProgress[f]=true;
+    });
+    clearedFloors=mpSame?.clearedFloors?[...mpSame.clearedFloors]:[];
+  }
   // 동이 바뀌는 경우 맵 적용
   if(mapIdx!==undefined && mapIdx!==currentMapIdx){
     applyMap(mapIdx);
+    // floorProgress를 이동 대상 동 기준으로 재구성
     floorProgress=new Array(TOTAL_FLOORS).fill(false);
     const mp=mapProgress[getMap().id];
-    if(mp?.clearedFloors) mp.clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
+    if(mp?.clearedFloors) mp.clearedFloors.forEach(f=>{
+      if(f>=0&&f<TOTAL_FLOORS) floorProgress[f]=true;
+    });
+    // clearedFloors는 이동 대상 동의 클리어 목록으로 교체
     clearedFloors=mp?.clearedFloors?[...mp.clearedFloors]:[];
     showToast(`🏢 ${getMap().name}으로 이동`);
   }
@@ -3561,11 +3579,11 @@ function startGame(){
       inventory=save.inventoryObj||[];
       equipped=save.equippedObj||{weapon:null,armor:null,acc:null};
       gold=save.gold||0;kills=save.kills||0;
-      clearedFloors=save.clearedFloors||[];
-      clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
-      // 동별 클리어 데이터 복원
+      // clearedFloors = 현재 동의 mapProgress 기준으로 복원 (단일 소스)
       const mp=mapProgress[getMap().id];
-      if(mp?.clearedFloors) mp.clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
+      clearedFloors=mp?.clearedFloors?[...mp.clearedFloors]:(save.clearedFloors||[]);
+      floorProgress=new Array(TOTAL_FLOORS).fill(false);
+      clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
       showToast(`💾 ${CHARS[selChar]?.name} 데이터 복원 Lv${save.lv} / ${getMap().name} ${floorName(currentFloor)}`);
     }
 
@@ -3914,13 +3932,13 @@ function stageComplete(){
   floorProgress[currentFloor]=true;
 
   // ── 층 클리어 시 즉시 저장 ──
-  if(!clearedFloors.includes(currentFloor)) clearedFloors.push(currentFloor);
-  // 동별 클리어 기록 업데이트
   const mapId=getMap().id;
   if(!mapProgress[mapId]) mapProgress[mapId]={clearedFloors:[],floor:0};
   if(!mapProgress[mapId].clearedFloors.includes(currentFloor))
     mapProgress[mapId].clearedFloors.push(currentFloor);
   mapProgress[mapId].floor=currentFloor;
+  // clearedFloors(전역)는 항상 현재 동의 mapProgress와 동기화
+  clearedFloors=[...mapProgress[mapId].clearedFloors];
   saveGameData();
   showToast('💾 저장됨');
 
