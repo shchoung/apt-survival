@@ -773,6 +773,23 @@ canvas{display:block;width:100%;height:100%}
 }
 .sbtn:active{transform:scale(.96)}
 
+/* 공용 인벤토리 */
+.shared-inv-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-top:4px;
+}
+.sislot{
+  width:42px;height:42px;border-radius:5px;border:1.5px solid var(--c3);
+  background:var(--c1);display:flex;align-items:center;justify-content:center;
+  font-size:20px;cursor:pointer;position:relative;transition:border-color .12s,background .12s,transform .08s;
+  flex-shrink:0;box-sizing:border-box;
+}
+.sislot:empty::after{content:'';display:block;width:18px;height:18px;border-radius:50%;border:1px dashed var(--c3);opacity:.35;}
+.sislot.has-item{border-color:var(--c3);}
+.sislot.selected{border-color:var(--ct)!important;background:var(--ct)22!important;}
+.sislot:active{transform:scale(.93)}
+.shared-inv-actions{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;}
+.shared-info{font-family:var(--tf);font-size:9px;color:#5a7a94;text-align:center;padding:6px 0;}
+
 /* 인벤 패널 강화 */
 .inv-panel{
   background:linear-gradient(180deg, var(--c1) 0%, var(--c0) 100%) !important;
@@ -1486,9 +1503,23 @@ canvas{display:block;width:100%;height:100%}
             <button class="inv-tab-btn active" id="tab-equip"   onclick="setInvTab('equip')">장착</button>
             <button class="inv-tab-btn"         id="tab-consume" onclick="setInvTab('consume')">소모</button>
             <button class="inv-tab-btn"         id="tab-mat"     onclick="setInvTab('mat')">재료</button>
+            <button class="inv-tab-btn"         id="tab-shared"  onclick="setInvTab('shared')" style="color:#a0e8ff">🔗공용</button>
           </span>
         </div>
         <div class="inv-slots" id="inv-slots"></div>
+        <!-- 공용 인벤토리 패널 (shared 탭 활성 시 표시) -->
+        <div id="shared-inv-panel" style="display:none">
+          <div style="font-family:var(--tf);font-size:9px;color:#a0e8ff;margin-bottom:4px;border-bottom:1px solid #a0e8ff33;padding-bottom:3px">
+            📦 공용창 — 모든 캐릭터가 공유하는 창고 (최대 40슬롯)
+          </div>
+          <div id="shared-inv-status" class="shared-info">불러오는 중...</div>
+          <div class="shared-inv-grid" id="shared-inv-grid"></div>
+          <div class="shared-inv-actions">
+            <button class="sbtn" id="btn-to-shared" style="font-size:10px;padding:4px 8px;flex:1" onclick="moveToShared()">→ 공용창에 넣기</button>
+            <button class="sbtn" id="btn-from-shared" style="font-size:10px;padding:4px 8px;flex:1" onclick="moveFromShared()">← 내 인벤으로</button>
+          </div>
+          <div id="shared-item-detail" style="font-family:var(--tf);font-size:9px;color:#c0d8f0;margin-top:4px;min-height:16px"></div>
+        </div>
       </div>
       <!-- 장착 슬롯 -->
       <div class="inv-panel">
@@ -2302,6 +2333,135 @@ let inventory=[];  // {item, enhLevel}
 let equipped={weapon:null,armor:null,acc:null};
 let gold=0;
 
+/* ═══════════════════════════════════════
+   공용 인벤토리 시스템
+   ═══════════════════════════════════════ */
+let sharedInventory=[];  // [{itemId, enhLevel}] — 서버 동기화
+let selSharedIdx=-1;     // 공용창에서 선택된 슬롯 인덱스
+let sharedInvLoaded=false;
+
+// 서버에서 공용 인벤토리 로드
+async function loadSharedInv(){
+  if(!currentUser?.token) return;
+  try{
+    const r=await fetch(getApiBase()+'/api/shared-inv',{
+      headers:{'Authorization':currentUser.token}
+    });
+    const d=await r.json();
+    if(d.ok){ sharedInventory=d.sharedInv||[]; sharedInvLoaded=true; }
+  }catch(e){ console.warn('[SHARED-INV] 로드 실패',e); }
+}
+
+// 서버에 공용 인벤토리 저장
+async function saveSharedInv(){
+  if(!currentUser?.token) return;
+  try{
+    fetch(getApiBase()+'/api/shared-inv',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':currentUser.token},
+      body:JSON.stringify({sharedInv:sharedInventory}),
+    }).catch(()=>{});
+  }catch(e){}
+}
+
+// 공용 인벤토리 UI 렌더링
+function renderSharedInv(){
+  const grid=document.getElementById('shared-inv-grid');
+  const status=document.getElementById('shared-inv-status');
+  const detail=document.getElementById('shared-item-detail');
+  if(!grid) return;
+
+  if(!sharedInvLoaded){
+    if(status) status.textContent='불러오는 중...';
+    loadSharedInv().then(()=>renderSharedInv());
+    return;
+  }
+
+  // 상태 표시
+  if(status) status.textContent=`${sharedInventory.length}/40 슬롯 사용 중`;
+
+  // 40 슬롯 고정 렌더
+  const TOTAL_SLOTS=40;
+  grid.innerHTML='';
+  for(let i=0;i<TOTAL_SLOTS;i++){
+    const entry=sharedInventory[i];
+    const div=document.createElement('div');
+    div.className='sislot'+(entry?' has-item':'')+(selSharedIdx===i?' selected':'');
+    if(entry){
+      const base=ITEM_POOL.find(x=>x.id===entry.itemId);
+      if(base){
+        const enh=entry.enhLevel>0?`<span style="position:absolute;bottom:1px;right:2px;font-family:var(--tf);font-size:7px;color:#f5c842;font-weight:700">+${entry.enhLevel}</span>`:'';
+        const grade=`<span class="grade-badge g${base.grade.toLowerCase()}">${base.grade}</span>`;
+        div.innerHTML=`${base.icon}${grade}${enh}`;
+      }
+    }
+    div.onclick=(()=>{
+      const idx=i;
+      return ()=>{
+        selSharedIdx=(selSharedIdx===idx?-1:idx);
+        // 상세 표시
+        if(selSharedIdx>=0&&sharedInventory[selSharedIdx]){
+          const e=sharedInventory[selSharedIdx];
+          const base=ITEM_POOL.find(x=>x.id===e.itemId);
+          if(base&&detail){
+            const enhStr=e.enhLevel>0?` (+${e.enhLevel})`:'';
+            detail.textContent=`${base.icon} ${base.name}${enhStr} [${base.grade}] — ${base.desc}`;
+          }
+        } else if(detail){ detail.textContent=''; }
+        renderSharedInv();
+      };
+    })();
+    grid.appendChild(div);
+  }
+  // 이동 버튼 상태
+  const btnTo=document.getElementById('btn-to-shared');
+  const btnFrom=document.getElementById('btn-from-shared');
+  if(btnTo)   btnTo.disabled  = selInvIdx<0||!inventory[selInvIdx]||sharedInventory.length>=40;
+  if(btnFrom) btnFrom.disabled= selSharedIdx<0||!sharedInventory[selSharedIdx];
+}
+
+// 내 인벤 → 공용창으로 이동
+function moveToShared(){
+  if(selInvIdx<0||!inventory[selInvIdx]){ showToast('내 인벤에서 아이템을 선택하세요'); return; }
+  if(sharedInventory.length>=40){ showToast('공용창이 가득 찼습니다 (40/40)'); return; }
+  // 장착 중인 아이템은 이동 불가
+  if(equipped.weapon===selInvIdx||equipped.armor===selInvIdx||equipped.acc===selInvIdx){
+    showToast('장착 중인 아이템은 공용창에 넣을 수 없습니다'); return;
+  }
+  const e=inventory[selInvIdx];
+  sharedInventory.push({itemId:e.item.id,enhLevel:e.enhLevel});
+  // 인덱스 재조정 (equipped가 selInvIdx보다 뒤면 앞당김)
+  ['weapon','armor','acc'].forEach(slot=>{
+    if(equipped[slot]!==null&&equipped[slot]>selInvIdx) equipped[slot]--;
+  });
+  inventory.splice(selInvIdx,1);
+  selInvIdx=-1;
+  saveSharedInv();
+  saveGameData();
+  showToast('공용창에 넣었습니다 📦');
+  addLog(`공용창으로 이동: ${e.item.name}`, 'lsys');
+  renderSharedInv();
+  // 인벤 슬롯 갱신
+  const slotsEl=document.getElementById('inv-slots');
+  if(slotsEl) slotsEl.style.display='none';
+}
+
+// 공용창 → 내 인벤으로 이동
+function moveFromShared(){
+  if(selSharedIdx<0||!sharedInventory[selSharedIdx]){ showToast('공용창에서 아이템을 선택하세요'); return; }
+  const e=sharedInventory[selSharedIdx];
+  const base=ITEM_POOL.find(x=>x.id===e.itemId);
+  if(!base){ sharedInventory.splice(selSharedIdx,1); selSharedIdx=-1; renderSharedInv(); return; }
+  inventory.push({item:{...base},enhLevel:e.enhLevel||0});
+  sharedInventory.splice(selSharedIdx,1);
+  selSharedIdx=-1;
+  saveSharedInv();
+  saveGameData();
+  showToast(`${base.icon} ${base.name} 가져왔습니다!`);
+  addLog(`공용창에서 가져옴: ${base.name}`, 'lsys');
+  renderSharedInv();
+}
+
 function addItem(itemId,qty=1){
   const base=ITEM_POOL.find(x=>x.id===itemId);
   if(!base)return;
@@ -2315,19 +2475,33 @@ function addItem(itemId,qty=1){
 let selInvIdx=-1;
 let selEnhIdx=-1;
 let selMatIdx=-1;
-let invTab='equip'; // 'equip' | 'consume' | 'mat'
+let invTab='equip'; // 'equip' | 'consume' | 'mat' | 'shared'
 
 function setInvTab(tab){
   invTab=tab;
-  selInvIdx=-1;
-  ['equip','consume','mat'].forEach(t=>{
+  selInvIdx=-1; selSharedIdx=-1;
+  ['equip','consume','mat','shared'].forEach(t=>{
     const el=document.getElementById(`tab-${t}`);
     if(el) el.classList.toggle('active',t===tab);
   });
-  renderInv();
+  // 공용창 패널 표시/숨김
+  const sharedPanel=document.getElementById('shared-inv-panel');
+  const normalSlots=document.getElementById('inv-slots');
+  if(sharedPanel) sharedPanel.style.display = tab==='shared'?'block':'none';
+  if(normalSlots) normalSlots.style.display  = tab==='shared'?'none':'grid';
+  if(tab==='shared') renderSharedInv();
+  else renderInv();
 }
 
 function renderInv(){
+  // shared 탭이면 inv-slots 복원 후 위임
+  const normalSlots=document.getElementById('inv-slots');
+  if(normalSlots&&invTab!=='shared') normalSlots.style.display='';
+  if(invTab==='shared'){ renderSharedInv(); return; }
+  // 공용창 이동 버튼도 갱신 (공용창 탭이 열린 상태에서 인벤 아이템 선택 시)
+  const btnTo=document.getElementById('btn-to-shared');
+  if(btnTo) btnTo.disabled = selInvIdx<0||!inventory[selInvIdx]||sharedInventory.length>=40;
+
   const GRADE_ORDER={S:0,A:1,B:2,C:3};
 
   /* ── 현재 HP 표시 ── */
@@ -7557,6 +7731,9 @@ function replayOpening(){
 
 function afterLogin(){
   const u=currentUser;
+  // 공용 인벤토리 로드 (토큰 있을 때)
+  sharedInvLoaded=false; sharedInventory=[];
+  if(u.token) loadSharedInv().catch(()=>{});
   // save → saves[] 정규화 (구버전 호환)
   if(u.save&&!u.saves){
     // 구버전 단일 save → saves 배열로 마이그레이션
