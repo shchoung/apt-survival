@@ -623,8 +623,22 @@ canvas{display:block;width:100%;height:100%}
 #stage-clear{
   position:absolute;inset:0;z-index:80;display:none;
   background:#07090d;
+  background-size:200% 200%;
+  background-repeat:no-repeat;
+  background-position:left top;
   flex-direction:column;align-items:stretch;justify-content:flex-start;
   overflow:hidden;
+}
+/* 배경 그라디언트 오버레이 */
+#stage-clear::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:linear-gradient(
+    to bottom,
+    rgba(7,9,13,0.0)  0%,
+    rgba(7,9,13,0.05) 35%,
+    rgba(7,9,13,0.80) 58%,
+    rgba(7,9,13,0.97) 70%
+  );
 }
 #sc-inner{
   position:relative;z-index:1;
@@ -632,16 +646,11 @@ canvas{display:block;width:100%;height:100%}
   height:100%;padding:0 14px 10px;box-sizing:border-box;
   overflow-y:auto;
 }
-/* 상단 카드 이미지 */
-#sc-char-img{
-  width:100%;max-height:200px;object-fit:cover;object-position:top;
-  border-radius:12px;flex-shrink:0;
-  display:block;
-  box-shadow:0 0 24px var(--sc-char-color,#5dcaa5)66;
-}
+/* 상단 여백 — 배경 캐릭터 이미지 노출 공간 */
+.sc-img-spacer{flex:0 0 44%;min-height:160px;max-height:280px;}
 /* 상단 타이틀 */
 .sc-header{
-  text-align:center;padding:10px 0 4px;flex-shrink:0;
+  text-align:center;padding:6px 0 4px;flex-shrink:0;
 }
 .sc-title{
   font-family:'Share Tech Mono',monospace;letter-spacing:4px;margin-bottom:3px;
@@ -1128,8 +1137,8 @@ canvas{display:block;width:100%;height:100%}
   <!-- STAGE CLEAR -->
   <div id="stage-clear">
     <div id="sc-inner">
-      <!-- 캐릭터 카드 이미지 (clear_1.png 4분할) -->
-      <img id="sc-char-img" src="" alt=""/>
+      <!-- 배경 캐릭터 이미지 노출 여백 -->
+      <div class="sc-img-spacer"></div>
 
       <!-- 타이틀 -->
       <div class="sc-header">
@@ -3323,31 +3332,12 @@ function stageComplete(){
   const char=CHARS[selChar];
   const charColor=char.color;
 
-  // ── 배경 제거, 단색 배경 ──
-  sc.style.display='flex';
-  sc.style.backgroundImage='none';
-  sc.style.background='#07090d';
-  document.documentElement.style.setProperty('--sc-char-color', charColor);
-
-  // ── clear_1.png 4분할 → 캐릭터 카드 이미지 (canvas crop) ──
+  // ── clear_1.png 4분할 → 배경으로 캐릭터별 분기 ──
   // 구성: 좌상=이준호(0), 우상=김서아(1), 좌하=박민재(2), 우하=오하나(3)
-  (function renderCharCard(){
-    const img=new Image();
-    img.onload=function(){
-      const hw=img.naturalWidth/2, hh=img.naturalHeight/2;
-      const col=selChar%2, row=Math.floor(selChar/2);
-      const oc=document.createElement('canvas');
-      oc.width=hw; oc.height=hh;
-      const oc2=oc.getContext('2d');
-      oc2.drawImage(img, col*hw, row*hh, hw, hh, 0, 0, hw, hh);
-      const el=document.getElementById('sc-char-img');
-      if(el){
-        el.src=oc.toDataURL('image/png');
-        el.style.boxShadow=`0 0 28px ${charColor}55`;
-      }
-    };
-    img.src=CLEAR1_PNG;
-  })();
+  const bgPos=['left top','right top','left bottom','right bottom'][selChar]||'left top';
+  sc.style.backgroundImage=`url(${CLEAR1_PNG})`;
+  sc.style.backgroundSize='200% 200%';
+  sc.style.backgroundPosition=bgPos;
 
   const titleEl=document.getElementById('sc-title');
   titleEl.textContent=isBoss?'BOSS CLEAR!':'STAGE CLEAR!';
