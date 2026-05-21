@@ -4820,8 +4820,10 @@ function updateMaxLvSkillBtn(){
 
 /* ═══════ INPUT ═══════ */
 window.addEventListener('keydown',e=>{
-  // 채팅 입력창 포커스 중이면 게임 키 처리 완전 무시
-  if(document.activeElement&&document.activeElement.id==='chat-inp') return;
+  // 텍스트 입력 중이면 게임 키 처리 완전 무시
+  const tag=document.activeElement?.tagName;
+  const isInput=tag==='INPUT'||tag==='TEXTAREA';
+  if(isInput) return;
   if(listenK){const k=e.key.length===1?e.key.toLowerCase():e.key;KB[listenK]=k;listenK=null;saveKB();renderKBGrid();updateKeyLabels();e.preventDefault();return;}
   const lk=e.key.toLowerCase();keys[lk]=true;keys[e.key]=true;
   if(!running)return;
@@ -4834,7 +4836,8 @@ window.addEventListener('keydown',e=>{
   const mv=[KB.up,KB.down,KB.left,KB.right];if(!mv.includes(lk))e.preventDefault();
 });
 window.addEventListener('keyup',e=>{
-  if(document.activeElement&&document.activeElement.id==='chat-inp') return;
+  const tag=document.activeElement?.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA') return;
   keys[e.key.toLowerCase()]=false;keys[e.key]=false;
 });
 gc_el.addEventListener('mousemove',e=>{const r=gc_el.getBoundingClientRect();mouseX=e.clientX-r.left;mouseY=e.clientY-r.top;});
