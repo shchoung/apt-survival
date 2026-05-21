@@ -773,6 +773,37 @@ canvas{display:block;width:100%;height:100%}
 }
 .sbtn:active{transform:scale(.96)}
 
+/* 경매장 */
+.auc-list{ display:flex;flex-direction:column;gap:5px;overflow-y:auto;flex:1;padding-right:2px; }
+.auc-item{
+  display:flex;align-items:center;gap:8px;padding:7px 9px;
+  background:var(--c1);border:1px solid var(--c3);border-radius:7px;cursor:pointer;
+  transition:border-color .12s,background .12s;
+}
+.auc-item:hover,.auc-item.selected{ border-color:var(--ct);background:var(--ct)11; }
+.auc-icon{ font-size:22px;flex-shrink:0;width:28px;text-align:center;position:relative; }
+.auc-info{ flex:1;min-width:0; }
+.auc-name{ font-family:var(--tf);font-size:11px;color:#e0e8f0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.auc-meta{ font-family:var(--tf);font-size:9px;color:#5a7a94;margin-top:1px; }
+.auc-price{ font-family:var(--tf);font-size:12px;color:#f5c842;font-weight:700;flex-shrink:0;text-align:right; }
+.auc-seller{ font-family:var(--tf);font-size:8px;color:#5a7a94;text-align:right; }
+.auc-tabs{ display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap; }
+.auc-tab{ font-family:var(--tf);font-size:10px;padding:3px 10px;background:var(--c1);border:1px solid var(--c3);border-radius:4px;color:#a0bcd0;cursor:pointer; }
+.auc-tab.active{ border-color:var(--ct);color:var(--ct); }
+.auc-filter{ display:flex;gap:4px;margin-bottom:6px;align-items:center;flex-wrap:wrap; }
+.auc-search{ font-family:var(--tf);font-size:10px;background:var(--c1);border:1px solid var(--c3);border-radius:4px;padding:3px 7px;color:#e0e8f0;outline:none;flex:1;min-width:80px; }
+.auc-grade-btn{ font-family:var(--tf);font-size:9px;padding:2px 7px;background:var(--c1);border:1px solid var(--c3);border-radius:4px;color:#a0bcd0;cursor:pointer; }
+.auc-grade-btn.active{ border-color:var(--ct);color:var(--ct); }
+.auc-detail-box{ background:var(--c1);border:1px solid var(--c3);border-radius:7px;padding:10px;margin-top:6px;display:none; }
+.auc-detail-box.show{ display:block; }
+.auc-empty{ font-family:var(--tf);font-size:11px;color:#5a7a94;text-align:center;padding:24px 0; }
+.auc-reg-row{ display:flex;gap:6px;align-items:center;margin-top:4px; }
+.auc-price-inp{ font-family:var(--tf);font-size:11px;background:var(--c1);border:1px solid var(--c3);border-radius:4px;padding:4px 8px;color:#f5c842;outline:none;width:110px;flex-shrink:0; }
+.auc-mine-item{ display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--c1);border:1px solid var(--c3);border-radius:6px; }
+.auc-status-active{ color:#5dcaa5;font-family:var(--tf);font-size:8px; }
+.auc-status-sold{ color:#ef9f27;font-family:var(--tf);font-size:8px; }
+.auc-status-expire{ color:#e24b4b;font-family:var(--tf);font-size:8px; }
+
 /* 공용 인벤토리 */
 .shared-inv-grid{
   display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-top:4px;
@@ -1268,6 +1299,7 @@ canvas{display:block;width:100%;height:100%}
     <button class="sbtn" onclick="showScr('char-select')">[ 게임 시작 ]</button>
     <button class="sbtn" style="border-color:var(--cp);color:var(--cp)" onclick="showScr('ranking')">[ 🏆 랭킹 ]</button>
     <button class="sbtn" style="border-color:#5dcaa5;color:#5dcaa5" onclick="showScr('board')">[ 📋 게시판 ]</button>
+    <button class="sbtn" style="border-color:#f5c842;color:#f5c842" onclick="showScr('auction')">[ 🏺 경매장 ]</button>
     <button class="sbtn gray" onclick="showScr('settings')">[ 설 정 ]</button>
     <button class="sbtn gray" style="margin-top:10px;font-size:10px;padding:5px 18px" onclick="replayOpening()">🎬 오프닝 다시보기</button>
     <button class="sbtn red" style="margin-top:4px;font-size:10px;padding:5px 18px" onclick="logout()">로그아웃</button>
@@ -1302,6 +1334,95 @@ canvas{display:block;width:100%;height:100%}
       <div style="font-family:var(--tf);font-size:11px;color:#5a7a94;text-align:center;padding:20px">로딩 중...</div>
     </div>
     <button class="sbtn gray" style="margin-top:10px;flex-shrink:0" onclick="showScr('title')">← 뒤로</button>
+  </div>
+
+  <!-- 경매장 화면 -->
+  <div class="scr hidden" id="scr-auction" style="padding:14px 10px;box-sizing:border-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0">
+      <div class="stitle" style="font-size:16px;letter-spacing:2px;margin:0">🏺 경매장</div>
+      <button class="sbtn gray" style="padding:3px 10px;font-size:10px" onclick="showScr('title')">← 뒤로</button>
+    </div>
+    <!-- 탭 -->
+    <div class="auc-tabs" style="flex-shrink:0">
+      <button class="auc-tab active" id="auc-tab-browse" onclick="setAucTab('browse')">🔍 둘러보기</button>
+      <button class="auc-tab" id="auc-tab-mine"   onclick="setAucTab('mine')">📦 내 거래</button>
+      <button class="auc-tab" id="auc-tab-sell"   onclick="setAucTab('sell')">💰 아이템 등록</button>
+    </div>
+
+    <!-- 둘러보기 탭 -->
+    <div id="auc-browse" style="display:flex;flex-direction:column;flex:1;min-height:0">
+      <div class="auc-filter">
+        <input class="auc-search" id="auc-search" placeholder="이름 검색..." oninput="aucSearchDebounce()">
+        <button class="auc-grade-btn active" data-g="" onclick="setAucGrade(this,'')">전체</button>
+        <button class="auc-grade-btn gs" data-g="S" onclick="setAucGrade(this,'S')" style="border-color:#f5c84255;color:#f5c842">S</button>
+        <button class="auc-grade-btn ga" data-g="A" onclick="setAucGrade(this,'A')" style="border-color:#e24b4b55;color:#e24b4b">A</button>
+        <button class="auc-grade-btn gb" data-g="B" onclick="setAucGrade(this,'B')" style="border-color:#5dcaa555;color:#5dcaa5">B</button>
+        <button class="auc-grade-btn gc" data-g="C" onclick="setAucGrade(this,'C')" style="border-color:#a0bcd055;color:#a0bcd0">C</button>
+      </div>
+      <div class="auc-list" id="auc-list"></div>
+      <!-- 페이지네이션 -->
+      <div style="display:flex;gap:6px;justify-content:center;margin-top:6px;flex-shrink:0" id="auc-pages"></div>
+      <!-- 선택 아이템 상세 + 구매 버튼 -->
+      <div class="auc-detail-box" id="auc-detail">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div id="auc-det-icon" style="font-size:28px"></div>
+          <div style="flex:1">
+            <div id="auc-det-name" style="font-family:var(--tf);font-size:13px;color:#e0e8f0;font-weight:700"></div>
+            <div id="auc-det-meta" style="font-family:var(--tf);font-size:9px;color:#5a7a94;margin-top:2px"></div>
+          </div>
+          <div style="text-align:right">
+            <div id="auc-det-price" style="font-family:var(--tf);font-size:15px;color:#f5c842;font-weight:700"></div>
+            <div id="auc-det-seller" style="font-family:var(--tf);font-size:8px;color:#5a7a94"></div>
+          </div>
+        </div>
+        <div id="auc-det-desc" style="font-family:var(--tf);font-size:9px;color:#a0bcd0;margin-bottom:8px"></div>
+        <button class="sbtn" style="width:100%;font-size:12px" id="btn-auc-buy" onclick="aucBuy()">💰 구매하기</button>
+        <div id="auc-buy-msg" style="font-family:var(--tf);font-size:9px;color:var(--cr);margin-top:4px;text-align:center;min-height:13px"></div>
+      </div>
+      <!-- 새로고침 -->
+      <button class="sbtn gray" style="margin-top:6px;font-size:10px;padding:4px;flex-shrink:0" onclick="loadAuction()">🔄 새로고침</button>
+    </div>
+
+    <!-- 내 거래 탭 -->
+    <div id="auc-mine" style="display:none;flex-direction:column;flex:1;min-height:0">
+      <div style="font-family:var(--tf);font-size:10px;color:#5dcaa5;margin-bottom:6px">📤 내가 등록한 아이템</div>
+      <div class="auc-list" id="auc-mine-listed" style="max-height:200px"></div>
+      <div style="font-family:var(--tf);font-size:10px;color:#ef9f27;margin:8px 0 4px">📥 구매 내역</div>
+      <div class="auc-list" id="auc-mine-bought" style="max-height:180px"></div>
+      <div id="auc-mine-msg" style="font-family:var(--tf);font-size:9px;color:var(--ct);margin-top:6px;text-align:center"></div>
+      <button class="sbtn gray" style="margin-top:6px;font-size:10px;padding:4px;flex-shrink:0" onclick="loadAucMine()">🔄 새로고침</button>
+    </div>
+
+    <!-- 아이템 등록 탭 -->
+    <div id="auc-sell" style="display:none;flex-direction:column;flex:1;min-height:0">
+      <div style="font-family:var(--tf);font-size:9px;color:#5a7a94;margin-bottom:8px">
+        인벤토리에서 등록할 아이템을 선택하고 가격을 입력하세요.<br>
+        ⚠ 수수료 5% / 최대 10개 동시 등록 / 72시간 후 자동 만료
+      </div>
+      <!-- 내 인벤 아이템 목록 -->
+      <div style="font-family:var(--tf);font-size:10px;color:#a0bcd0;margin-bottom:4px">보유 아이템 (장착 중 제외)</div>
+      <div class="auc-list" id="auc-sell-inv" style="max-height:220px"></div>
+      <!-- 등록 폼 -->
+      <div id="auc-sell-form" style="display:none;background:var(--c1);border:1px solid var(--c3);border-radius:7px;padding:10px;margin-top:6px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div id="auc-sell-icon" style="font-size:26px"></div>
+          <div style="flex:1">
+            <div id="auc-sell-name" style="font-family:var(--tf);font-size:12px;color:#e0e8f0;font-weight:700"></div>
+            <div id="auc-sell-grade" style="font-family:var(--tf);font-size:9px;color:#5a7a94"></div>
+          </div>
+        </div>
+        <div class="auc-reg-row">
+          <span style="font-family:var(--tf);font-size:10px;color:#a0bcd0">가격</span>
+          <input class="auc-price-inp" id="auc-price-inp" type="number" min="1" max="99999999" placeholder="골드 입력">
+          <span style="font-family:var(--tf);font-size:10px;color:#5a7a94">G</span>
+        </div>
+        <div style="font-family:var(--tf);font-size:8px;color:#5a7a94;margin:4px 0 8px">
+          수수료 5% 차감 후 실수령 표시: <span id="auc-sell-gain" style="color:#f5c842"></span>
+        </div>
+        <button class="sbtn" style="width:100%;font-size:12px" onclick="aucRegister()">등록하기</button>
+        <div id="auc-sell-msg" style="font-family:var(--tf);font-size:9px;color:var(--cr);margin-top:4px;text-align:center;min-height:13px"></div>
+      </div>
+    </div>
   </div>
 
   <!-- 글쓰기 -->
@@ -1990,6 +2111,7 @@ function showScr(id){
   if(id==='title') startBGM(0);
   if(id==='ranking') loadRanking('floor');
   if(id==='board') loadBoard(boardPage||1);
+  if(id==='auction'){ setAucTab('browse'); }
 }
 function hideAllOverlays(){
   _openPanels.clear(); // 모든 패널 강제 닫힘 → 무적 Set 초기화
@@ -7091,6 +7213,323 @@ function fmtDate(s){
   if(diff<3600) return Math.floor(diff/60)+'분 전';
   if(diff<86400) return Math.floor(diff/3600)+'시간 전';
   return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+/* ═══════════════════════════════════════
+   경매장 클라이언트 로직
+   ═══════════════════════════════════════ */
+let aucTab='browse';
+let aucGrade='';
+let aucPage=1;
+let aucItems=[];        // 현재 목록
+let selAucId=null;      // 선택된 경매 id
+let selSellInvIdx=-1;   // 등록 탭에서 선택한 인벤 인덱스
+let aucSearchTimer=null;
+
+function setAucTab(tab){
+  aucTab=tab;
+  ['browse','mine','sell'].forEach(t=>{
+    const btn=document.getElementById(`auc-tab-${t}`);
+    const panel=document.getElementById(`auc-${t}`);
+    if(btn) btn.classList.toggle('active',t===tab);
+    if(panel) panel.style.display = t===tab?'flex':'none';
+  });
+  if(tab==='browse') loadAuction();
+  else if(tab==='mine') loadAucMine();
+  else if(tab==='sell') renderAucSellInv();
+}
+
+function setAucGrade(el, grade){
+  aucGrade=grade; aucPage=1;
+  document.querySelectorAll('.auc-grade-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  loadAuction();
+}
+
+function aucSearchDebounce(){
+  clearTimeout(aucSearchTimer);
+  aucSearchTimer=setTimeout(()=>{aucPage=1;loadAuction();},350);
+}
+
+async function loadAuction(page=aucPage){
+  if(!currentUser?.token){ document.getElementById('auc-list').innerHTML='<div class="auc-empty">로그인이 필요합니다</div>'; return; }
+  aucPage=page;
+  const q=encodeURIComponent(document.getElementById('auc-search')?.value||'');
+  const listEl=document.getElementById('auc-list');
+  if(listEl) listEl.innerHTML='<div class="auc-empty">불러오는 중...</div>';
+  try{
+    const r=await fetch(`${getApiBase()}/api/auction?page=${page}&grade=${aucGrade}&q=${q}`,{
+      headers:{'Authorization':currentUser.token}
+    });
+    const d=await r.json();
+    if(!d.ok){ if(listEl) listEl.innerHTML=`<div class="auc-empty">${d.msg}</div>`; return; }
+    aucItems=d.items;
+    renderAucList(d.items, d.total, d.limit);
+  }catch(e){ if(listEl) listEl.innerHTML='<div class="auc-empty">서버 연결 실패</div>'; }
+}
+
+function renderAucList(items, total, limit){
+  const listEl=document.getElementById('auc-list');
+  const pagesEl=document.getElementById('auc-pages');
+  if(!listEl) return;
+  if(!items.length){ listEl.innerHTML='<div class="auc-empty">등록된 아이템이 없습니다</div>'; pagesEl.innerHTML=''; return; }
+
+  const GRADE_COLOR={S:'#f5c842',A:'#e24b4b',B:'#5dcaa5',C:'#a0bcd0'};
+  listEl.innerHTML='';
+  items.forEach(it=>{
+    const enh=it.enh_level>0?` <span style="color:#f5c842;font-size:9px">+${it.enh_level}</span>`:'';
+    const gc=GRADE_COLOR[it.item_grade]||'#a0bcd0';
+    const exp=new Date(it.expires_at);
+    const diffH=Math.max(0,Math.round((exp-Date.now())/3600000));
+    const div=document.createElement('div');
+    div.className='auc-item'+(selAucId===it.id?' selected':'');
+    div.innerHTML=`
+      <div class="auc-icon">${it.item_icon}<span style="position:absolute;top:-2px;right:-4px;font-family:var(--tf);font-size:7px;font-weight:700;color:${gc}">${it.item_grade}</span></div>
+      <div class="auc-info">
+        <div class="auc-name">${it.item_name}${enh}</div>
+        <div class="auc-meta">판매: ${it.seller_nick} · 残 ${diffH}h</div>
+      </div>
+      <div>
+        <div class="auc-price">${it.price.toLocaleString()}G</div>
+        <div class="auc-seller">#${it.id}</div>
+      </div>`;
+    div.onclick=()=>selectAucItem(it);
+    listEl.appendChild(div);
+  });
+
+  // 페이지네이션
+  const totalPages=Math.ceil(total/limit)||1;
+  pagesEl.innerHTML='';
+  for(let p=Math.max(1,aucPage-2);p<=Math.min(totalPages,aucPage+2);p++){
+    const b=document.createElement('button');
+    b.className='auc-grade-btn'+(p===aucPage?' active':'');
+    b.textContent=p;
+    b.onclick=(()=>{const pp=p;return()=>loadAuction(pp);})();
+    pagesEl.appendChild(b);
+  }
+}
+
+function selectAucItem(it){
+  selAucId=it.id;
+  // 리스트 selected 표시
+  document.querySelectorAll('.auc-item').forEach((el,i)=>{
+    el.classList.toggle('selected', aucItems[i]?.id===it.id);
+  });
+  const det=document.getElementById('auc-detail');
+  if(!det) return;
+  det.classList.add('show');
+  document.getElementById('auc-det-icon').textContent=it.item_icon;
+  const enh=it.enh_level>0?` +${it.enh_level}`:'';
+  document.getElementById('auc-det-name').textContent=it.item_name+enh;
+  // 아이템 설명 (ITEM_POOL에서 찾기)
+  const base=ITEM_POOL?.find(x=>x.id===it.item_id);
+  document.getElementById('auc-det-desc').textContent=base?.desc||'';
+  document.getElementById('auc-det-meta').textContent=`등급: ${it.item_grade} | 등록: #${it.id}`;
+  document.getElementById('auc-det-price').textContent=it.price.toLocaleString()+'G';
+  document.getElementById('auc-det-seller').textContent='판매자: '+it.seller_nick;
+  const tax=Math.floor(it.price*.05);
+  document.getElementById('auc-buy-msg').textContent=`(수수료 5% = ${tax.toLocaleString()}G, 판매자 실수령 ${(it.price-tax).toLocaleString()}G)`;
+  document.getElementById('auc-buy-msg').style.color='#5a7a94';
+}
+
+async function aucBuy(){
+  if(!selAucId){ showToast('아이템을 선택하세요'); return; }
+  if(!currentUser?.token){ showToast('로그인이 필요합니다'); return; }
+  const btn=document.getElementById('btn-auc-buy');
+  const msgEl=document.getElementById('auc-buy-msg');
+  btn.disabled=true; btn.textContent='처리 중...';
+  try{
+    const r=await fetch(`${getApiBase()}/api/auction/${selAucId}/buy`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':currentUser.token},
+      body:'{}',
+    });
+    const d=await r.json();
+    if(d.ok){
+      // 인벤에 아이템 추가
+      const base=ITEM_POOL?.find(x=>x.id===d.item.itemId);
+      if(base) inventory.push({item:{...base},enhLevel:d.item.enhLevel||0});
+      // 골드 차감 (해당 캐릭터 저장 갱신)
+      gold=Math.max(0,gold-d.paid);
+      // 현재 캐릭 세이브에도 반영
+      if(currentUser?.saves?.[d.charIdx]!==undefined){
+        if(currentUser.saves[d.charIdx]) currentUser.saves[d.charIdx].gold=Math.max(0,(currentUser.saves[d.charIdx].gold||0)-d.paid);
+      }
+      saveGameData();
+      showToast(`🎉 ${d.item.itemIcon||'📦'} ${d.item.itemName} 구매 완료! (-${d.paid.toLocaleString()}G)`);
+      addLog(`경매장 구매: ${d.item.itemName} ${d.paid.toLocaleString()}G`,'lsys');
+      selAucId=null;
+      document.getElementById('auc-detail').classList.remove('show');
+      loadAuction();
+    } else {
+      msgEl.textContent=d.msg||'구매 실패';
+      msgEl.style.color='var(--cr)';
+    }
+  }catch(e){ msgEl.textContent='서버 오류'; }
+  btn.disabled=false; btn.textContent='💰 구매하기';
+}
+
+// ── 내 거래 탭 ──
+async function loadAucMine(){
+  if(!currentUser?.token){ document.getElementById('auc-mine-listed').innerHTML='<div class="auc-empty">로그인 필요</div>'; return; }
+  const listedEl=document.getElementById('auc-mine-listed');
+  const boughtEl=document.getElementById('auc-mine-bought');
+  listedEl.innerHTML='<div class="auc-empty">불러오는 중...</div>';
+  boughtEl.innerHTML='';
+  try{
+    const r=await fetch(`${getApiBase()}/api/auction/mine`,{headers:{'Authorization':currentUser.token}});
+    const d=await r.json();
+    if(!d.ok){ listedEl.innerHTML=`<div class="auc-empty">${d.msg}</div>`; return; }
+    const GRADE_COLOR={S:'#f5c842',A:'#e24b4b',B:'#5dcaa5',C:'#a0bcd0'};
+    const STATUS_LABEL={active:'판매중',sold:'판매완료',cancelled:'취소됨',expired:'만료'};
+    const STATUS_CLS={active:'auc-status-active',sold:'auc-status-sold',cancelled:'auc-status-expire',expired:'auc-status-expire'};
+
+    // 등록 목록
+    if(!d.listed.length){ listedEl.innerHTML='<div class="auc-empty">등록한 아이템 없음</div>'; }
+    else{
+      listedEl.innerHTML='';
+      d.listed.forEach(it=>{
+        const enh=it.enh_level>0?` +${it.enh_level}`:'';
+        const gc=GRADE_COLOR[it.item_grade]||'#a0bcd0';
+        const row=document.createElement('div');
+        row.className='auc-mine-item';
+        row.innerHTML=`
+          <div style="font-size:20px">${it.item_icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--tf);font-size:11px;color:#e0e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.item_name}${enh}</div>
+            <div style="font-family:var(--tf);font-size:8px;color:#5a7a94">${it.price.toLocaleString()}G ${it.buyer_nick?'→ '+it.buyer_nick:''}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="${STATUS_CLS[it.status]}">${STATUS_LABEL[it.status]||it.status}</div>
+            ${it.status==='active'?`<button class="auc-grade-btn" style="margin-top:2px;color:var(--cr);border-color:var(--cr)" onclick="aucCancel(${it.id},this)">취소</button>`:''}
+          </div>`;
+        listedEl.appendChild(row);
+      });
+    }
+
+    // 구매 내역
+    if(!d.bought.length){ boughtEl.innerHTML='<div class="auc-empty">구매 내역 없음</div>'; }
+    else{
+      boughtEl.innerHTML='';
+      d.bought.forEach(it=>{
+        const enh=it.enh_level>0?` +${it.enh_level}`:'';
+        const row=document.createElement('div');
+        row.className='auc-mine-item';
+        row.innerHTML=`
+          <div style="font-size:20px">${it.item_icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--tf);font-size:11px;color:#e0e8f0">${it.item_name}${enh}</div>
+            <div style="font-family:var(--tf);font-size:8px;color:#5a7a94">구매 ${it.price.toLocaleString()}G ← ${it.seller_nick}</div>
+          </div>
+          <div class="auc-status-sold" style="font-size:9px">구매완료</div>`;
+        boughtEl.appendChild(row);
+      });
+    }
+  }catch(e){ listedEl.innerHTML='<div class="auc-empty">서버 오류</div>'; }
+}
+
+async function aucCancel(id, btn){
+  if(!currentUser?.token) return;
+  btn.disabled=true; btn.textContent='...';
+  try{
+    const r=await fetch(`${getApiBase()}/api/auction/${id}`,{
+      method:'DELETE',
+      headers:{'Authorization':currentUser.token}
+    });
+    const d=await r.json();
+    if(d.ok){
+      // 아이템 인벤으로 반환
+      const it=d.item;
+      const base=ITEM_POOL?.find(x=>x.id===it.itemId);
+      if(base){ inventory.push({item:{...base},enhLevel:it.enhLevel||0}); saveGameData(); }
+      showToast(`${it.itemIcon||'📦'} ${it.itemName} 취소 — 인벤으로 반환됐습니다`);
+      loadAucMine();
+    } else { showToast(d.msg||'취소 실패'); btn.disabled=false; btn.textContent='취소'; }
+  }catch(e){ showToast('서버 오류'); btn.disabled=false; btn.textContent='취소'; }
+}
+
+// ── 등록 탭 ──
+function renderAucSellInv(){
+  const el=document.getElementById('auc-sell-inv');
+  if(!el) return;
+  // 장착 중이 아닌 모든 아이템
+  const eqSet=new Set(Object.values(equipped).filter(v=>v!=null));
+  const items=inventory.map((e,i)=>({e,i})).filter(({i})=>!eqSet.has(i));
+  if(!items.length){ el.innerHTML='<div class="auc-empty">등록 가능한 아이템 없음</div>'; return; }
+
+  const GRADE_COLOR={S:'#f5c842',A:'#e24b4b',B:'#5dcaa5',C:'#a0bcd0'};
+  el.innerHTML='';
+  items.forEach(({e,i})=>{
+    const {item,enhLevel}=e;
+    const gc=GRADE_COLOR[item.grade]||'#a0bcd0';
+    const enh=enhLevel>0?` +${enhLevel}`:'';
+    const div=document.createElement('div');
+    div.className='auc-item'+(selSellInvIdx===i?' selected':'');
+    div.innerHTML=`
+      <div class="auc-icon">${item.icon}<span style="position:absolute;top:-2px;right:-4px;font-family:var(--tf);font-size:7px;font-weight:700;color:${gc}">${item.grade}</span></div>
+      <div class="auc-info">
+        <div class="auc-name">${item.name}${enh}</div>
+        <div class="auc-meta">${item.desc?.slice(0,30)||''}</div>
+      </div>`;
+    div.onclick=()=>selectSellItem(i,item,enhLevel);
+    el.appendChild(div);
+  });
+}
+
+function selectSellItem(invIdx, item, enhLevel){
+  selSellInvIdx=invIdx;
+  renderAucSellInv();
+  const form=document.getElementById('auc-sell-form');
+  if(form) form.style.display='block';
+  document.getElementById('auc-sell-icon').textContent=item.icon;
+  const enh=enhLevel>0?` +${enhLevel}`:'';
+  document.getElementById('auc-sell-name').textContent=item.name+enh;
+  document.getElementById('auc-sell-grade').textContent=`등급 ${item.grade} | ${item.type==='weapon'?'무기':item.type==='armor'?'방어구':item.type==='acc'?'악세':item.type==='consume'?'소모품':'재료'}`;
+  const inp=document.getElementById('auc-price-inp');
+  inp.value='';
+  document.getElementById('auc-sell-gain').textContent='';
+  document.getElementById('auc-sell-msg').textContent='';
+  inp.oninput=()=>{
+    const v=parseInt(inp.value)||0;
+    const gain=v-Math.floor(v*.05);
+    document.getElementById('auc-sell-gain').textContent=v>0?gain.toLocaleString()+'G':'';
+  };
+}
+
+async function aucRegister(){
+  if(selSellInvIdx<0||!inventory[selSellInvIdx]){ showToast('아이템을 선택하세요'); return; }
+  if(!currentUser?.token){ showToast('로그인 필요'); return; }
+  if(equipped.weapon===selSellInvIdx||equipped.armor===selSellInvIdx||equipped.acc===selSellInvIdx){
+    showToast('장착 중인 아이템은 등록할 수 없습니다'); return; }
+  const price=parseInt(document.getElementById('auc-price-inp').value)||0;
+  const msgEl=document.getElementById('auc-sell-msg');
+  if(price<=0){ msgEl.textContent='가격을 입력하세요'; return; }
+  if(price>99999999){ msgEl.textContent='최대 99,999,999G까지 입력 가능합니다'; return; }
+
+  const e=inventory[selSellInvIdx];
+  const {item,enhLevel}=e;
+  try{
+    const r=await fetch(`${getApiBase()}/api/auction`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':currentUser.token},
+      body:JSON.stringify({itemId:item.id,itemName:item.name,itemIcon:item.icon,itemGrade:item.grade,enhLevel,price}),
+    });
+    const d=await r.json();
+    if(d.ok){
+      // 인벤에서 제거
+      ['weapon','armor','acc'].forEach(slot=>{
+        if(equipped[slot]!==null&&equipped[slot]>selSellInvIdx) equipped[slot]--;
+      });
+      inventory.splice(selSellInvIdx,1);
+      selSellInvIdx=-1;
+      saveGameData();
+      document.getElementById('auc-sell-form').style.display='none';
+      showToast(`🏺 ${item.name} 경매 등록 완료! (${price.toLocaleString()}G)`);
+      addLog(`경매 등록: ${item.name} ${price.toLocaleString()}G`,'lsys');
+      renderAucSellInv();
+      msgEl.textContent='';
+    } else { msgEl.textContent=d.msg||'등록 실패'; }
+  }catch(e){ msgEl.textContent='서버 오류'; }
 }
 
 async function loadBoard(page=1){
