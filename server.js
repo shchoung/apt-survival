@@ -189,6 +189,16 @@ async function initDB() {
     );
   `);
 
+  // 만료 세션 정리 (1일마다)
+  async function cleanExpiredSessions() {
+    try {
+      const r = await db.query("DELETE FROM sessions WHERE expires_at < NOW()");
+      if (r.rowCount > 0) console.log(`[SESSION] 만료 세션 ${r.rowCount}건 삭제`);
+    } catch(e) { console.warn('[SESSION] 정리 실패', e.message); }
+  }
+  cleanExpiredSessions();
+  setInterval(cleanExpiredSessions, 24 * 60 * 60 * 1000);
+
   // 만료 경매 자동 정리 (서버 시작 시 + 1시간마다)
   async function cleanExpiredAuctions() {
     try {
@@ -447,10 +457,15 @@ app.post('/api/shared-inv', async (req, res) => {
 // 인증 헬퍼
 async function authSession(token) {
   if (!token) return null;
-  const r = await db.query(
-    'SELECT user_id, nick FROM sessions WHERE token=$1 AND expires_at>NOW()', [token]
-  );
-  return r.rows[0] || null;
+  try {
+    const r = await db.query(
+      'SELECT user_id, nick FROM sessions WHERE token=$1 AND expires_at>NOW()', [token]
+    );
+    return r.rows[0] || null;
+  } catch(e) {
+    console.error('[AUTH]', e.message);
+    return null;
+  }
 }
 
 // GET /api/auction — 경매 목록 (active 전체, 최신순, 페이지당 20개)
@@ -481,6 +496,31 @@ app.get('/api/auction', async (req, res) => {
     res.json({ ok:false, msg:'목록 조회 실패' });
   }
 });
+
+// GET /api/auction/mine — 내 등록 목록 + 판매 완료 내역
+app.get('/api/auction/mine', async (req, res) => {
+  try {
+    const sess = await authSession(req.headers.authorization);
+    if (!sess) return res.json({ ok:false, msg:'로그인 필요' });
+    const rows = await db.query(
+      `SELECT id,item_id,item_name,item_icon,item_grade,enh_level,price,status,buyer_nick,created_at,expires_at
+       FROM auction_items WHERE seller_id=$1 ORDER BY created_at DESC LIMIT 30`,
+      [sess.user_id]
+    );
+    // 구매한 내역
+    const bought = await db.query(
+      `SELECT id,item_id,item_name,item_icon,item_grade,enh_level,price,seller_nick,created_at
+       FROM auction_items WHERE buyer_id=$1 ORDER BY created_at DESC LIMIT 20`,
+      [sess.user_id]
+    );
+    res.json({ ok:true, listed:rows.rows, bought:bought.rows });
+  } catch(e) {
+    res.json({ ok:false, msg:'조회 실패' });
+  }
+});
+
+/* ═══ 게시판 API ═══ */
+
 
 // POST /api/auction — 아이템 등록
 app.post('/api/auction', async (req, res) => {
@@ -537,8 +577,10 @@ app.post('/api/auction/:id/buy', async (req, res) => {
       'SELECT char_idx, gold FROM game_saves WHERE user_id=$1 ORDER BY gold DESC LIMIT 1',
       [sess.user_id]
     );
-    if (!saves.rows.length || saves.rows[0].gold < item.price)
-      return res.json({ ok:false, msg:`골드 부족 (필요: ${item.price.toLocaleString()}G)` });
+    if (!saves.rows.length)
+      return res.json({ ok:false, msg:'캐릭터 데이터 없음. 게임을 먼저 시작하세요.' });
+    if (saves.rows[0].gold < item.price)
+      return res.json({ ok:false, msg:`골드 부족 (보유: ${saves.rows[0].gold.toLocaleString()}G / 필요: ${item.price.toLocaleString()}G)` });
 
     const buyerSave = saves.rows[0];
 
@@ -599,29 +641,6 @@ app.delete('/api/auction/:id', async (req, res) => {
   }
 });
 
-// GET /api/auction/mine — 내 등록 목록 + 판매 완료 내역
-app.get('/api/auction/mine', async (req, res) => {
-  try {
-    const sess = await authSession(req.headers.authorization);
-    if (!sess) return res.json({ ok:false, msg:'로그인 필요' });
-    const rows = await db.query(
-      `SELECT id,item_id,item_name,item_icon,item_grade,enh_level,price,status,buyer_nick,created_at,expires_at
-       FROM auction_items WHERE seller_id=$1 ORDER BY created_at DESC LIMIT 30`,
-      [sess.user_id]
-    );
-    // 구매한 내역
-    const bought = await db.query(
-      `SELECT id,item_id,item_name,item_icon,item_grade,enh_level,price,seller_nick,created_at
-       FROM auction_items WHERE buyer_id=$1 ORDER BY created_at DESC LIMIT 20`,
-      [sess.user_id]
-    );
-    res.json({ ok:true, listed:rows.rows, bought:bought.rows });
-  } catch(e) {
-    res.json({ ok:false, msg:'조회 실패' });
-  }
-});
-
-/* ═══ 게시판 API ═══ */
 
 // 목록 조회
 app.get('/api/posts', async (req, res) => {
