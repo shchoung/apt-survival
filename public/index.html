@@ -2058,8 +2058,7 @@ async function saveGameData(clearMemory=false){
         currentUser.saves[selChar]={...sd,isNew:false};
       }
     }
-    console.log(`[SAVE] char:${selChar} Lv${player.lv} floor:${currentFloor} clearMemory:${clearMemory}`);
-  }catch(e){console.warn('[SAVE] 실패',e);}
+    }catch(e){console.warn('[SAVE] 실패',e);}
 }
 
 // charIdx 슬롯의 저장 데이터 로드 (서버 데이터만 사용)
@@ -2099,6 +2098,15 @@ async function goTitle(){
     await saveGameData(true);
     showToast('💾 저장 완료');
   }
+  // 게임 상태 완전 초기화
+  player=null; inventory=[]; equipped={weapon:null,armor:null,acc:null}; gold=0; kills=0;
+  enemies=[]; drops_arr=[]; particles=[]; floats=[]; skillFX=[]; projectiles=[]; enemyProjectiles=[];
+  selInvIdx=-1; selEnhIdx=-1; selMatIdx=-1;
+  cdT=[0,0,0,0,0]; waveKills=0; waveNum=1;
+  clearedFloors=[]; floorProgress=new Array(TOTAL_FLOORS).fill(false);
+  selChar=-1; takenChars=new Set();
+  // 경매/공용창 상태 초기화
+  selAucId=null; selSellInvIdx=-1; selSharedIdx=-1;
   hideAllOverlays();
   showScr('title');
 }
@@ -2114,8 +2122,12 @@ async function quitGame(){
 
 /* ═══════ SCREEN MANAGER ═══════ */
 function showScr(id){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));
-  if(id){const el=document.getElementById('scr-'+id);if(el)el.classList.remove('hidden');}
+  if(id){
+    const el=document.getElementById('scr-'+id);
+    if(el){ el.classList.remove('hidden'); el.classList.add('active'); }
+  }
   if(id==='char-select') renderCharSelect();
   if(id==='settings'){renderKBGrid();prevScr=prevScr||'title';}
   if(id==='multi-lobby') renderMultiMembers();
@@ -2134,9 +2146,7 @@ function hideAllOverlays(){
   const qs=document.getElementById('quest-screen');if(qs)qs.classList.add('hidden');
   const ps=document.getElementById('pachinko-screen');if(ps)ps.classList.add('hidden');
 }
-function showShop(){nextFloor();}
-function hideShop(){}
-function renderShop(){}
+// showShop/hideShop/renderShop → 아래 정의
 function showFloorMap(){panelOpen('floormap');floorMapViewIdx=currentMapIdx;document.getElementById('floor-map-screen').classList.remove('hidden');renderFloorMap();}
 function hideFloorMap(){panelClose('floormap');document.getElementById('floor-map-screen').classList.add('hidden');}
 function showInv(){
@@ -2334,29 +2344,6 @@ function drawCharIllusts(){
     const cv=document.getElementById(`char-illust-${i}`);
     if(!cv) return;
     const c2=cv.getContext('2d');
-    c2.clearRect(0,0,54,62);
-    const sp=CHAR_SPRITES[i];
-    if(sp?.loaded&&sp?.img){
-      const {w,h}=CHAR_FRAME_SIZE[i]||{w:128,h:150};
-      const scale=Math.min(54/w, 62/h);
-      const dw=Math.round(w*scale), dh=Math.round(h*scale);
-      const dx=Math.round((54-dw)/2), dy=Math.round((62-dh)/2);
-      c2.drawImage(sp.noBgCanvas||sp.img, 0,0,w,h, dx,dy,dw,dh);
-    } else {
-      const cd=CHARS[i];
-      c2.fillStyle=cd.color+'22';c2.fillRect(0,0,54,62);
-      c2.fillStyle=cd.color;c2.font='bold 22px Noto Sans KR';
-      c2.textAlign='center';c2.textBaseline='middle';c2.fillText(cd.init,27,28);
-      c2.fillStyle='#e0e8f0';c2.font='8px Noto Sans KR';c2.fillText(cd.name,27,50);
-    }
-  });
-}
-
-function drawCharIllusts(){
-  CHARS.forEach((_,i)=>{
-    const cv=document.getElementById(`char-illust-${i}`);
-    if(!cv) return;
-    const c2=cv.getContext('2d');
     c2.clearRect(0,0,70,80);
     const sp=CHAR_SPRITES[i];
     if(sp?.loaded&&sp?.img){
@@ -2434,8 +2421,8 @@ function renderFloorMap(){
     const isBoss=vmBoss.has(i);
     const cleared=vmCleared.has(i);
     const isCur=isCurrentMap&&currentFloor===i;
-    const prevCleared=i===0||vmCleared.has(i-1);
-    const locked=!cleared&&!isCur&&!prevCleared;
+    const prevCleared=i===0||vmCleared.has(i-1)||cleared;
+    const locked=!prevCleared&&!isCur;
     node.className=`fnode${isBoss?' boss':''}${cleared?' cleared':''}${isCur?' current':''}${locked?' locked':''}`;
     const icon=isBoss?'👹':'⚔';
     const clbl=cleared?'✓':isCur?'◀ 현재':'';
@@ -2498,7 +2485,7 @@ async function loadSharedInv(){
     });
     const d=await r.json();
     if(d.ok){ sharedInventory=d.sharedInv||[]; sharedInvLoaded=true; }
-  }catch(e){ console.warn('[SHARED-INV] 로드 실패',e); }
+  }catch(e){ sharedInvLoaded=true; /* 실패 시에도 로드 완료 처리 (빈 배열 유지) */ }
 }
 
 // 서버에 공용 인벤토리 저장
@@ -2663,7 +2650,11 @@ function moveFromShared(){
 function addItem(itemId,qty=1){
   const base=ITEM_POOL.find(x=>x.id===itemId);
   if(!base)return;
-  for(let i=0;i<qty;i++) inventory.push({item:{...base},enhLevel:0});
+  const MAX_INV=200;
+  for(let i=0;i<qty;i++){
+    if(inventory.length>=MAX_INV){showToast('인벤토리가 가득 찼습니다! (200개)');break;}
+    inventory.push({item:{...base},enhLevel:0});
+  }
   showToast(`${base.name} 획득!`);
   questState.sessionLoot = (questState.sessionLoot||0) + qty;
   questProgress('loot', qty);
@@ -3102,6 +3093,7 @@ function unequipItem(idx){
   if(running&&player) saveGameData();
 }
 function useConsumable(idx){
+  if(!player||!inventory[idx]) return;
   const {item}=inventory[idx];
   if(item.healAmt){player.hp=Math.min(player.maxHp,player.hp+item.healAmt);addLog(`${item.name} HP+${item.healAmt}`,'lheal');}
   inventory.splice(idx,1);
@@ -3127,6 +3119,7 @@ function dropItem(idx){
 }
 
 function getEquipStats(){
+  if(!player) return {atk:0,def:0,dropBonus:0,healBonus:0,atkMult:1,spd:0,hpBonus:0,atkRange:75,rangeType:'melee',atkSpd:1.0};
   let atk=0,def=0,dropBonus=0,healBonus=0,atkMult=1,spd=0,hpBonus=0;
   let atkRange=75, rangeType='melee'; // 기본 기본공격 범위
   Object.values(equipped).forEach(idx=>{
@@ -3291,7 +3284,6 @@ function buildMapFromImage(img, floor){
     }
   }
 
-  console.log(`[MAP] 층 ${floor} PNG에서 맵 생성 완료. 스폰:${SPAWN_POINTS.length}개`);
 }
 
 /* 방식 A: 배경만 PNG로 교체 */
@@ -4063,9 +4055,8 @@ function nextFloor(){
   startBGM(currentFloor);
   running=true;
   lastTime=0;
-  requestAnimationFrame(loop);
-  // 서버에 내 층 정보 전달 (같은 층 플레이어 동기화용)
   if(isMultiGame) wsSend({type:'player_floor',floor:currentFloor});
+  requestAnimationFrame(loop);
 }
 
 // ── 클리어 화면 액션 함수들 ──
@@ -4502,8 +4493,10 @@ function doKillEnemy(e,x,y){
 }
 
 function gameOver(){
+  if(!running && document.getElementById('scr-gameover')?.classList.contains('active')) return; // 이미 게임오버
   running=false;
-  document.getElementById('go-sub').textContent=`${floorName(currentFloor)} · 처치 ${kills} · ${fmtTime(elapsed)}`;
+  const sub=document.getElementById('go-sub');
+  if(sub) sub.textContent=`${floorName(currentFloor)} · 처치 ${kills} · ${fmtTime(elapsed)}`;
   showScr('gameover');
 }
 
@@ -5101,7 +5094,6 @@ tankerImg.onload=()=>{
   CHAR_SPRITES[0].img=tankerImg;
   CHAR_SPRITES[0].noBgCanvas=makeNoBgCanvas(tankerImg);
   CHAR_SPRITES[0].loaded=true;
-  console.log('[SPRITE] tanker 로드 완료 (배경제거)');
 };
 tankerImg.src=TANKER_IMG_SRC;
 
@@ -5111,7 +5103,6 @@ seaImg.onload=()=>{
   CHAR_SPRITES[1].img=seaImg;
   CHAR_SPRITES[1].noBgCanvas=makeNoBgCanvas(seaImg);
   CHAR_SPRITES[1].loaded=true;
-  console.log('[SPRITE] sea 로드 완료 (배경제거)');
 };
 seaImg.src=SEA_IMG_SRC;
 
@@ -5121,7 +5112,6 @@ minImg.onload=()=>{
   CHAR_SPRITES[2].img=minImg;
   CHAR_SPRITES[2].noBgCanvas=makeNoBgCanvas(minImg);
   CHAR_SPRITES[2].loaded=true;
-  console.log('[SPRITE] min 로드 완료 (배경제거)');
 };
 minImg.src=MIN_IMG_SRC;
 
@@ -5131,7 +5121,6 @@ hanaImg.onload=()=>{
   CHAR_SPRITES[3].img=hanaImg;
   CHAR_SPRITES[3].noBgCanvas=makeNoBgCanvas(hanaImg);
   CHAR_SPRITES[3].loaded=true;
-  console.log('[SPRITE] hana 로드 완료 (배경제거)');
 };
 hanaImg.src=HANA_IMG_SRC;
 
@@ -5554,7 +5543,7 @@ function stopBGM(){
 }
 
 function setBgmVol(val){
-  bgmVolume=parseInt(val)/100;
+  bgmVolume=(parseInt(val)||0)/100;
   const lbl=document.getElementById('bgm-vol-lbl');
   if(lbl) lbl.textContent=val;
   if(bgmAudio) bgmAudio.volume=bgmVolume;
@@ -6916,10 +6905,17 @@ function drawEnemySVG(ctx,sx,sy,e){
 }
 function addLog(m,c){logs.push({m,c});if(logs.length>30)logs.shift();}
 function addFloat(wx,wy,text,color){floats.push({x:wx,y:wy,text,color,life:40,a:1});}
-function sparks(wx,wy,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=1+Math.random()*3;particles.push({x:wx,y:wy,vx:Math.cos(a)*s,vy:Math.sin(a)*s,color,size:2+Math.random()*3,life:18+Math.random()*18,maxLife:36});}}
+function sparks(wx,wy,color,n){const MAX_P=400;for(let i=0;i<n;i++){if(particles.length>=MAX_P)break;const a=Math.random()*Math.PI*2,s=1+Math.random()*3;particles.push({x:wx,y:wy,vx:Math.cos(a)*s,vy:Math.sin(a)*s,color,size:2+Math.random()*3,life:18+Math.random()*18,maxLife:36});}}
 function fmtTime(s){const m=Math.floor(s/60);return`${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;}
 function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
-function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',1800);}
+function showToast(msg){
+  const t=document.getElementById('toast');
+  if(!t) return;
+  if(t._timer) clearTimeout(t._timer);
+  t.textContent=msg;
+  t.style.display='block';
+  t._timer=setTimeout(()=>{t.style.display='none';t._timer=null;},1800);
+}
 
 /* ═══════ 상점 시스템 ═══════ */
 
@@ -7495,11 +7491,13 @@ async function aucBuy(){
       // 인벤에 아이템 추가
       const base=ITEM_POOL?.find(x=>x.id===d.item.itemId);
       if(base) inventory.push({item:{...base},enhLevel:d.item.enhLevel||0});
-      // 골드 차감 (해당 캐릭터 저장 갱신)
-      gold=Math.max(0,gold-d.paid);
-      // 현재 캐릭 세이브에도 반영
-      if(currentUser?.saves?.[d.charIdx]!==undefined){
-        if(currentUser.saves[d.charIdx]) currentUser.saves[d.charIdx].gold=Math.max(0,(currentUser.saves[d.charIdx].gold||0)-d.paid);
+      // 골드 차감: 현재 플레이 중이면 gold 변수, 세이브 캐시도 갱신
+      if(running && player && selChar===d.charIdx){
+        gold=Math.max(0,gold-d.paid);
+        if(player) player.gold=gold; // 동기화
+      }
+      if(currentUser?.saves?.[d.charIdx]){
+        currentUser.saves[d.charIdx].gold=Math.max(0,(currentUser.saves[d.charIdx].gold||0)-d.paid);
       }
       saveGameData();
       showToast(`🎉 ${d.item.itemIcon||'📦'} ${d.item.itemName} 구매 완료! (-${d.paid.toLocaleString()}G)`);
@@ -7602,7 +7600,13 @@ function renderAucSellInv(){
   // 장착 중이 아닌 모든 아이템
   const eqSet=new Set(Object.values(equipped).filter(v=>v!=null));
   const items=inventory.map((e,i)=>({e,i})).filter(({i})=>!eqSet.has(i));
-  if(!items.length){ el.innerHTML='<div class="auc-empty">등록 가능한 아이템 없음</div>'; return; }
+  if(!items.length){
+    el.innerHTML='<div class="auc-empty">등록 가능한 아이템 없음</div>';
+    const form=document.getElementById('auc-sell-form');
+    if(form) form.style.display='none';
+    selSellInvIdx=-1;
+    return;
+  }
 
   const GRADE_COLOR={S:'#f5c842',A:'#e24b4b',B:'#5dcaa5',C:'#a0bcd0'};
   el.innerHTML='';
@@ -8400,19 +8404,17 @@ const WS_CHAR_COLORS=['#378ADD','#1D9E75','#BA7517','#993556'];
 
 function wsConnect(){
   const url=getWsUrl();
-  if(ws&&ws.readyState===WebSocket.OPEN) return;
+  if(ws&&(ws.readyState===WebSocket.OPEN||ws.readyState===WebSocket.CONNECTING)) return;
   try{
     ws=new WebSocket(url);
     ws.onopen=()=>{
-      console.log('[WS] 연결됨');
-      pingInterval=setInterval(()=>{
+          pingInterval=setInterval(()=>{
         if(ws&&ws.readyState===WebSocket.OPEN)
           ws.send(JSON.stringify({type:'ping',ts:Date.now()}));
       },20000);
     };
     ws.onclose=()=>{
-      console.log('[WS] 연결 끊김');
-      clearInterval(pingInterval);
+          clearInterval(pingInterval);
       ws=null;
       wsRoomPlayers={};
       updateMultiPartyHUD();
@@ -8424,8 +8426,10 @@ function wsConnect(){
 }
 
 function wsSend(msg){
-  if(ws&&ws.readyState===WebSocket.OPEN)
-    ws.send(JSON.stringify(msg));
+  try{
+    if(ws&&ws.readyState===WebSocket.OPEN)
+      ws.send(JSON.stringify(msg));
+  }catch(e){ /* ws 전송 실패 무시 */ }
 }
 
 // ── 자동 매칭: 게임 시작 시 서버의 빈 방에 자동 입장 ──
@@ -8465,7 +8469,6 @@ function wsPickChar(idx){ wsSend({type:'pick_char',charIdx:idx}); }
 
 function onWsMsg(msg){
   switch(msg.type){
-    case 'hello': console.log('[WS]',msg.msg); break;
 
     case 'joined':{
       myPlayerId=msg.playerId;
@@ -8620,7 +8623,6 @@ function onWsMsg(msg){
       logout();
       break;
     }
-    default: console.log('[WS unhandled]',msg.type);
   }
 }
 
@@ -9210,11 +9212,19 @@ initBgmAudio();
 })();
 
 // ── 30초 자동저장 ──
-setInterval(()=>{
-  if(running&&player) saveGameData();
-},30000);
+let _autoSaveTimer=null;
+function startAutoSave(){
+  if(_autoSaveTimer) clearInterval(_autoSaveTimer);
+  _autoSaveTimer=setInterval(()=>{
+    if(running&&player) saveGameData();
+  },30000);
+}
+startAutoSave();
 
 // ── 탭 닫기 / 새로고침 시 저장 ──
+window.addEventListener('error', (e)=>{
+  if(running){ running=false; showToast('⚠ 오류가 발생했습니다. 페이지를 새로고침하세요.'); }
+});
 window.addEventListener('beforeunload',()=>{
   if(running&&player) saveGameData(true);
 });
@@ -9244,7 +9254,6 @@ audio.src = bgmList[randomIndex];
 
 // 재생
 audio.play().catch(err => {
-  console.log("자동재생 차단:", err);
 });
 </script>
 </body>
