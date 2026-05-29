@@ -45,7 +45,7 @@ app.get('/api', (req, res) => res.json({ ok: true, msg: 'APT Survival API v3.0' 
 ══════════════════════════════════════ */
 const { Pool } = require('pg');
 
-const pool = new Pool({
+const Pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
