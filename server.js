@@ -43,11 +43,13 @@ app.get('/api', (req, res) => res.json({ ok: true, msg: 'APT Survival API v3.0' 
 /* ══════════════════════════════════════
    PostgreSQL 연결
 ══════════════════════════════════════ */
+const { Pool } = require('pg');
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL
-    ? { rejectUnauthorized: false }  // Railway SSL
-    : false,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // DB 쿼리 헬퍼
