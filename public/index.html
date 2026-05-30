@@ -3513,10 +3513,11 @@ function startGame(){
   hideAllOverlays();
 
   // 전역 상태 완전 초기화 (이전 세션 잔존 데이터 제거)
+  // ※ currentFloor/mapProgress는 save 로드 후 덮어씀 — 여기서 초기화 안 함
   inventory=[];
   equipped={weapon:null,armor:null,acc:null};
   gold=0;kills=0;
-  currentFloor=0;
+  currentFloor=0;        // save가 없을 때 기본값 (이후 복원)
   clearedFloors=[];
   mapProgress={};
   floorProgress=new Array(TOTAL_FLOORS).fill(false);
@@ -3533,8 +3534,8 @@ function startGame(){
   if(ctog) ctog.style.display='block';
 
   (async()=>{
-    // inMemory가 null이면(종료 후) 서버에서 최신 데이터 재요청
-    if(currentUser?.token && !currentUser.saves?.[selChar]){
+    // 서버에서 최신 저장 데이터 재요청 (항상 최신값 보장)
+    if(currentUser?.token){
       try{
         const res=await fetch(getApiBase()+'/api/save',{headers:{'Authorization':currentUser.token}});
         const data=await res.json();
@@ -3549,15 +3550,29 @@ function startGame(){
       applyMap(savedMapIdx);
       currentMapIdx=savedMapIdx;
       floorMapViewIdx=savedMapIdx;
+      // mapProgress 복원 — 서버에서 받은 값 우선, 없으면 빈 객체
       mapProgress=save.mapProgress||{};
 
       currentFloor=save.floor||0;
       inventory=save.inventoryObj||[];
       equipped=save.equippedObj||{weapon:null,armor:null,acc:null};
       gold=save.gold||0;kills=save.kills||0;
-      // clearedFloors = 현재 동의 mapProgress 기준으로 복원 (단일 소스)
+
+      // clearedFloors 복원: mapProgress[현재동] → save.clearedFloors 순서로 폴백
       const mp=mapProgress[getMap().id];
-      clearedFloors=mp?.clearedFloors?[...mp.clearedFloors]:(save.clearedFloors||[]);
+      if(mp?.clearedFloors?.length){
+        // mapProgress에 동별 기록이 있으면 그것이 정식 소스
+        clearedFloors=[...mp.clearedFloors];
+      } else if(save.clearedFloors?.length){
+        // 구버전 호환: mapProgress 없으면 clearedFloors로 mapProgress 재구성
+        clearedFloors=[...save.clearedFloors];
+        const mId=getMap().id;
+        if(!mapProgress[mId]) mapProgress[mId]={clearedFloors:[],floor:0};
+        mapProgress[mId].clearedFloors=[...save.clearedFloors];
+        mapProgress[mId].floor=currentFloor;
+      } else {
+        clearedFloors=[];
+      }
       floorProgress=new Array(TOTAL_FLOORS).fill(false);
       clearedFloors.forEach(f=>{if(f>=0&&f<TOTAL_FLOORS)floorProgress[f]=true;});
       showToast(`💾 ${CHARS[selChar]?.name} 데이터 복원 Lv${save.lv} / ${getMap().name} ${floorName(currentFloor)}`);
@@ -3912,9 +3927,12 @@ function stageComplete(){
   if(!mapProgress[mapId]) mapProgress[mapId]={clearedFloors:[],floor:0};
   if(!mapProgress[mapId].clearedFloors.includes(currentFloor))
     mapProgress[mapId].clearedFloors.push(currentFloor);
-  mapProgress[mapId].floor=currentFloor;
+  mapProgress[mapId].floor=currentFloor; // 마지막 클리어 층 기록
   // clearedFloors(전역)는 항상 현재 동의 mapProgress와 동기화
   clearedFloors=[...mapProgress[mapId].clearedFloors];
+  // floor-info 갱신
+  const fi=document.getElementById('floor-info');
+  if(fi) fi.textContent=getMap().name+' '+floorName(currentFloor)+(BOSS_FLOORS.has(currentFloor)?' [BOSS]':'');
   saveGameData();
   showToast('💾 저장됨');
 
