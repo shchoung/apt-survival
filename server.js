@@ -43,7 +43,6 @@ app.get('/api', (req, res) => res.json({ ok: true, msg: 'APT Survival API v3.0' 
 /* ══════════════════════════════════════
    PostgreSQL 연결
 ══════════════════════════════════════ */
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -115,6 +114,14 @@ async function initDB() {
       END$$;
     `);
   } catch(e) { console.warn('[MIGRATE] game_saves 마이그레이션 스킵:', e.message); }
+
+  // map_progress 컬럼 마이그레이션 (동별 클리어 기록)
+  try {
+    await db.query(`
+      ALTER TABLE game_saves ADD COLUMN IF NOT EXISTS
+        map_progress JSONB DEFAULT '{}';
+    `);
+  } catch(e) { console.warn('[MIGRATE] map_progress 마이그레이션 스킵:', e.message); }
 
   // 공용 인벤토리 컬럼 마이그레이션 (users 테이블에 JSONB 컬럼 추가)
   try {
@@ -358,7 +365,7 @@ app.post('/api/save', async (req, res) => {
 
     const {
       charIdx, lv, exp, hp, maxHp, atk, def,
-      floor, gold, kills, clearedFloors,
+      floor, gold, kills, clearedFloors, mapProgress,
       inventory, equipped,
     } = req.body;
 
@@ -368,8 +375,8 @@ app.post('/api/save', async (req, res) => {
     await db.query(`
       INSERT INTO game_saves
         (user_id, nick, char_idx, lv, exp, hp, max_hp, atk, def_stat,
-         floor, gold, kills, cleared_floors, inventory, equipped, saved_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+         floor, gold, kills, cleared_floors, map_progress, inventory, equipped, saved_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
       ON CONFLICT (user_id, char_idx) DO UPDATE SET
         lv             = EXCLUDED.lv,
         exp            = EXCLUDED.exp,
@@ -381,6 +388,7 @@ app.post('/api/save', async (req, res) => {
         gold           = EXCLUDED.gold,
         kills          = EXCLUDED.kills,
         cleared_floors = EXCLUDED.cleared_floors,
+        map_progress   = EXCLUDED.map_progress,
         inventory      = EXCLUDED.inventory,
         equipped       = EXCLUDED.equipped,
         saved_at       = NOW()
@@ -392,6 +400,7 @@ app.post('/api/save', async (req, res) => {
       atk ?? 50, def ?? 50,
       floor ?? 0, gold ?? 0, kills ?? 0,
       clearedFloors ?? [],
+      JSON.stringify(mapProgress ?? {}),
       JSON.stringify(inventory ?? []),
       JSON.stringify(equipped ?? {}),
     ]);
@@ -767,7 +776,7 @@ function formatSave(row, charIdx) {
       charIdx: ci, lv: 1, exp: 0,
       hp: 100, maxHp: 100, atk: 50, def: 50,
       floor: 0, gold: 0, kills: 0,
-      clearedFloors: [], inventory: [], equipped: {},
+      clearedFloors: [], mapProgress: {}, inventory: [], equipped: {},
       savedAt: null, isNew: true,
     };
   }
@@ -783,6 +792,7 @@ function formatSave(row, charIdx) {
     gold:          row.gold,
     kills:         row.kills,
     clearedFloors: row.cleared_floors || [],
+    mapProgress:   row.map_progress  || {},
     inventory:     row.inventory || [],
     equipped:      row.equipped  || {},
     savedAt:       row.saved_at,
