@@ -51,13 +51,12 @@ const pool = new Pool({
 });
 
 // DB 쿼리 헬퍼
-const db = {
-  query: (text, params) => pool.query(text, params),
-  async getOne(text, params) {
-    const r = await pool.query(text, params);
-    return r.rows[0] || null;
-  },
-};
+const db = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('neon.tech')
+    ? { rejectUnauthorized: false }  // Neon: SSL 필수
+    : false                           // 로컬: SSL 불필요
+});
 
 /* ══════════════════════════════════════
    DB 초기화 — 테이블 생성
