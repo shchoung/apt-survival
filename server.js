@@ -45,18 +45,19 @@ app.get('/api', (req, res) => res.json({ ok: true, msg: 'APT Survival API v3.0' 
 ══════════════════════════════════════ */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: process.env.DATABASE_URL
+    ? { rejectUnauthorized: false }  // Railway SSL
+    : false,
 });
 
 // DB 쿼리 헬퍼
-const db = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('neon.tech')
-    ? { rejectUnauthorized: false }  // Neon: SSL 필수
-    : false                           // 로컬: SSL 불필요
-});
+const db = {
+  query: (text, params) => pool.query(text, params),
+  async getOne(text, params) {
+    const r = await pool.query(text, params);
+    return r.rows[0] || null;
+  },
+};
 
 /* ══════════════════════════════════════
    DB 초기화 — 테이블 생성
@@ -114,22 +115,6 @@ async function initDB() {
     `);
   } catch(e) { console.warn('[MIGRATE] game_saves 마이그레이션 스킵:', e.message); }
 
-  // map_progress 컬럼 마이그레이션 (동별 클리어 기록)
-  try {
-    await db.query(`
-      ALTER TABLE game_saves ADD COLUMN IF NOT EXISTS
-        map_progress JSONB DEFAULT '{}';
-    `);
-  } catch(e) { console.warn('[MIGRATE] map_progress 마이그레이션 스킵:', e.message); }
-
-  // 공용 인벤토리 컬럼 마이그레이션 (users 테이블에 JSONB 컬럼 추가)
-  try {
-    await db.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS
-        shared_inventory JSONB DEFAULT '[]';
-    `);
-  } catch(e) { console.warn('[MIGRATE] shared_inventory 마이그레이션 스킵:', e.message); }
-
   await db.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       token       VARCHAR(128) PRIMARY KEY,
@@ -176,47 +161,6 @@ async function initDB() {
       created_at  TIMESTAMPTZ DEFAULT NOW()
     );
   `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS auction_items (
-      id          SERIAL PRIMARY KEY,
-      seller_id   INT REFERENCES users(id) ON DELETE CASCADE,
-      seller_nick VARCHAR(10) NOT NULL,
-      item_id     VARCHAR(60) NOT NULL,
-      item_name   VARCHAR(60) NOT NULL,
-      item_icon   VARCHAR(10) NOT NULL,
-      item_grade  CHAR(1) NOT NULL,
-      enh_level   SMALLINT DEFAULT 0,
-      price       INT NOT NULL CHECK (price > 0),
-      status      VARCHAR(10) NOT NULL DEFAULT 'active',
-      buyer_id    INT REFERENCES users(id) ON DELETE SET NULL,
-      buyer_nick  VARCHAR(10),
-      created_at  TIMESTAMPTZ DEFAULT NOW(),
-      expires_at  TIMESTAMPTZ DEFAULT NOW() + INTERVAL '72 hours'
-    );
-  `);
-
-  // 만료 세션 정리 (1일마다)
-  async function cleanExpiredSessions() {
-    try {
-      const r = await db.query("DELETE FROM sessions WHERE expires_at < NOW()");
-      if (r.rowCount > 0) console.log(`[SESSION] 만료 세션 ${r.rowCount}건 삭제`);
-    } catch(e) { console.warn('[SESSION] 정리 실패', e.message); }
-  }
-  cleanExpiredSessions();
-  setInterval(cleanExpiredSessions, 24 * 60 * 60 * 1000);
-
-  // 만료 경매 자동 정리 (서버 시작 시 + 1시간마다)
-  async function cleanExpiredAuctions() {
-    try {
-      const res = await db.query(
-        "UPDATE auction_items SET status='expired' WHERE status='active' AND expires_at < NOW()"
-      );
-      if (res.rowCount > 0) console.log(`[AUCTION] 만료 ${res.rowCount}건 처리`);
-    } catch(e) { console.warn('[AUCTION] 만료 정리 실패', e.message); }
-  }
-  cleanExpiredAuctions();
-  setInterval(cleanExpiredAuctions, 60 * 60 * 1000);
 
   console.log('[DB] 테이블 초기화 완료');
 }
@@ -364,7 +308,7 @@ app.post('/api/save', async (req, res) => {
 
     const {
       charIdx, lv, exp, hp, maxHp, atk, def,
-      floor, gold, kills, clearedFloors, mapProgress,
+      floor, gold, kills, clearedFloors,
       inventory, equipped,
     } = req.body;
 
@@ -374,8 +318,8 @@ app.post('/api/save', async (req, res) => {
     await db.query(`
       INSERT INTO game_saves
         (user_id, nick, char_idx, lv, exp, hp, max_hp, atk, def_stat,
-         floor, gold, kills, cleared_floors, map_progress, inventory, equipped, saved_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
+         floor, gold, kills, cleared_floors, inventory, equipped, saved_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
       ON CONFLICT (user_id, char_idx) DO UPDATE SET
         lv             = EXCLUDED.lv,
         exp            = EXCLUDED.exp,
@@ -387,7 +331,6 @@ app.post('/api/save', async (req, res) => {
         gold           = EXCLUDED.gold,
         kills          = EXCLUDED.kills,
         cleared_floors = EXCLUDED.cleared_floors,
-        map_progress   = EXCLUDED.map_progress,
         inventory      = EXCLUDED.inventory,
         equipped       = EXCLUDED.equipped,
         saved_at       = NOW()
@@ -399,7 +342,6 @@ app.post('/api/save', async (req, res) => {
       atk ?? 50, def ?? 50,
       floor ?? 0, gold ?? 0, kills ?? 0,
       clearedFloors ?? [],
-      JSON.stringify(mapProgress ?? {}),
       JSON.stringify(inventory ?? []),
       JSON.stringify(equipped ?? {}),
     ]);
@@ -412,244 +354,7 @@ app.post('/api/save', async (req, res) => {
   }
 });
 
-/* ═══ 공용 인벤토리 API ═══ */
-
-// GET /api/shared-inv — 공용 인벤토리 조회
-app.get('/api/shared-inv', async (req, res) => {
-  try {
-    const token = req.headers.authorization;
-    if (!token) return res.json({ ok: false, msg: '인증 필요' });
-    const sess = await db.query(
-      'SELECT user_id FROM sessions WHERE token=$1 AND expires_at>NOW()', [token]
-    );
-    if (!sess.rows.length) return res.json({ ok: false, msg: '세션 만료' });
-    const uid = sess.rows[0].user_id;
-    const row = await db.query('SELECT shared_inventory FROM users WHERE id=$1', [uid]);
-    const inv = row.rows[0]?.shared_inventory || [];
-    res.json({ ok: true, sharedInv: inv });
-  } catch (e) {
-    console.error('[SHARED-INV GET]', e.message);
-    res.json({ ok: false, msg: '조회 실패' });
-  }
-});
-
-// POST /api/shared-inv — 공용 인벤토리 저장
-app.post('/api/shared-inv', async (req, res) => {
-  try {
-    const token = req.headers.authorization;
-    if (!token) return res.json({ ok: false, msg: '인증 필요' });
-    const sess = await db.query(
-      'SELECT user_id FROM sessions WHERE token=$1 AND expires_at>NOW()', [token]
-    );
-    if (!sess.rows.length) return res.json({ ok: false, msg: '세션 만료' });
-    const uid = sess.rows[0].user_id;
-    const { sharedInv } = req.body;
-    if (!Array.isArray(sharedInv)) return res.json({ ok: false, msg: '잘못된 데이터' });
-    // 최대 40슬롯 제한
-    const clamped = sharedInv.slice(0, 40);
-    await db.query(
-      'UPDATE users SET shared_inventory=$1 WHERE id=$2',
-      [JSON.stringify(clamped), uid]
-    );
-    console.log(`[SHARED-INV] user:${uid} items:${clamped.length}`);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('[SHARED-INV POST]', e.message);
-    res.json({ ok: false, msg: '저장 실패' });
-  }
-});
-
-/* ═══════════════════════════════════════
-   경매장 API
-═══════════════════════════════════════ */
-
-// 인증 헬퍼
-async function authSession(token) {
-  if (!token) return null;
-  try {
-    const r = await db.query(
-      'SELECT user_id, nick FROM sessions WHERE token=$1 AND expires_at>NOW()', [token]
-    );
-    return r.rows[0] || null;
-  } catch(e) {
-    console.error('[AUTH]', e.message);
-    return null;
-  }
-}
-
-// GET /api/auction — 경매 목록 (active 전체, 최신순, 페이지당 20개)
-app.get('/api/auction', async (req, res) => {
-  try {
-    const page = Math.max(1, parseInt(req.query.page)||1);
-    const limit = 20;
-    const offset = (page-1)*limit;
-    const grade = req.query.grade || '';       // 등급 필터
-    const keyword = req.query.q || '';          // 이름 검색
-
-    let where = "WHERE status='active' AND expires_at > NOW()";
-    const params = [];
-    let pi = 1;
-    if (grade) { where += ` AND item_grade=$${pi++}`; params.push(grade); }
-    if (keyword) { where += ` AND item_name ILIKE $${pi++}`; params.push('%'+keyword+'%'); }
-
-    const rows = await db.query(
-      `SELECT id,seller_nick,item_id,item_name,item_icon,item_grade,enh_level,price,created_at,expires_at
-       FROM auction_items ${where}
-       ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-      params
-    );
-    const total = await db.query(`SELECT COUNT(*) FROM auction_items ${where}`, params);
-    res.json({ ok:true, items:rows.rows, total:parseInt(total.rows[0].count), page, limit });
-  } catch(e) {
-    console.error('[AUCTION LIST]', e.message);
-    res.json({ ok:false, msg:'목록 조회 실패' });
-  }
-});
-
-// GET /api/auction/mine — 내 등록 목록 + 판매 완료 내역
-app.get('/api/auction/mine', async (req, res) => {
-  try {
-    const sess = await authSession(req.headers.authorization);
-    if (!sess) return res.json({ ok:false, msg:'로그인 필요' });
-    const rows = await db.query(
-      `SELECT id,item_id,item_name,item_icon,item_grade,enh_level,price,status,buyer_nick,created_at,expires_at
-       FROM auction_items WHERE seller_id=$1 ORDER BY created_at DESC LIMIT 30`,
-      [sess.user_id]
-    );
-    // 구매한 내역
-    const bought = await db.query(
-      `SELECT id,item_id,item_name,item_icon,item_grade,enh_level,price,seller_nick,created_at
-       FROM auction_items WHERE buyer_id=$1 ORDER BY created_at DESC LIMIT 20`,
-      [sess.user_id]
-    );
-    res.json({ ok:true, listed:rows.rows, bought:bought.rows });
-  } catch(e) {
-    res.json({ ok:false, msg:'조회 실패' });
-  }
-});
-
 /* ═══ 게시판 API ═══ */
-
-
-// POST /api/auction — 아이템 등록
-app.post('/api/auction', async (req, res) => {
-  try {
-    const sess = await authSession(req.headers.authorization);
-    if (!sess) return res.json({ ok:false, msg:'로그인 필요' });
-
-    const { itemId, itemName, itemIcon, itemGrade, enhLevel, price } = req.body;
-    if (!itemId || !price || price <= 0) return res.json({ ok:false, msg:'잘못된 데이터' });
-    if (price > 99999999) return res.json({ ok:false, msg:'가격 한도 초과 (최대 99,999,999G)' });
-
-    // 동일 유저 활성 등록 10개 제한
-    const cnt = await db.query(
-      "SELECT COUNT(*) FROM auction_items WHERE seller_id=$1 AND status='active'",
-      [sess.user_id]
-    );
-    if (parseInt(cnt.rows[0].count) >= 10)
-      return res.json({ ok:false, msg:'등록 한도 초과 (최대 10개)' });
-
-    const row = await db.query(
-      `INSERT INTO auction_items
-         (seller_id,seller_nick,item_id,item_name,item_icon,item_grade,enh_level,price)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [sess.user_id, sess.nick, itemId, itemName||itemId, itemIcon||'📦',
-       itemGrade||'C', enhLevel||0, price]
-    );
-    console.log(`[AUCTION] 등록 ${sess.nick}: ${itemName} ${price}G`);
-    res.json({ ok:true, id:row.rows[0].id });
-  } catch(e) {
-    console.error('[AUCTION POST]', e.message);
-    res.json({ ok:false, msg:'등록 실패' });
-  }
-});
-
-// POST /api/auction/:id/buy — 구매
-app.post('/api/auction/:id/buy', async (req, res) => {
-  // 원자적 상태 변경으로 동시 구매 방지
-  try {
-    const sess = await authSession(req.headers.authorization);
-    if (!sess) return res.json({ ok:false, msg:'로그인 필요' });
-    const auctionId = parseInt(req.params.id);
-
-    // 경매 아이템 조회 (FOR UPDATE 효과: status 체크 후 바로 업데이트)
-    const aRow = await db.query(
-      "SELECT * FROM auction_items WHERE id=$1 AND status='active' AND expires_at>NOW()",
-      [auctionId]
-    );
-    if (!aRow.rows.length) return res.json({ ok:false, msg:'이미 판매되었거나 만료된 아이템입니다' });
-    const item = aRow.rows[0];
-    if (item.seller_id === sess.user_id) return res.json({ ok:false, msg:'자신의 아이템은 구매할 수 없습니다' });
-
-    // 구매자 골드 확인 (현재 캐릭터 기준 — 가장 골드 많은 슬롯)
-    const saves = await db.query(
-      'SELECT char_idx, gold FROM game_saves WHERE user_id=$1 ORDER BY gold DESC LIMIT 1',
-      [sess.user_id]
-    );
-    if (!saves.rows.length)
-      return res.json({ ok:false, msg:'캐릭터 데이터 없음. 게임을 먼저 시작하세요.' });
-    if (saves.rows[0].gold < item.price)
-      return res.json({ ok:false, msg:`골드 부족 (보유: ${saves.rows[0].gold.toLocaleString()}G / 필요: ${item.price.toLocaleString()}G)` });
-
-    const buyerSave = saves.rows[0];
-
-    // 원자적 상태 변경 (동시 구매 방지)
-    const upd = await db.query(
-      "UPDATE auction_items SET status='sold',buyer_id=$1,buyer_nick=$2 WHERE id=$3 AND status='active' RETURNING id",
-      [sess.user_id, sess.nick, auctionId]
-    );
-    if (!upd.rows.length) return res.json({ ok:false, msg:'동시 구매 충돌, 다시 시도하세요' });
-
-    // 구매자 골드 차감
-    await db.query(
-      'UPDATE game_saves SET gold=gold-$1 WHERE user_id=$2 AND char_idx=$3',
-      [item.price, sess.user_id, buyerSave.char_idx]
-    );
-    // 판매자 골드 지급 (수수료 5%)
-    const tax = Math.floor(item.price * 0.05);
-    const gain = item.price - tax;
-    await db.query(
-      'UPDATE game_saves SET gold=gold+$1 WHERE user_id=$2 AND char_idx=(SELECT char_idx FROM game_saves WHERE user_id=$2 ORDER BY char_idx ASC LIMIT 1)',
-      [gain, item.seller_id]
-    );
-
-    console.log(`[AUCTION] 판매 완료: ${item.item_name} ${item.price}G (${item.seller_nick}→${sess.nick}, 수수료 ${tax}G)`);
-    res.json({
-      ok:true,
-      item:{ itemId:item.item_id, itemName:item.item_name, itemIcon:item.item_icon,
-             itemGrade:item.item_grade, enhLevel:item.enh_level },
-      paid:item.price, gain, tax,
-      charIdx:buyerSave.char_idx
-    });
-  } catch(e) {
-    console.error('[AUCTION BUY]', e.message);
-    res.json({ ok:false, msg:'구매 실패' });
-  }
-});
-
-// DELETE /api/auction/:id — 본인 등록 취소
-app.delete('/api/auction/:id', async (req, res) => {
-  try {
-    const sess = await authSession(req.headers.authorization);
-    if (!sess) return res.json({ ok:false, msg:'로그인 필요' });
-    const auctionId = parseInt(req.params.id);
-    const upd = await db.query(
-      "UPDATE auction_items SET status='cancelled' WHERE id=$1 AND seller_id=$2 AND status='active' RETURNING id,item_id,item_name,item_icon,item_grade,enh_level",
-      [auctionId, sess.user_id]
-    );
-    if (!upd.rows.length) return res.json({ ok:false, msg:'취소할 수 없는 아이템입니다' });
-    const it = upd.rows[0];
-    res.json({
-      ok:true,
-      item:{ itemId:it.item_id, itemName:it.item_name, itemIcon:it.item_icon,
-             itemGrade:it.item_grade, enhLevel:it.enh_level }
-    });
-  } catch(e) {
-    console.error('[AUCTION DELETE]', e.message);
-    res.json({ ok:false, msg:'취소 실패' });
-  }
-});
-
 
 // 목록 조회
 app.get('/api/posts', async (req, res) => {
@@ -775,7 +480,7 @@ function formatSave(row, charIdx) {
       charIdx: ci, lv: 1, exp: 0,
       hp: 100, maxHp: 100, atk: 50, def: 50,
       floor: 0, gold: 0, kills: 0,
-      clearedFloors: [], mapProgress: {}, inventory: [], equipped: {},
+      clearedFloors: [], inventory: [], equipped: {},
       savedAt: null, isNew: true,
     };
   }
@@ -791,7 +496,6 @@ function formatSave(row, charIdx) {
     gold:          row.gold,
     kills:         row.kills,
     clearedFloors: row.cleared_floors || [],
-    mapProgress:   row.map_progress  || {},
     inventory:     row.inventory || [],
     equipped:      row.equipped  || {},
     savedAt:       row.saved_at,
@@ -1325,6 +1029,25 @@ setInterval(async () => {
       console.log(`   DB: ${process.env.DATABASE_URL ? '✅ PostgreSQL' : '❌ DATABASE_URL 없음'}`);
       console.log(`   JWT: ${process.env.JWT_SECRET ? '✅ 설정됨' : '⚠ 기본값 사용 중'}\n`);
     });
+
+    // ── Render 슬립 방지 (무료 플랜: 15분 미사용 시 슬립)
+    // RENDER_SERVICE_URL 환경변수가 있을 때만 동작 (로컬에서는 실행 안 됨)
+    if (process.env.RENDER_SERVICE_URL) {
+      const WAKE_URL = process.env.RENDER_SERVICE_URL.replace(/\/$/, '') + '/health';
+      const WAKE_INTERVAL = 14 * 60 * 1000; // 14분마다 (15분 슬립 기준)
+
+      setInterval(async () => {
+        try {
+          const res = await fetch(WAKE_URL);
+          const data = await res.json();
+          console.log(`[WAKEUP] ping → ${WAKE_URL} | ${data.ok ? 'ok' : 'fail'}`);
+        } catch (e) {
+          console.warn(`[WAKEUP] ping 실패: ${e.message}`);
+        }
+      }, WAKE_INTERVAL);
+
+      console.log(`[WAKEUP] 슬립 방지 활성화 → ${WAKE_URL} (14분 간격)`);
+    }
   } catch (e) {
     console.error('[STARTUP ERROR]', e);
     process.exit(1);
