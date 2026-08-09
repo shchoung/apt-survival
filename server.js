@@ -15,15 +15,24 @@ const http     = require('http');
 const path     = require('path');
 const crypto   = require('crypto');
 const bcrypt   = require('bcryptjs');
+const helmet   = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { Pool } = require('pg');
 const { WebSocketServer, WebSocket } = require('ws');
 
 const app    = express();
 const server = http.createServer(app);
 // ── WebSocket: path 없이 루트에 바인딩 (Railway 호환) ──
-const wss    = new WebSocketServer({ server, path: '/' });
+const wss    = new WebSocketServer({ server, path: '/', maxPayload: 64 * 1024 }); // 64KB 제한
 const PORT   = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'apt_survival_secret_2024';
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[SECURITY] JWT_SECRET 환경변수가 설정되지 않았습니다. 서버를 종료합니다.');
+    process.exit(1);
+  }
+  console.warn('[SECURITY] 개발용 기본 JWT_SECRET 사용 중 — 프로덕션에서는 반드시 변경하세요.');
+  return 'apt_survival_dev_secret_only';
+})();
 
 // ── CORS (Railway 도메인 허용) ──
 app.use((req, res, next) => {
@@ -34,7 +43,34 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+// ── 보안 헤더 (helmet)
+app.use(helmet({
+  contentSecurityPolicy: false, // 게임 인라인 스크립트 허용
+  crossOriginEmbedderPolicy: false,
+}));
+
+// ── 요청 크기 제한 (대용량 페이로드 공격 방지)
+app.use(express.json({ limit: '512kb' }));
+app.use(express.urlencoded({ extended: false, limit: '512kb' }));
+
+// ── Rate Limit: 로그인/회원가입 브루트포스 방지
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15분
+  max: 20,                   // 최대 20회
+  message: { ok: false, msg: '너무 많은 시도입니다. 15분 후 다시 시도해주세요.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// ── Rate Limit: API 전체 (DDoS 기초 방어)
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,  // 1분
+  max: 120,                  // 분당 120회
+  message: { ok: false, msg: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', apiLimiter);
 
 // ── 헬스체크 (Railway 생존 확인용) ──
 app.get('/health', (req, res) => res.json({ ok: true, version: '3.0' }));
@@ -191,15 +227,19 @@ async function verifyToken(token) {
 ══════════════════════════════════════ */
 
 /* ─ 회원가입 ─ */
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', authLimiter, async (req, res) => {
   try {
     const { nick, password } = req.body;
     if (!nick || !password)
       return res.json({ ok: false, msg: '닉네임과 비밀번호를 입력하세요.' });
     if (nick.length < 2 || nick.length > 10)
       return res.json({ ok: false, msg: '닉네임은 2~10자여야 합니다.' });
-    if (password.length < 4)
-      return res.json({ ok: false, msg: '비밀번호는 4자 이상이어야 합니다.' });
+    if (password.length < 6)
+      return res.json({ ok: false, msg: '비밀번호는 6자 이상이어야 합니다.' });
+    if (password.length > 100)
+      return res.json({ ok: false, msg: '비밀번호가 너무 깁니다.' });
+    if (!/^[가-힣a-zA-Z0-9]{2,10}$/.test(nick))
+      return res.json({ ok: false, msg: '닉네임은 한글/영문/숫자만 사용 가능합니다.' });
     if (!/^[a-zA-Z0-9가-힣_]+$/.test(nick))
       return res.json({ ok: false, msg: '닉네임에 특수문자는 사용할 수 없습니다.' });
 
@@ -229,7 +269,7 @@ app.post('/api/register', async (req, res) => {
 });
 
 /* ─ 로그인 ─ */
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
   try {
     const { nick, password } = req.body;
     const user = await db.getOne(
@@ -381,6 +421,8 @@ app.post('/api/posts', async (req, res) => {
   if(!sess) return res.json({ok:false,msg:'로그인 필요'});
   const {title,content,is_anon=false}=req.body;
   if(!title?.trim()||!content?.trim()) return res.json({ok:false,msg:'제목/내용 필수'});
+  if(title.length>100) return res.json({ok:false,msg:'제목은 100자 이내로 입력하세요'});
+  if(content.length>5000) return res.json({ok:false,msg:'내용은 5000자 이내로 입력하세요'});
   if(title.length>100||content.length>2000) return res.json({ok:false,msg:'길이 초과'});
   try {
     const r=await db.query(
@@ -418,7 +460,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
   const post_id=parseInt(req.params.id);
   const {content,parent_id=null,is_anon=false}=req.body;
   if(!content?.trim()) return res.json({ok:false,msg:'내용 필수'});
-  if(content.length>500) return res.json({ok:false,msg:'500자 이내'});
+  if(content.length>1000) return res.json({ok:false,msg:'500자 이내'});
   try {
     const r=await db.query(
       `INSERT INTO comments(post_id,parent_id,user_id,nick,is_anon,content)
@@ -663,8 +705,16 @@ async function removePlayer(ws) {
    WebSocket 메시지 핸들러
 ══════════════════════════════════════ */
 async function handleMessage(ws, raw) {
+  // 메시지 크기 보조 검증
+  if (raw.length > 65536) return;
   let msg;
   try { msg = JSON.parse(raw); } catch { return; }
+  // 허용 타입 화이트리스트
+  const ALLOWED = new Set([
+    'ping','auto_match','join','leave','state','skill','chat',
+    'boss_sync','floor_change','auto_save','pick_char','player_floor'
+  ]);
+  if (!msg?.type || !ALLOWED.has(msg.type)) return;
 
   // ── 자동 매칭 (빈 방 자동 입장) ──
   if (msg.type === 'auto_match') {
@@ -1029,25 +1079,6 @@ setInterval(async () => {
       console.log(`   DB: ${process.env.DATABASE_URL ? '✅ PostgreSQL' : '❌ DATABASE_URL 없음'}`);
       console.log(`   JWT: ${process.env.JWT_SECRET ? '✅ 설정됨' : '⚠ 기본값 사용 중'}\n`);
     });
-
-    // ── Render 슬립 방지 (무료 플랜: 15분 미사용 시 슬립)
-    // RENDER_SERVICE_URL 환경변수가 있을 때만 동작 (로컬에서는 실행 안 됨)
-    if (process.env.RENDER_SERVICE_URL) {
-      const WAKE_URL = process.env.RENDER_SERVICE_URL.replace(/\/$/, '') + '/health';
-      const WAKE_INTERVAL = 14 * 60 * 1000; // 14분마다 (15분 슬립 기준)
-
-      setInterval(async () => {
-        try {
-          const res = await fetch(WAKE_URL);
-          const data = await res.json();
-          console.log(`[WAKEUP] ping → ${WAKE_URL} | ${data.ok ? 'ok' : 'fail'}`);
-        } catch (e) {
-          console.warn(`[WAKEUP] ping 실패: ${e.message}`);
-        }
-      }, WAKE_INTERVAL);
-
-      console.log(`[WAKEUP] 슬립 방지 활성화 → ${WAKE_URL} (14분 간격)`);
-    }
   } catch (e) {
     console.error('[STARTUP ERROR]', e);
     process.exit(1);
