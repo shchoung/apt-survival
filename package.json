@@ -11,10 +11,12 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "bcryptjs": "^5.1.1",
     "express": "^4.18.2",
-    "ws": "^8.16.0",
-    "bcryptjs": "^2.4.3",
-    "pg": "^8.11.3"
+    "express-rate-limit": "^7.x.x",
+    "helmet": "^8.x.x",
+    "pg": "^8.11.3",
+    "ws": "^8.16.0"
   },
   "license": "MIT"
 }
