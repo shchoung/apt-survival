@@ -11,10 +11,11 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "bcryptjs": "^5.1.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "express-rate-limit": "^7.x.x",
-    "helmet": "^8.x.x",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
     "pg": "^8.11.3",
     "ws": "^8.16.0"
   },
