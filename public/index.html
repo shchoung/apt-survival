@@ -2068,6 +2068,39 @@ let charAnimState={
   atkPush:0,          // 어택 전진 타이머
 };
 
+// 전투 손맛 상태
+let combatShake=0;
+let combatShakePower=0;
+let combatFlash=0;
+let combatHitstop=0;
+let combatCombo=0;
+let combatComboTimer=0;
+let combatComboBest=0;
+
+function combatImpact(e, dmg, angle, critical=false){
+  // 적 피격 반동: 벽을 넘지 않도록 다음 프레임에 보정
+  const kb=critical ? 5.5 : (e.boss ? 1.6 : 3.2);
+  e.hitVx=(e.hitVx||0)+Math.cos(angle)*kb;
+  e.hitVy=(e.hitVy||0)+Math.sin(angle)*kb;
+  e.hitAnim=critical?14:10;
+  e.flick=critical?8:6;
+
+  // 화면 흔들림 + 짧은 히트스톱
+  combatShake=Math.min(14, combatShake+(critical?7:e.boss?4.5:2.8));
+  combatShakePower=Math.max(combatShakePower, critical?2.2:e.boss?1.4:0.9);
+  combatFlash=Math.max(combatFlash, critical?7:3);
+  combatHitstop=Math.max(combatHitstop, critical?3:2);
+
+  // 연속 타격 콤보
+  combatCombo++;
+  combatComboTimer=42;
+  combatComboBest=Math.max(combatComboBest,combatCombo);
+  addFloat(e.x,e.y,critical?`CRITICAL! ${dmg}`:`-${dmg}`,critical?'#ffe066':'#ff7070');
+  sparks(e.x,e.y,critical?'#ffe066':'#ff9070',critical?14:8);
+  if(critical) spawnSkillFX('crit_hit',e.x,e.y,angle, '#ffe066');
+}
+
+
 function renderMapSelect(){
   const grid=document.getElementById('map-select-grid');
   if(!grid) return;
@@ -3388,8 +3421,17 @@ function loop(ts=0){
 }
 
 function update(){
+  // 짧은 히트스톱: 강한 타격 순간 입력/적 움직임을 잠깐 멈춰 타격감을 강조
+  if(combatHitstop>0){
+    combatHitstop--;
+    return;
+  }
   camX=player.x;camY=player.y;
   window.movePlayer();
+  if(combatShake>0){combatShake=Math.max(0,combatShake-0.55);}
+  if(combatFlash>0)combatFlash--;
+  if(combatComboTimer>0)combatComboTimer--;
+  else combatCombo=0;
 
   // 캐릭터 애니메이션 상태 업데이트
   const moved=Math.abs(player.x-charAnimState.lastX)+Math.abs(player.y-charAnimState.lastY)>0.5;
@@ -3405,6 +3447,15 @@ function update(){
 
   // 적 AI — 멀티/솔로 모두 각자 실행
   enemies.forEach(e=>{
+    // 피격 반동을 적용해 적이 맞은 방향으로 살짝 밀림
+    if(e.hitVx||e.hitVy){
+      const nx=e.x+(e.hitVx||0), ny=e.y+(e.hitVy||0);
+      if(!wallBox(nx,ny,e.size||12)){e.x=nx;e.y=ny;}
+      e.hitVx=(e.hitVx||0)*0.55;
+      e.hitVy=(e.hitVy||0)*0.55;
+      if(Math.abs(e.hitVx)<0.05)e.hitVx=0;
+      if(Math.abs(e.hitVy)<0.05)e.hitVy=0;
+    }
     // ── 멀티: 모든 플레이어 중 가장 가까운 플레이어를 타겟 ──
     let targetX=player.x,targetY=player.y;
     if(isMultiGame){
@@ -4021,25 +4072,23 @@ function useSkill(i){
     const dp=Math.sqrt((e.x-player.x)**2+(e.y-player.y)**2);
     const dt=Math.sqrt((e.x-mw.x)**2+(e.y-mw.y)**2);
     if(dp<effRange||(sk.aoe>0&&dt<sk.aoe)){
-      const dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55+rand(-5,8)));
-      addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
-      sparks(e.x,e.y,'#ff9070',7);
+      let dmg=Math.max(1,Math.floor(sk.dmg*atkTotal*.55+rand(-5,8)));
+      // 기본공격/스킬에 낮은 확률의 치명타를 추가해 순간적인 쾌감을 강화
+      const critical=(i===0 && Math.random()<0.12) || (i>0 && Math.random()<0.08);
+      if(critical) dmg=Math.floor(dmg*1.75);
+      combatImpact(e,dmg,Math.atan2(e.y-player.y,e.x-player.x),critical);
       if(e.boss) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
       hit++;
       const isBossEnemy=e.boss||false;
       if(isMultiGame&&isBossEnemy&&!isBossHost()){
         // 보스 비호스트: 로컬 효과 + 호스트에게 데미지 전달
         e.flick=6;
-        addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
-        sparks(e.x,e.y,'#ff9070',7);
         spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
         wsSend({type:'boss_attack',floor:currentFloor,dmg,
           x:Math.round(e.x),y:Math.round(e.y)});
       } else {
         // 일반 몹 or 보스 호스트: 직접 처리
         e.hp-=dmg;e.flick=6;e.hitAnim=10;
-        addFloat(e.x,e.y,`-${dmg}`,'#ff7070');
-        sparks(e.x,e.y,'#ff9070',7);
         if(isBossEnemy) spawnSkillFX('boss_hit',e.x,e.y,0,e.color);
         if(e.hp<=0) killEnemy(e);
       }
@@ -4142,7 +4191,12 @@ function gameOver(){
 
 /* ═══════ DRAW ═══════ */
 function draw(){
-  ctx.fillStyle='#07090d';ctx.fillRect(0,0,W,H);
+  ctx.save();
+  const shake=Math.min(16,combatShake);
+  if(shake>0){
+    ctx.translate((Math.random()-.5)*shake*combatShakePower,(Math.random()-.5)*shake*combatShakePower);
+  }
+  ctx.fillStyle='#07090d';ctx.fillRect(-20,-20,W+40,H+40);
 
   // ── 층 배경 PNG (방식 A) ──
   if(currentBgImg&&currentBgImg.complete&&currentBgImg.naturalWidth>0){
@@ -4411,6 +4465,21 @@ function draw(){
   }
   particles.forEach(p=>{const s=w2s(p.x,p.y);ctx.globalAlpha=p.life/p.maxLife;ctx.beginPath();ctx.arc(s.x,s.y,p.size,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();});ctx.globalAlpha=1;
   floats.forEach(f=>{const s=w2s(f.x,f.y);ctx.globalAlpha=f.a;ctx.fillStyle=f.color;ctx.font='bold 12px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(f.text,s.x,s.y);});ctx.globalAlpha=1;
+  // 전투 피격 플래시 / 콤보 표시
+  if(combatFlash>0){
+    ctx.fillStyle=`rgba(255,230,100,${combatFlash/70})`;
+    ctx.fillRect(-30,-30,W+60,H+60);
+  }
+  if(combatCombo>1 && combatComboTimer>0){
+    ctx.save();
+    ctx.globalAlpha=Math.min(1,combatComboTimer/12);
+    ctx.fillStyle='#ffe066';
+    ctx.font='bold 15px Share Tech Mono';
+    ctx.textAlign='center';
+    ctx.fillText(`COMBO x${combatCombo}`,W/2,34);
+    ctx.restore();
+  }
+  ctx.restore();
   // 미니맵 — 맵 레이어는 캐시, 동적 요소만 매 프레임
   if(!minimapCache||minimapDirty){
     minimapCache=document.createElement('canvas');
@@ -5824,13 +5893,14 @@ function updateProjectiles(){
       if(d<(e.size||12)+6){
         p.hit.add(e);
         hitAny=true;
-        const actualDmg=Math.max(1,p.dmg+Math.floor(Math.random()*8-4));
+        let actualDmg=Math.max(1,p.dmg+Math.floor(Math.random()*8-4));
+        const critical=Math.random()<0.10;
+        if(critical) actualDmg=Math.floor(actualDmg*1.65);
         floorStats.dmgDealt=(floorStats.dmgDealt||0)+actualDmg;
+        combatImpact(e,actualDmg,p.angle,critical);
         // 캐릭터별 명중 색상
         const hitColor=p.type.startsWith('min')?'#ef9f27':p.type.startsWith('hana')?'#993556':'#5dcaa5';
         const sparkColor=p.type.startsWith('min')?'#BA7517':p.type.startsWith('hana')?'#993556':'#1D9E75';
-        addFloat(e.x,e.y,`-${actualDmg}`,p.type.startsWith('hana')?'#5dcaa5':'#ff7070');
-        sparks(e.x,e.y,sparkColor,6);
         spawnSkillFX(p.type.startsWith('min')?'min_hit':p.type.startsWith('hana')?'hana_hit':'proj_hit',e.x,e.y,0,hitColor);
         const isBossEnemy=e.boss||false;
         if(isMultiGame&&isBossEnemy&&!isBossHost()){
@@ -6256,6 +6326,22 @@ function drawSkillFX(){
           const a=i/12*Math.PI*2;const r=50*t;
           ctx.fillStyle=fx.color;ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,2*(1-t),0,Math.PI*2);ctx.fill();
         }
+        break;
+      }
+      case 'crit_hit': {
+        // 치명타 — 빠르게 확장되는 금빛 충격파 + 별 파편
+        const r=12+55*t;
+        ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(255,224,102,${1-t})`;ctx.lineWidth=4*(1-t);ctx.stroke();
+        for(let i=0;i<8;i++){
+          const a=i*Math.PI/4+fx.angle;
+          const rr=10+50*t;
+          ctx.beginPath();ctx.moveTo(Math.cos(a)*8,Math.sin(a)*8);
+          ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);
+          ctx.strokeStyle=`rgba(255,245,170,${1-t})`;ctx.lineWidth=2;ctx.stroke();
+        }
+        ctx.font=`bold ${12+4*(1-t)}px Share Tech Mono`;ctx.fillStyle=`rgba(255,224,102,${1-t})`;
+        ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('CRITICAL!',0,-28*t);
         break;
       }
       case 'boss_hit': {
