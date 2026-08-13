@@ -73,8 +73,8 @@ const apiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 
 // ── 헬스체크 (Railway 생존 확인용) ──
-app.get('/health', (req, res) => res.json({ ok: true, version: '3.0' }));
-app.get('/api', (req, res) => res.json({ ok: true, msg: 'APT Survival API v3.0' }));
+app.get('/health', (req, res) => res.json({ ok: true, version: '3.1' }));
+app.get('/api', (req, res) => res.json({ ok: true, msg: 'APT Survival API v3.1' }));
 
 /* ══════════════════════════════════════
    PostgreSQL 연결
@@ -195,6 +195,41 @@ async function initDB() {
       is_anon     BOOLEAN DEFAULT FALSE,
       content     VARCHAR(500) NOT NULL,
       created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  // ── 경매장 ──
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS auctions (
+      id              SERIAL PRIMARY KEY,
+      seller_user_id  INT REFERENCES users(id) ON DELETE CASCADE,
+      seller_nick     VARCHAR(20) NOT NULL,
+      seller_char_idx SMALLINT DEFAULT 0,
+      item_id         VARCHAR(64) NOT NULL,
+      item_name       VARCHAR(50) NOT NULL,
+      item_icon       VARCHAR(10),
+      item_grade      VARCHAR(4),
+      enh_level       INT DEFAULT 0,
+      price           INT NOT NULL,
+      status          VARCHAR(16) DEFAULT 'active', -- active | sold | cancelled | expired
+      buyer_user_id   INT REFERENCES users(id) ON DELETE SET NULL,
+      buyer_nick      VARCHAR(20),
+      buyer_char_idx  SMALLINT,
+      created_at      TIMESTAMPTZ DEFAULT NOW(),
+      sold_at         TIMESTAMPTZ,
+      expires_at      TIMESTAMPTZ DEFAULT NOW() + INTERVAL '72 hours'
+    );
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_auctions_status ON auctions(status);`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_auctions_seller ON auctions(seller_user_id);`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_auctions_buyer  ON auctions(buyer_user_id);`);
+
+  // ── 공용 인벤토리 (계정당 1개, 최대 40슬롯) ──
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS shared_inventory (
+      user_id     INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      items       JSONB DEFAULT '[]',
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
     );
   `);
 
@@ -390,6 +425,227 @@ app.post('/api/save', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[SAVE ERROR]', e.message);
+    res.json({ ok: false, msg: '저장 실패' });
+  }
+});
+
+/* ═══ 경매장 API ═══ */
+
+// 목록 조회 (페이지네이션 + 등급/검색 필터)
+app.get('/api/auction', async (req, res) => {
+  const sess = await verifyToken(req.headers['authorization']);
+  if (!sess) return res.json({ ok: false, msg: '인증 실패' });
+  try {
+    // 만료된 등록 지연 정리 (조회 시점에 lazy expire)
+    await db.query(`UPDATE auctions SET status='expired' WHERE status='active' AND expires_at < NOW()`);
+
+    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 20;
+    const offset = (page - 1) * limit;
+    const grade = (req.query.grade || '').trim();
+    const q     = (req.query.q || '').trim();
+
+    const where = ["status='active'"];
+    const params = [];
+    if (grade) { params.push(grade); where.push(`item_grade=$${params.length}`); }
+    if (q)     { params.push('%'+q+'%'); where.push(`item_name ILIKE $${params.length}`); }
+    const whereSql = where.join(' AND ');
+
+    const totalRes = await db.query(`SELECT COUNT(*)::int AS c FROM auctions WHERE ${whereSql}`, params);
+    const listParams = [...params, limit, offset];
+    const rows = await db.query(
+      `SELECT id, item_id, item_name, item_icon, item_grade, enh_level, price,
+              seller_nick, created_at, expires_at
+       FROM auctions WHERE ${whereSql}
+       ORDER BY created_at DESC LIMIT $${listParams.length-1} OFFSET $${listParams.length}`,
+      listParams
+    );
+    res.json({ ok: true, items: rows.rows, total: totalRes.rows[0].c, limit });
+  } catch (e) {
+    console.error('[AUCTION LIST ERROR]', e.message);
+    res.json({ ok: false, msg: '서버 오류' });
+  }
+});
+
+// 아이템 등록
+app.post('/api/auction', async (req, res) => {
+  const sess = await verifyToken(req.headers['authorization']);
+  if (!sess) return res.json({ ok: false, msg: '인증 실패' });
+  try {
+    const { itemId, itemName, itemIcon, itemGrade, enhLevel, price } = req.body;
+    if (!itemId || !itemName || !price)
+      return res.json({ ok: false, msg: '잘못된 요청입니다' });
+    const p = parseInt(price);
+    if (!Number.isFinite(p) || p <= 0 || p > 99999999)
+      return res.json({ ok: false, msg: '가격은 1~99,999,999G 사이여야 합니다' });
+
+    const activeCount = await db.getOne(
+      `SELECT COUNT(*)::int AS c FROM auctions WHERE seller_user_id=$1 AND status='active'`,
+      [sess.user_id]
+    );
+    if (activeCount.c >= 10)
+      return res.json({ ok: false, msg: '최대 10개까지 동시 등록할 수 있습니다' });
+
+    const r = await db.query(
+      `INSERT INTO auctions(seller_user_id, seller_nick, item_id, item_name, item_icon, item_grade, enh_level, price)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [sess.user_id, sess.nick, String(itemId).slice(0,64), String(itemName).slice(0,50),
+       String(itemIcon||'').slice(0,10), String(itemGrade||'C').slice(0,4), parseInt(enhLevel)||0, p]
+    );
+    console.log(`[AUCTION LIST] ${sess.nick}: ${itemName} ${p}G`);
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (e) {
+    console.error('[AUCTION REGISTER ERROR]', e.message);
+    res.json({ ok: false, msg: '서버 오류' });
+  }
+});
+
+// 내 거래 (등록 목록 + 구매 내역)
+app.get('/api/auction/mine', async (req, res) => {
+  const sess = await verifyToken(req.headers['authorization']);
+  if (!sess) return res.json({ ok: false, msg: '인증 실패' });
+  try {
+    const listed = await db.query(
+      `SELECT * FROM auctions WHERE seller_user_id=$1 ORDER BY created_at DESC LIMIT 50`,
+      [sess.user_id]
+    );
+    const bought = await db.query(
+      `SELECT * FROM auctions WHERE buyer_user_id=$1 AND status='sold' ORDER BY sold_at DESC LIMIT 50`,
+      [sess.user_id]
+    );
+    res.json({ ok: true, listed: listed.rows, bought: bought.rows });
+  } catch (e) {
+    console.error('[AUCTION MINE ERROR]', e.message);
+    res.json({ ok: false, msg: '서버 오류' });
+  }
+});
+
+// 구매
+app.post('/api/auction/:id/buy', async (req, res) => {
+  const sess = await verifyToken(req.headers['authorization']);
+  if (!sess) return res.json({ ok: false, msg: '인증 실패' });
+  const id = parseInt(req.params.id);
+  if (!id) return res.json({ ok: false, msg: '잘못된 요청' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const aucRes = await client.query(`SELECT * FROM auctions WHERE id=$1 FOR UPDATE`, [id]);
+    const row = aucRes.rows[0];
+    if (!row || row.status !== 'active') {
+      await client.query('ROLLBACK');
+      return res.json({ ok: false, msg: '이미 판매되었거나 존재하지 않는 아이템입니다' });
+    }
+    if (row.seller_user_id === sess.user_id) {
+      await client.query('ROLLBACK');
+      return res.json({ ok: false, msg: '자신이 등록한 아이템은 구매할 수 없습니다' });
+    }
+    if (new Date(row.expires_at) < new Date()) {
+      await client.query('ROLLBACK');
+      await db.query(`UPDATE auctions SET status='expired' WHERE id=$1`, [id]);
+      return res.json({ ok: false, msg: '만료된 아이템입니다' });
+    }
+
+    // 구매자 캐릭터 슬롯 중 지불 가능한 슬롯 탐색 (char_idx 오름차순 우선)
+    const savesRes = await client.query(
+      `SELECT char_idx, gold FROM game_saves WHERE user_id=$1 ORDER BY char_idx ASC FOR UPDATE`,
+      [sess.user_id]
+    );
+    const payer = savesRes.rows.find(s => s.gold >= row.price);
+    if (!payer) {
+      await client.query('ROLLBACK');
+      return res.json({ ok: false, msg: '골드가 부족합니다 (보유 캐릭터 중 지불 가능한 골드 없음)' });
+    }
+
+    await client.query(
+      `UPDATE game_saves SET gold=gold-$1 WHERE user_id=$2 AND char_idx=$3`,
+      [row.price, sess.user_id, payer.char_idx]
+    );
+
+    // 판매자 정산 — 수수료 5% 차감, 등록 캐릭터 슬롯에 입금
+    const fee = Math.floor(row.price * 0.05);
+    const netGain = row.price - fee;
+    await client.query(
+      `UPDATE game_saves SET gold=gold+$1 WHERE user_id=$2 AND char_idx=$3`,
+      [netGain, row.seller_user_id, row.seller_char_idx ?? 0]
+    );
+
+    await client.query(
+      `UPDATE auctions SET status='sold', buyer_user_id=$1, buyer_nick=$2, buyer_char_idx=$3, sold_at=NOW() WHERE id=$4`,
+      [sess.user_id, sess.nick, payer.char_idx, id]
+    );
+
+    await client.query('COMMIT');
+    console.log(`[AUCTION BUY] ${sess.nick} ← ${row.item_name} (${row.price}G, char:${payer.char_idx})`);
+    res.json({
+      ok: true,
+      paid: row.price,
+      charIdx: payer.char_idx,
+      item: { itemId: row.item_id, itemName: row.item_name, itemIcon: row.item_icon, enhLevel: row.enh_level },
+    });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('[AUCTION BUY ERROR]', e.message);
+    res.json({ ok: false, msg: '서버 오류' });
+  } finally {
+    client.release();
+  }
+});
+
+// 등록 취소
+app.delete('/api/auction/:id', async (req, res) => {
+  const sess = await verifyToken(req.headers['authorization']);
+  if (!sess) return res.json({ ok: false, msg: '인증 실패' });
+  const id = parseInt(req.params.id);
+  if (!id) return res.json({ ok: false, msg: '잘못된 요청' });
+  try {
+    const row = await db.getOne(`SELECT * FROM auctions WHERE id=$1`, [id]);
+    if (!row) return res.json({ ok: false, msg: '존재하지 않는 등록입니다' });
+    if (row.seller_user_id !== sess.user_id) return res.json({ ok: false, msg: '본인이 등록한 아이템만 취소할 수 있습니다' });
+    if (row.status !== 'active') return res.json({ ok: false, msg: '이미 처리된 거래입니다' });
+
+    await db.query(`UPDATE auctions SET status='cancelled' WHERE id=$1`, [id]);
+    console.log(`[AUCTION CANCEL] ${sess.nick}: ${row.item_name}`);
+    res.json({
+      ok: true,
+      item: { itemId: row.item_id, itemName: row.item_name, itemIcon: row.item_icon, enhLevel: row.enh_level },
+    });
+  } catch (e) {
+    console.error('[AUCTION CANCEL ERROR]', e.message);
+    res.json({ ok: false, msg: '서버 오류' });
+  }
+});
+
+/* ═══ 공용 인벤토리 API ═══ */
+
+app.get('/api/shared-inv', async (req, res) => {
+  const sess = await verifyToken(req.headers['authorization']);
+  if (!sess) return res.json({ ok: false, msg: '인증 실패' });
+  try {
+    const row = await db.getOne(`SELECT items FROM shared_inventory WHERE user_id=$1`, [sess.user_id]);
+    res.json({ ok: true, sharedInv: row?.items || [] });
+  } catch (e) {
+    console.error('[SHARED-INV GET ERROR]', e.message);
+    res.json({ ok: false, sharedInv: [] });
+  }
+});
+
+app.post('/api/shared-inv', async (req, res) => {
+  const sess = await verifyToken(req.headers['authorization']);
+  if (!sess) return res.json({ ok: false, msg: '인증 실패' });
+  try {
+    let { sharedInv } = req.body;
+    if (!Array.isArray(sharedInv)) sharedInv = [];
+    if (sharedInv.length > 40) sharedInv = sharedInv.slice(0, 40);
+    await db.query(
+      `INSERT INTO shared_inventory(user_id, items, updated_at) VALUES($1,$2,NOW())
+       ON CONFLICT (user_id) DO UPDATE SET items=$2, updated_at=NOW()`,
+      [sess.user_id, JSON.stringify(sharedInv)]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[SHARED-INV SAVE ERROR]', e.message);
     res.json({ ok: false, msg: '저장 실패' });
   }
 });
@@ -1036,7 +1292,7 @@ wss.on('connection', (ws, req) => {
   ws.on('message', raw => handleMessage(ws, raw.toString()).catch(console.error));
   ws.on('close',   () => removePlayer(ws));
   ws.on('error',   e  => console.error('[WS]', e.message));
-  ws.send(JSON.stringify({ type:'hello', msg:'APT Survival Server v3.0' }));
+  ws.send(JSON.stringify({ type:'hello', msg:'APT Survival Server v3.1' }));
 });
 
 /* ══════════════════════════════════════
@@ -1044,7 +1300,7 @@ wss.on('connection', (ws, req) => {
 ══════════════════════════════════════ */
 function genCode() { return crypto.randomBytes(3).toString('hex').toUpperCase(); }
 
-// 비활성 방 + 만료 세션 정리
+// 비활성 방 + 만료 세션 + 만료 경매 정리
 setInterval(async () => {
   const now = Date.now();
   rooms.forEach((room, code) => {
@@ -1053,6 +1309,9 @@ setInterval(async () => {
   });
   try {
     await db.query('DELETE FROM sessions WHERE expires_at < NOW()');
+  } catch {}
+  try {
+    await db.query(`UPDATE auctions SET status='expired' WHERE status='active' AND expires_at < NOW()`);
   } catch {}
 }, 5 * 60 * 1000);
 
@@ -1074,7 +1333,7 @@ setInterval(async () => {
     });
 
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n🎮 APT Survival Server v3.0`);
+      console.log(`\n🎮 APT Survival Server v3.1`);
       console.log(`   PORT: ${PORT}`);
       console.log(`   DB: ${process.env.DATABASE_URL ? '✅ PostgreSQL' : '❌ DATABASE_URL 없음'}`);
       console.log(`   JWT: ${process.env.JWT_SECRET ? '✅ 설정됨' : '⚠ 기본값 사용 중'}\n`);
