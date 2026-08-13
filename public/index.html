@@ -3755,6 +3755,7 @@ function wallBox(wx,wy,size){
 
 let loopTick=0;
 let lastTime=0;
+let idleRegenMs=0; // 정지 시 HP 자동 회복(초당 10) 누적 타이머
 const TARGET_DT=1000/60;
 window._dt=1; // 기본값 60fps 기준
 
@@ -3797,6 +3798,19 @@ function update(){
   if(charAnimState.skillGlow>0) charAnimState.skillGlow--;
   if(charAnimState.atkFlash>0)  charAnimState.atkFlash--;
   if(charAnimState.atkPush>0)   charAnimState.atkPush--;
+
+  // ── 정지 시 HP 자동 회복: 초당 10 ──
+  if(!moved&&player.hp>0&&player.hp<player.maxHp){
+    idleRegenMs=(idleRegenMs||0)+(window._dt||1)*TARGET_DT;
+    while(idleRegenMs>=1000){
+      idleRegenMs-=1000;
+      const before=player.hp;
+      player.hp=Math.min(player.maxHp,player.hp+10);
+      if(player.hp>before) addFloat(player.x,player.y-10,`+${player.hp-before}`,'#5dcaa5');
+    }
+  } else {
+    idleRegenMs=0;
+  }
 
   const eq=getEquipStats();
 
